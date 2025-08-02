@@ -16,8 +16,8 @@ import gc
 
 sys.path.insert(0, "..")
 
-# from poisson_solver_pinn import NN
-from full_pinn import NN
+from pinn_full.model import Model as ModelFull
+from pinn_poisson.model import Model as ModelPoisson
 
 from derivatives import *
 from geometry import boundary
@@ -108,7 +108,7 @@ def solve_discrete_poisson(u, grid_spacing, A):
 
 divisor = 1
 
-def navier_stokes_step(u, p, delta_t, density, viscosity, beta, grid_spacing, geometry, A_poisson, A_laplacian = None, poisson_model = None, iter = 0, input_tensor = None, i_indices=None, j_indices=None, div_u_star_mean=None, div_u_star_std=None):
+def navier_stokes_step(u, p, delta_t, density, viscosity, beta, grid_spacing, geometry, A_poisson, A_laplacian = None, poisson_model = None, iter = 0):
     """
     Performs a step of the Navier-Stokes solver
 
@@ -163,55 +163,13 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, grid_spacing, ge
     div_u_star = density / delta_t * del_dot_v(u_star, grid_spacing)
 
     if poisson_model is not None:
-        # phi = poisson_model(torch.tensor(div_u_star, dtype=torch.float32))
-        # phi = np.zeros(np.shape(div_u_star))
-        # for i in range(len(phi)):
-        #     for j in range(len(phi[0])):
-        #         inp = torch.tensor(np.array([j, i, iter, div_u_star[i, j]]), dtype=torch.float32)
-        #         phi_ = poisson_model(inp)
-        #         phi[i, j] = phi_
 
         with torch.no_grad():
             n, m = div_u_star.shape
-            # i_indices, j_indices = np.meshgrid(np.arange(n), np.arange(m), indexing='ij')
 
-            # # inputs = np.stack([j_indices, i_indices, np.full_like(j_indices, iter), div_u_star], axis=-1)
-            # # inputs_tensor = torch.tensor(inputs.reshape(-1, 4), dtype=torch.float32)
-
-            # input_tensor[:, 0] = torch.from_numpy(j_indices.ravel()).to(input_tensor)
-            # input_tensor[:, 1] = torch.from_numpy(i_indices.ravel()).to(input_tensor)
-            # input_tensor[:, 2] = iter
-            # input_tensor[:, 3] = torch.from_numpy(div_u_star.ravel()).to(input_tensor)
-
-            # t = time.time()
             device = torch.device('cpu')
-            # print(f"Get device: {time.time() - t}")
 
-            # i_indices = torch.arange(n, device=device).unsqueeze(1).repeat(1, m)
-            # j_indices = torch.arange(m, device=device).unsqueeze(0).repeat(n, 1)
-
-            # TODO: Time step ok?
-
-            # t = time.time()
-
-            # input_tensor[:, 0] = j_indices
-            # input_tensor[:, 1] = i_indices
-            # # input_tensor[:, 2] = iter
-            # # input_tensor[:, 3] = torch.tensor(div_u_star, device=device).reshape(-1)
-            # # div_u_star = (div_u_star - div_u_star_mean) / div_u_star_std
-            # input_tensor[:, 2].copy_(torch.from_numpy(div_u_star).to(device).reshape(-1))
-            # # print(f"Set tensor: {time.time() - t}")
-
-
-            # div_u_star = (div_u_star - div_u_star_mean) / div_u_star_std
-
-            # t = time.time()
-
-            u_star_ = torch.from_numpy(u_star).float().to(device).permute(2, 0, 1).unsqueeze(0) #.reshape(-1)
-            # u_star_[..., 0] = (u_star_[..., 0] - div_u_star_mean[0]) / div_u_star_std[0]
-            # u_star_[..., 1] = (u_star_[..., 1] - div_u_star_mean[1]) / div_u_star_std[1]
-
-            # u_star_ = (u_star_ - div_u_star_mean) / div_u_star_std
+            u_star_ = torch.from_numpy(u_star).float().to(device).permute(2, 0, 1).unsqueeze(0)
 
             grid_x, grid_y = torch.meshgrid(
                     torch.linspace(0, 20 * grid_spacing, 20),
@@ -220,23 +178,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, grid_spacing, ge
                 )
             coords = torch.stack([grid_y, grid_x], dim=0).unsqueeze(0)
 
-            # grid_x, grid_y = torch.meshgrid(
-            #     torch.linspace(0, 1, 20),
-            #     torch.linspace(0, 1, 20),
-            #     indexing="ij"
-            # )
-
-            # grid_y = grid_y.clone()
-
-            # for j in range(20):
-            #     grid_y[:, j] = grid_y[:, min(j, 20 - 1 - j)]
-
-            # coords = torch.stack([grid_x, 1 - grid_y], dim=0)
-            # coords = coords.unsqueeze(0)
-
             u_star_coords = torch.cat([u_star_, coords], dim=1)
-
-            # print(u_star_.shape)
 
             global divisor
 
@@ -249,49 +191,8 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, grid_spacing, ge
                 # divisor = 1
 
             phi = phi * divisor
-
-
-            # print(phi[:, -1])
-
-            # plt.imshow(phi)
-            # plt.show()
-
-            # print(u_star_.shape)
-            # exit(0)
-
-            # phi_flat = poisson_model(torch.from_numpy(div_u_star).float().to(device).reshape(-1))
-            # print(f"Run model: {time.time() - t}")
-
-            # t = time.time()
-            # phi = -phi_flat.view(n, m).cpu().numpy()
-            # phi_flat = phi_flat.detach().numpy()
-            # phi = phi_flat.reshape(n, m)
-            # print(f"Handle phi: {time.time() - t}")
-            # print()
-            # print()
-            # print()
-
-        # phi = np.zeros(np.shape(phi))
     else:
-        # Solve the Poisson equation
-        # t = time.time()
         phi = solve_discrete_poisson(div_u_star, grid_spacing, A=A_poisson)
-
-        # fig, ax = plt.subplots(1, 2)
-
-        # ax[1].imshow(phi)
-        # ax[0].imshow(div_u_star)
-        # ax[1].set_title("Pressure")
-        # ax[0].set_title("Divergence of u*")
-        # plt.show()
-
-        # print(f"Solve poisson: {time.time() - t}")
-
-        # Apply the boundary conditions
-
-    # phi = solve_discrete_poisson(div_u_star, grid_spacing, A=A_poisson)
-    # print(f"real = {np.mean(phi)}")
-    # print()
 
     _, phi = boundary(geometry, p = phi)
 
@@ -306,7 +207,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, grid_spacing, ge
 
     return u, p, u_star, div_u_star, phi
 
-def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, density, viscosity, beta, geometry, dynamic_time_step = False, implicit_laplacian = False, return_div_u_star = False, use_poisson_model=False):
+def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, density, viscosity, beta, geometry, dynamic_time_step = False, implicit_laplacian = False, return_div_u_star = False, method_type = "numeric"):
     """
     Numerically solves the Navier-Stokes equations for a given case
 
@@ -327,18 +228,15 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
         p (list) - pressure scalar fields for all time steps of shape (max_iter, height width)
     """
 
+    if method_type not in ["numeric", "poisson_model", "full_model"]:
+            print("Incorrect method type. Use one of [numeric, poisson_model, full_model]")
+            exit(1)
+
     # Initialize velocity and pressure
     u = np.zeros((height, width, 2))
     p = np.zeros((height, width))
 
     A_poisson = compute_A_matrix(height, width).toarray()
-
-    # print(A_poisson.shape)
-
-    # u, s, v = sp.linalg.svds(A_poisson, k=899)
-    # print(len(s))
-    # print(np.max(s) / np.min(s))
-    # exit(0)
 
     if implicit_laplacian:
         A_laplacian = compute_discrete_laplacian(height, width, grid_spacing)
@@ -348,31 +246,25 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
     else:
         A_laplacian = None
 
-    if use_poisson_model:
+    if method_type in ["full_model", "poisson_model"]:
         with open(os.path.join("..", "params.json"), "r") as f:
             params = json.load(f)
 
-        # torch.set_num_threads(os.cpu_count())
-
-        div_u_star_mean = params["x_mean"]
-        div_u_star_std = params["x_std"]
-
-        # div_u_star_mean = None
-        # div_u_star_std = None
-
         with torch.no_grad():
-            # poisson_model = NN(num_hidden=params["num_hidden"],
-            #                     hidden_dim=params["hidden_dim"])
-
-            poisson_model = NN(input_channels=3,
-                    num_layers=int(params["num_layers"]),
-                    hidden_channels=int(params["hidden_dim"]),
-                    input_width=20,
-                    input_height=20)
+            if method_type == "full_model":
+                model = ModelFull(input_channels=3,
+                        num_layers=int(params["num_layers"]),
+                        hidden_channels=int(params["hidden_dim"]),
+                        input_width=width,
+                        input_height=height)
+            elif method_type == "poisson_model":
+                model = ModelPoisson(input_channels=4,
+                        num_layers=int(params["num_layers"]),
+                        hidden_channels=int(params["hidden_dim"]),
+                        input_width=width,
+                        input_height=height)
 
             device = torch.device('cpu')
-
-            # poisson_model = torch.jit.load(os.path.join("..", "nn_scripted.pt"), map_location=device)
             
             state_dict = torch.load(os.path.join("..", "nn.pt"), map_location=device)
 
@@ -386,25 +278,8 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
                 state_dict = new_state_dict
 
             poisson_model.load_state_dict(state_dict, strict=True)
-            # poisson_model = torch.compile(poisson_model)
             poisson_model.eval()
-            # dummy_input = torch.randn(height * width, 4) 
-            # _ = poisson_model(dummy_input)
-            # poisson_model = quantize_dynamic(poisson_model, {torch.nn.Linear, torch.nn.Tanh}, dtype=torch.qint8)
-            # dummy_input = torch.randn(height * width, 4) 
-            # poisson_model = torch.jit.trace(poisson_model, dummy_input)
             poisson_model = torch.jit.script(poisson_model)
-
-            # t = time.time()
-            # dummy_input = torch.randn(height * width, 4) 
-            # _ = poisson_model(dummy_input)
-            # print(f"Time: {time.time() - t}")
-            # exit(0)
-
-
-            # poisson_model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-            # torch.quantization.prepare(poisson_model, inplace=True)
-            # torch.quantization.convert(poisson_model, inplace=True)
 
 
         input_tensor = torch.empty((height*width, 3), dtype=torch.float32, device=device)
@@ -415,12 +290,10 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
         j_indices = (j_indices / (width - 1)).float()
 
     else:
-        poisson_model = None
+        model = None
         input_tensor = None
         i_indices = None
         j_indices = None
-        div_u_star_mean = None
-        div_u_star_std = None
 
     # Initialize lists for results
     results_u = []
@@ -434,7 +307,7 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
     # Iterate
     for iter in tqdm(range(max_iter), desc="     "):
 
-        if use_poisson_model:
+        if method_type == "full_pinn":
             time_step_ = torch.ones(height, width) * iter * time_step
             time_step_ = time_step_.unsqueeze(0)
 
@@ -448,7 +321,7 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
 
             x = torch.cat([time_step_, coords], dim=0).unsqueeze(0)
 
-            out = poisson_model(x).squeeze(0).detach().numpy()
+            out = model(x).squeeze(0).detach().numpy()
             u_x, u_y, p = out[0], out[1], out[2]
             u = np.stack((u_x, u_y), axis=-1)
 
@@ -457,7 +330,7 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
             phi = np.zeros((20, 20))
         else:
             # Perform one step of the solver
-            u, p, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, grid_spacing, geometry, A_poisson, A_laplacian, poisson_model, iter=iter, input_tensor=input_tensor, i_indices=i_indices, j_indices=j_indices, div_u_star_mean=div_u_star_mean, div_u_star_std=div_u_star_std)
+            u, p, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, grid_spacing, geometry, A_poisson, A_laplacian, model, iter=iter)
 
         if dynamic_time_step:
             time_step = grid_spacing * 0.1 / np.max(u)

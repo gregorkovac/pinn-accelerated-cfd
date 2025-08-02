@@ -33,8 +33,8 @@ def main(case_name = None):
         case["geometry"],
         dynamic_time_step=False,
         implicit_laplacian=True,
-        use_poisson_model=True,
-        return_div_u_star=True
+        return_div_u_star=True,
+        method_type="numeric"
     )
 
     plot_flow_animation(u, p, case["grid_spacing"], case["geometry"], frame_step=1)
