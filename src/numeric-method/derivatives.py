@@ -1,0 +1,81 @@
+import numpy as np
+import scipy.ndimage as ndi
+
+def del_v(v, grid_spacing):
+    """
+    Computes gradient of a matrix v of shape (m, n)
+    """
+    grad = np.gradient(v, grid_spacing, edge_order=2)
+    sh = np.shape(v)
+    grad_v = np.zeros((sh[0], sh[1], 2))
+    grad_v[:,:,0] = grad[1]
+    grad_v[:,:,1] = grad[0]
+    return grad_v
+
+def del_dot_v(v, grid_spacing):
+    """
+    Computes divergence of a vector field v of shape (m, n, 2)
+    """
+
+    grad_x = np.gradient(v[:,:,0], grid_spacing, edge_order=2)[1]
+    grad_y = np.gradient(v[:,:,1], grid_spacing, edge_order=2)[0]
+
+    return grad_x + grad_y
+
+def v_dot_del_v(v, grid_spacing):
+    """
+    Computes the product (v \cdot \nabla) v
+    for a vector field v of shape (m, n, 2)
+    """
+
+    grad_x = np.gradient(v[:,:,0], grid_spacing, edge_order=2)
+    grad_y = np.gradient(v[:,:,1], grid_spacing, edge_order=2)
+
+    res_x = v[:,:,0] * grad_x[1] + v[:,:,1] * grad_x[0]
+    res_y = v[:,:,0] * grad_y[1] + v[:,:,1] * grad_y[0]
+
+    res = np.zeros(np.shape(v))
+
+    res[:,:,0] = res_x
+    res[:,:,1] = res_y
+
+    return res
+
+def v_dot_del_u(v, u, grid_spacing):
+    """
+    Computes the product (v \cdot \nabla) u
+    for vector fields v and u of shape (m, n, 2)
+    """
+
+    grad_x = np.gradient(u[:,:,0], grid_spacing, edge_order=2)
+    grad_y = np.gradient(u[:,:,1], grid_spacing, edge_order=2)
+
+    res_x = v[:,:,0] * grad_x[1] + v[:,:,1] * grad_x[0]
+    res_y = v[:,:,0] * grad_y[1] + v[:,:,1] * grad_y[0]
+
+    res = np.zeros(np.shape(v))
+
+    res[:,:,0] = res_x
+    res[:,:,1] = res_y
+
+    return res
+
+def laplace(v, grid_spacing):
+    if v.ndim == 2:
+        grad = np.gradient(v, grid_spacing, edge_order=2)
+        lapl = np.gradient(grad[0], grid_spacing, edge_order=2)[0] + np.gradient(grad[1], grid_spacing, edge_order=2)[1]
+        return lapl
+
+    grad_x = np.gradient(v[:,:,0], grid_spacing, edge_order=2)
+    grad_y = np.gradient(v[:,:,1], grid_spacing, edge_order=2)
+
+    partial_1 = np.gradient(grad_x[0], grid_spacing, edge_order=2)[0]
+    partial_2 = np.gradient(grad_x[1], grid_spacing, edge_order=2)[1]
+    partial_3 = np.gradient(grad_y[0], grid_spacing, edge_order=2)[0]
+    partial_4 = np.gradient(grad_y[1], grid_spacing, edge_order=2)[1]
+
+    lapl = np.zeros_like(v)
+    lapl[:,:,0] = partial_1 + partial_2
+    lapl[:,:,1] = partial_3 + partial_4
+
+    return lapl
