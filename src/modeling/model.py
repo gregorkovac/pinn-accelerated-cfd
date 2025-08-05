@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 
-class NN(nn.Module):
+class CNN(nn.Module):
     def __init__(self, input_channels=2, num_layers=3, hidden_channels=64, input_width=20, input_height=20):
-        super(NN, self).__init__()
+        super(CNN, self).__init__()
         
         self.input_width = input_width
         self.input_height = input_height

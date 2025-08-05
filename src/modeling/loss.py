@@ -2,12 +2,8 @@ import torch
 import torch.nn as nn
 
 class PoissonLoss(nn.Module):
-    def __init__(self, width, height, x_mean, x_std):
+    def __init__(self):
         super().__init__()
-        self.width = width
-        self.height = height
-        self.x_mean = x_mean
-        self.x_std = x_std
 
     def forward(self, input, output, target, delta_x, delta_t, rho, coords, loss_weights):
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
@@ -44,12 +40,8 @@ class PoissonLoss(nn.Module):
         return loss, loss_pde, loss_weights[0] * loss_bc, loss_weights[1] * loss_mse, loss_weights[2] * loss_symmetry
 
 class NavierStokesLoss(nn.Module):
-    def __init__(self, width, height, x_mean, x_std):
+    def __init__(self):
         super().__init__()
-        self.width = width
-        self.height = height
-        self.x_mean = x_mean
-        self.x_std = x_std
 
     def forward(self, input, output, delta_x, delta_t, rho, mu, loss_weights):
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
