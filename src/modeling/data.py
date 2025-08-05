@@ -26,6 +26,7 @@ class PINNDataset(Dataset):
         self.delta_t = []
         self.rho = []
         self.mu = []
+        self.boundary = []
 
         # Iterate over cases
         for i in range(N):
@@ -56,6 +57,9 @@ class PINNDataset(Dataset):
                 t = t.unsqueeze(0)
                 self.delta_t.append(t)
 
+                # TODO: Figure out how to implement boundary
+                self.boundary.append(np.nan)
+
             # Convert to torch tensors
             self.u_star = torch.tensor(np.array(self.u_star), dtype=torch.float32)
             self.phi = torch.tensor(np.array(self.phi), dtype=torch.float32)
@@ -63,6 +67,7 @@ class PINNDataset(Dataset):
             self.delta_t = torch.tensor(np.array(self.delta_t), dtype=torch.float32)
             self.rho = torch.tensor(np.array(self.rho), dtype=torch.float32)
             self.mu = torch.tensor(np.array(self.mu), dtype=torch.float32)
+            self.boundary = torch.tensor(np.array(self.boundary), dtype=torch.float32)
 
             self.data_len += len(u_star)
 
@@ -81,9 +86,9 @@ class PoissonPINNDataset(PINNDataset):
         self.channels = 4
 
     def __getitem__(self, idx):
-        x = torch.cat([self.u_star[idx].permute(2, 0, 1), self.coords], dim=0).unsqueeze(0)
+        x = torch.cat([self.u_star[idx].permute(2, 0, 1), self.coords], dim=0)
 
-        return x, torch.tensor(self.delta_x[idx], dtype=torch.float32), torch.tensor(self.delta_t[idx], dtype=torch.float32), torch.tensor(self.rho[idx], dtype=torch.float32), torch.tensor(self.mu[idx], dtype=torch.float32), self.coords
+        return x, self.delta_x[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary
     
 class FullPINNDataset(PINNDataset):
     def __init__(self, data_path, N):
@@ -91,6 +96,6 @@ class FullPINNDataset(PINNDataset):
         self.channels = 3
 
     def __getitem__(self, idx):
-        x = torch.cat([self.delta_t[idx], self.coords], dim=0).unsqueeze(0)
+        x = torch.cat([self.delta_t[idx], self.coords], dim=0)
 
-        return x, torch.tensor(self.delta_x[idx], dtype=torch.float32), torch.tensor(self.delta_t[idx], dtype=torch.float32), torch.tensor(self.rho[idx], dtype=torch.float32), torch.tensor(self.mu[idx], dtype=torch.float32), self.coords
+        return x, self.delta_x[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary

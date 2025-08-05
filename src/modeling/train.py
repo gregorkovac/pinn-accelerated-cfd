@@ -199,11 +199,9 @@ def main():
         # Iterate through data loader
         for data in dataloader:
             # Extract data
-            x, y, delta_x, delta_t, rho, mu, boundary = data
+            x, delta_x, delta_t, rho, mu, coords, boundary = data
 
-            # FIXME: Poisson data should return only x
-            # FIXME: Data should not return y
-            # FIXME: Figure out how to incorporate dynamic boudnary
+            # FIXME: Figure out how to incorporate dynamic boundary
 
             x = x.to(device).clone().detach().requires_grad_(True)
 
@@ -216,17 +214,17 @@ def main():
                 # FIXME: Loss should not accept y
                 # FIXME: Both losses should accept the same params
                 # FIXME: Both losses should return the same number of items
-                loss = criterion(x, outputs, y, delta_x, delta_t, rho, loss_weights)
+                l = criterion(x, outputs, delta_x, delta_t, rho, mu, coords, boundary, loss_weights)
 
-                for i in range(len(loss)):
-                    batch_loss[i] = loss[i].item()
+                for i in range(len(l)):
+                    batch_loss[i] = l[i].item()
 
-                return loss[0]
+                return l[0]
             
             optimizer.step(closure)
 
             for i in range(len(running_loss)):
-                running_loss += batch_loss[i] * x.size(0)
+                running_loss[i] += batch_loss[i] * x.size(0)
 
 
         loss = np.array(running_loss) / len(dataloader.dataset)
