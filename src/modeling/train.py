@@ -26,8 +26,11 @@ def main():
     parser.add_argument("--data_path",
                         help="Path to the data folder")
     parser.add_argument("--data_samples",
-                        help="Number of data samples used for training",
+                        help="Number of data cases used for training",
                         default=1)
+    parser.add_argument("--samples_per_case",
+                        help="Number of samples per training case. -1 means all cases",
+                        default=-1)
     parser.add_argument("--model_path",
                         help="Where to save the trained model")
     parser.add_argument("--epochs",
@@ -85,6 +88,7 @@ def main():
     model_type = args.model
     data_path = args.data_path
     data_samples = int(args.data_samples)
+    samples_per_case = int(args.samples_per_case)
     model_path = args.model_path
     epochs = int(args.epochs)
     lr = float(args.lr)
@@ -136,12 +140,12 @@ def main():
 
     # Load data
     if model_type == "poisson":
-        dataset = PoissonPINNDataset(data_path, data_samples)
+        dataset = PoissonPINNDataset(data_path, data_samples, samples_per_case)
     elif model_type == "full":
-        dataset = FullPINNDataset(data_path, data_samples)
+        dataset = FullPINNDataset(data_path, data_samples, samples_per_case)
 
     # Get input data dimensions
-    input_channels, input_height, input_width = dataset.get_dims()
+    input_channels, input_height, input_width, output_channels = dataset.get_dims()
 
     # Initialize data loader
     dataloader = DataLoader(dataset,
@@ -150,6 +154,7 @@ def main():
     
     # Initialize model
     model = CNN(input_channels=input_channels,
+                output_channels=output_channels,
                 num_layers=num_layers,
                 hidden_channels=hidden_dim,
                 input_width=input_width,
@@ -211,10 +216,8 @@ def main():
                 optimizer.zero_grad()
                 outputs = model(x)
                 
-                # FIXME: Loss should not accept y
-                # FIXME: Both losses should accept the same params
-                # FIXME: Both losses should return the same number of items
                 l = criterion(x, outputs, delta_x, delta_t, rho, mu, coords, boundary, loss_weights)
+                l[0].backward()
 
                 for i in range(len(l)):
                     batch_loss[i] = l[i].item()

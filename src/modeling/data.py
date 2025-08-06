@@ -5,7 +5,7 @@ import os
 import numpy as np
 import json
 
-def load_case(data_path, idx):
+def load_case(data_path, idx, samples_per_case=-1):
     case_path = os.path.join(data_path, f"{idx}")
 
     u_star = np.load(os.path.join(case_path, "u_star.npy"))
@@ -14,10 +14,13 @@ def load_case(data_path, idx):
     with open(os.path.join(case_path, "params.json")) as f:
         params = json.load(f)
 
-    return u_star, phi, params["grid_spacing"], params["time_step"], params["density"], params["viscosity"]
+    if samples_per_case == -1:
+        samples_per_case = len(u_star)
+
+    return u_star[:samples_per_case], phi[:samples_per_case], params["grid_spacing"], params["time_step"], params["density"], params["viscosity"]
 
 class PINNDataset(Dataset):
-    def __init__(self, data_path, N):
+    def __init__(self, data_path, N, samples_per_case=-1):
         # Initialize variables
         self.data_len = 0
         self.u_star = []
@@ -30,7 +33,7 @@ class PINNDataset(Dataset):
 
         # Iterate over cases
         for i in range(N):
-            u_star, phi, grid_spacing, time_step, rho, mu = load_case(data_path, i)
+            u_star, phi, grid_spacing, time_step, rho, mu = load_case(data_path, i, samples_per_case)
 
             # Save the case shape
             if i == 0:
@@ -78,12 +81,13 @@ class PINNDataset(Dataset):
         return NotImplementedError
     
     def get_dims(self):
-        return self.channels, self.height, self.width
+        return self.input_channels, self.height, self.width, self.output_channels
     
 class PoissonPINNDataset(PINNDataset):
-    def __init__(self, data_path, N):
-        super().__init__(data_path, N)
-        self.channels = 4
+    def __init__(self, data_path, N, samples_per_case=-1):
+        super().__init__(data_path, N, samples_per_case)
+        self.input_channels = 4
+        self.output_channels = 1
 
     def __getitem__(self, idx):
         x = torch.cat([self.u_star[idx].permute(2, 0, 1), self.coords], dim=0)
@@ -91,9 +95,10 @@ class PoissonPINNDataset(PINNDataset):
         return x, self.delta_x[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary
     
 class FullPINNDataset(PINNDataset):
-    def __init__(self, data_path, N):
-        super().__init__(data_path, N)
-        self.channels = 3
+    def __init__(self, data_path, N, samples_per_case=-1):
+        super().__init__(data_path, N, samples_per_case)
+        self.input_channels = 3
+        self.output_channels = 3
 
     def __getitem__(self, idx):
         x = torch.cat([self.delta_t[idx], self.coords], dim=0)

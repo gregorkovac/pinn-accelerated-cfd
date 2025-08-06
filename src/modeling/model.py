@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class CNN(nn.Module):
-    def __init__(self, input_channels=2, num_layers=3, hidden_channels=64, input_width=20, input_height=20):
+    def __init__(self, input_channels=2, output_channels=1, num_layers=3, hidden_channels=64, input_width=20, input_height=20):
         super(CNN, self).__init__()
         
         self.input_width = input_width
@@ -22,7 +22,7 @@ class CNN(nn.Module):
         self.encoder = nn.Sequential(*encoder_layers)
 
         self.decoder = nn.Sequential(
-            nn.Conv2d(hidden_channels, 1, kernel_size=3, padding=1, padding_mode="replicate")
+            nn.Conv2d(hidden_channels, output_channels, kernel_size=3, padding=1, padding_mode="replicate")
         )
 
         self.initialize_weights()
