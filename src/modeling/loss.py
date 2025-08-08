@@ -15,7 +15,6 @@ class NavierStokesLoss(nn.Module):
         super().__init__()
 
     def forward(self, x, output, delta_x, delta_t, rho, mu, coords, boundary, loss_weights):
-
         # Reformat constants
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
         rho = rho.to(output.device).view(-1, 1, 1, 1)

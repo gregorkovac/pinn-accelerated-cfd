@@ -9,10 +9,12 @@ import numpy as np
 from datetime import datetime
 import os
 import json
+import matplotlib.pyplot as plt
 
 from data import PoissonPINNDataset, FullPINNDataset
 from model import CNN
 from loss import PoissonLoss, NavierStokesLoss
+from visualization import plot_full
 from misc import str2bool
 
 def main():
@@ -151,7 +153,7 @@ def main():
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
                             shuffle=True)
-    
+
     # Initialize model
     model = CNN(input_channels=input_channels,
                 output_channels=output_channels,
@@ -196,6 +198,11 @@ def main():
     # Define the variables for the best model
     best_loss = np.inf
     best_model_dict = None
+
+    plt.ion()
+    plt.tight_layout()
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
+    im = None
 
     # Training loop
     for epoch in range(epochs):
@@ -256,6 +263,20 @@ def main():
                        "loss2": loss[2],
                        "loss3": loss[3],
                        "loss4": loss[4]})
+            
+        with torch.no_grad():
+            x_, delta_x_, _, _, _, _, _ = dataset[0]
+
+            out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
+
+            plot_full(ax, out, delta_x_.item())
+
+            # if epoch == 0:
+            #     im = ax.imshow(out[0, 2].detach().numpy())
+            # else:
+            #     im.set_data(out[0, 2].detach().numpy())
+            plt.draw()
+            plt.pause(0.001)
             
     if use_wandb:
         wandb.finish()

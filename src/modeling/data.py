@@ -58,6 +58,7 @@ class PINNDataset(Dataset):
 
                 t = torch.ones(self.height, self.width) * j * time_step
                 t = t.unsqueeze(0)
+
                 self.delta_t.append(t)
 
                 # TODO: Figure out how to implement boundary
