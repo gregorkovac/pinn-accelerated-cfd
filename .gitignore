@@ -6,3 +6,5 @@ __pycache__
 **/.venv
 .vscode
 **/.vscode
+models/full-pinn/*
+models/poisson-pinn/*
