@@ -27,6 +27,7 @@ class PINNDataset(Dataset):
         self.phi = []
         self.delta_x = []
         self.delta_t = []
+        self.t = []
         self.rho = []
         self.mu = []
         self.boundary = []
@@ -59,7 +60,8 @@ class PINNDataset(Dataset):
                 t = torch.ones(self.height, self.width) * j * time_step
                 t = t.unsqueeze(0)
 
-                self.delta_t.append(t)
+                self.t.append(t)
+                self.delta_t.append(time_step)
 
                 # TODO: Figure out how to implement boundary
                 self.boundary.append(np.nan)
@@ -69,6 +71,7 @@ class PINNDataset(Dataset):
             self.phi = torch.tensor(np.array(self.phi), dtype=torch.float32)
             self.delta_x = torch.tensor(np.array(self.delta_x), dtype=torch.float32)
             self.delta_t = torch.tensor(np.array(self.delta_t), dtype=torch.float32)
+            self.t = torch.tensor(np.array(self.t), dtype=torch.float32)
             self.rho = torch.tensor(np.array(self.rho), dtype=torch.float32)
             self.mu = torch.tensor(np.array(self.mu), dtype=torch.float32)
             self.boundary = torch.tensor(np.array(self.boundary), dtype=torch.float32)
@@ -93,7 +96,7 @@ class PoissonPINNDataset(PINNDataset):
     def __getitem__(self, idx):
         x = torch.cat([self.u_star[idx].permute(2, 0, 1), self.coords], dim=0)
 
-        return x, self.delta_x[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary
+        return x, self.delta_x[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary
     
 class FullPINNDataset(PINNDataset):
     def __init__(self, data_path, N, samples_per_case=-1):
@@ -104,4 +107,4 @@ class FullPINNDataset(PINNDataset):
     def __getitem__(self, idx):
         x = torch.cat([self.delta_t[idx], self.coords], dim=0)
 
-        return x, self.delta_x[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary
+        return x, self.delta_x[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary

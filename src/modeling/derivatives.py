@@ -12,3 +12,12 @@ def compute_grads(x, y):
         grads.append(grad)
 
     return grads
+
+def divergence(v, u, grid_spacing):
+
+    grid_spacing = grid_spacing[0].item()
+
+    grad_x = torch.gradient(v, spacing=grid_spacing, dim=(1, 2), edge_order=2)
+    grad_y = torch.gradient(u, spacing=grid_spacing, dim=(1, 2), edge_order=2)
+
+    return v * grad_x[1] + u * grad_x[0] + v * grad_y[1] + u * grad_y[0]

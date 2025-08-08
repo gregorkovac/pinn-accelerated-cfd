@@ -1,27 +1,65 @@
 import torch
 import torch.nn as nn
 
-from derivatives import compute_grads
+from derivatives import compute_grads, divergence
 
 class PoissonLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, delta_t, rho, mu, coords, boundary, loss_weights):
-        return torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0)
+    def forward(self, x, output, delta_x, t, delta_t, rho, mu, coords, boundary, loss_weights):
+        delta_x = delta_x.to(output.device).view(-1, 1, 1)
+        rho = rho.to(output.device).view(-1, 1, 1)
+        delta_t = delta_t.to(output.device).view(-1, 1, 1)
+
+        grad_phi = torch.autograd.grad(output, x,
+                                grad_outputs=torch.zeros_like(output),
+                                create_graph=True)[0]
+
+        dphi_dx = grad_phi[:, 0, :, :]
+        dphi_dy = grad_phi[:, 1, :, :]
+
+        d2phi_dx2 = torch.autograd.grad(dphi_dx, x,
+                                         grad_outputs=torch.zeros_like(dphi_dx),
+                                         create_graph=True)[0][:, 0, :, :]
+
+        d2phi_dy2 = torch.autograd.grad(dphi_dy, x,
+                                         grad_outputs=torch.zeros_like(dphi_dy),
+                                         create_graph=True)[0][:, 1, :, :]
+
+        laplacian_phi = d2phi_dx2 + d2phi_dy2
+
+        div_u_star = divergence(x[:, 0], x[:, 1], delta_x)
+        div_u_star = div_u_star * rho / delta_t
+
+        loss_pde = torch.mean(((laplacian_phi[:, 1:-1, 1:-1] - div_u_star[:, 1:-1, 1:-1]) ** 2))
+
+        # loss_bc_inlet = torch.mean((output[:, :, 0] - output[:, :, 1]) ** 2)
+        # loss_bc_outlet = torch.mean(output[:, :, -1] ** 2)
+        # loss_bc = loss_bc_outlet + loss_bc_inlet
+
+        loss_bc_p = torch.mean((output[:, 1:-1, -1] - output[:, 1:-1, -2]) ** 2)
+
+        loss_bc = loss_bc_p
+
+        loss_symmetry = torch.mean((output - torch.flip(output, dims=[-3])) ** 2)
+
+        loss = loss_weights[0] * loss_pde + loss_weights[1] * loss_bc + loss_weights[2] * loss_symmetry
+
+        return loss, loss_pde, loss_bc, loss_symmetry, torch.tensor(0)
     
 class NavierStokesLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, delta_t, rho, mu, coords, boundary, loss_weights):
+    def forward(self, x, output, delta_x, t, delta_t, rho, mu, coords, boundary, loss_weights):
         # Reformat constants
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
         rho = rho.to(output.device).view(-1, 1, 1, 1)
         mu = mu.to(output.device).view(-1, 1, 1, 1)
         delta_t = delta_t.to(output.device).view(-1, 1, 1)
 
-        # Compute derivatives of input w.r.t. output
+        # Compute derivatives of output w.r.t. input
         grad_uy, grad_ux, grad_p = compute_grads(x, output)
 
         # Split derivatives for brevity

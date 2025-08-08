@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from data import PoissonPINNDataset, FullPINNDataset
 from model import CNN
 from loss import PoissonLoss, NavierStokesLoss
-from visualization import plot_full
+from visualization import plot_full, plot_poisson
 from misc import str2bool
 
 def main():
@@ -169,7 +169,7 @@ def main():
     model.to(device)
 
     # Initialize training criterion
-    if model == "poisson":
+    if model_type == "poisson":
         criterion = PoissonLoss()
     else:
         criterion = NavierStokesLoss()
@@ -211,7 +211,7 @@ def main():
         # Iterate through data loader
         for data in dataloader:
             # Extract data
-            x, delta_x, delta_t, rho, mu, coords, boundary = data
+            x, delta_x, t, delta_t, rho, mu, coords, boundary = data
 
             # FIXME: Figure out how to incorporate dynamic boundary
 
@@ -223,7 +223,7 @@ def main():
                 optimizer.zero_grad()
                 outputs = model(x)
                 
-                l = criterion(x, outputs, delta_x, delta_t, rho, mu, coords, boundary, loss_weights)
+                l = criterion(x, outputs, delta_x, t, delta_t, rho, mu, coords, boundary, loss_weights)
                 l[0].backward()
 
                 for i in range(len(l)):
@@ -265,11 +265,14 @@ def main():
                        "loss4": loss[4]})
             
         with torch.no_grad():
-            x_, delta_x_, _, _, _, _, _ = dataset[0]
+            x_, delta_x_, _, _, _, _, _, _ = dataset[10]
 
             out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
 
-            plot_full(ax, out, delta_x_.item())
+            if model_type == "full":
+                plot_full(ax, out, delta_x_.item())
+            else:
+                plot_poisson(ax, out)
 
             # if epoch == 0:
             #     im = ax.imshow(out[0, 2].detach().numpy())
