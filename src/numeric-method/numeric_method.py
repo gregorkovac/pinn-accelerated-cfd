@@ -16,8 +16,7 @@ import gc
 
 sys.path.insert(0, "..")
 
-from pinn_full.model import Model as ModelFull
-from pinn_poisson.model import Model as ModelPoisson
+from modeling.model import CNN
 
 from derivatives import *
 from geometry import boundary
@@ -247,18 +246,18 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
         A_laplacian = None
 
     if method_type in ["full_model", "poisson_model"]:
-        with open(os.path.join("..", "params.json"), "r") as f:
+        with open(os.path.join("../../models/full-pinn/2025-08-10_15", "params.json"), "r") as f:
             params = json.load(f)
 
         with torch.no_grad():
             if method_type == "full_model":
-                model = ModelFull(input_channels=3,
+                model = CNN(input_channels=3,
                         num_layers=int(params["num_layers"]),
                         hidden_channels=int(params["hidden_dim"]),
                         input_width=width,
                         input_height=height)
             elif method_type == "poisson_model":
-                model = ModelPoisson(input_channels=4,
+                model = CNN(input_channels=4,
                         num_layers=int(params["num_layers"]),
                         hidden_channels=int(params["hidden_dim"]),
                         input_width=width,
@@ -266,7 +265,7 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
 
             device = torch.device('cpu')
             
-            state_dict = torch.load(os.path.join("..", "nn.pt"), map_location=device)
+            state_dict = torch.load(os.path.join("../../models/full-pinn/2025-08-10_15", "model.pt"), map_location=device)
 
             # Remove "module." prefix if present
             if any(k.startswith('module.') for k in state_dict.keys()):
@@ -277,9 +276,9 @@ def solve_navier_stokes(width, height, grid_spacing, max_iter, time_step, densit
                     new_state_dict[new_key] = v
                 state_dict = new_state_dict
 
-            poisson_model.load_state_dict(state_dict, strict=True)
-            poisson_model.eval()
-            poisson_model = torch.jit.script(poisson_model)
+            model.load_state_dict(state_dict, strict=True)
+            model.eval()
+            model = torch.jit.script(model)
 
 
         input_tensor = torch.empty((height*width, 3), dtype=torch.float32, device=device)

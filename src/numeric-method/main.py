@@ -34,7 +34,7 @@ def main(case_name = None):
         dynamic_time_step=False,
         implicit_laplacian=True,
         return_div_u_star=True,
-        method_type="numeric"
+        method_type="poisson_model"
     )
 
     plot_flow_animation(u, p, case["grid_spacing"], case["geometry"], frame_step=1)
