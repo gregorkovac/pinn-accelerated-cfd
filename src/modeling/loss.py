@@ -3,6 +3,14 @@ import torch.nn as nn
 
 from derivatives import compute_grads, divergence
 
+def laplacian(v, grid_spacing):
+    grid_spacing = grid_spacing[0].item()
+    grad_y, grad_x = torch.gradient(v, spacing=grid_spacing, dim=(1, 2), edge_order=2)
+    
+    lapl = torch.gradient(grad_y, spacing=grid_spacing, dim=(1, 2), edge_order=2)[0] + torch.gradient(grad_x, spacing=grid_spacing, dim=(1, 2), edge_order=2)[1]
+    
+    return lapl
+
 class PoissonLoss(nn.Module):
     def __init__(self):
         super().__init__()
@@ -12,27 +20,52 @@ class PoissonLoss(nn.Module):
         rho = rho.to(output.device).view(-1, 1, 1)
         delta_t = delta_t.to(output.device).view(-1, 1, 1)
 
-        grad_phi = torch.autograd.grad(output, x,
-                                grad_outputs=torch.zeros_like(output),
-                                create_graph=True)[0]
+        laplacian_phi = laplacian(output, delta_x)
 
-        dphi_dx = grad_phi[:, 0, :, :]
-        dphi_dy = grad_phi[:, 1, :, :]
+        # grad_phi = torch.autograd.grad(output, x,
+        #                         grad_outputs=torch.ones_like(output),
+        #                         create_graph=True)[0]
 
-        d2phi_dx2 = torch.autograd.grad(dphi_dx, x,
-                                         grad_outputs=torch.zeros_like(dphi_dx),
-                                         create_graph=True)[0][:, 0, :, :]
+        # dphi_dx = grad_phi[:, 2, :, :]
+        # dphi_dy = grad_phi[:, 3, :, :]
 
-        d2phi_dy2 = torch.autograd.grad(dphi_dy, x,
-                                         grad_outputs=torch.zeros_like(dphi_dy),
-                                         create_graph=True)[0][:, 1, :, :]
+        # d2phi_dx2 = torch.autograd.grad(dphi_dx, x,
+        #                                  grad_outputs=torch.ones_like(dphi_dx),
+        #                                  create_graph=True)[0][:, 2, :, :]
 
-        laplacian_phi = d2phi_dx2 + d2phi_dy2
+        # d2phi_dy2 = torch.autograd.grad(dphi_dy, x,
+        #                                  grad_outputs=torch.ones_like(dphi_dy),
+        #                                  create_graph=True)[0][:, 3, :, :]
+
+        # laplacian_phi = d2phi_dx2 + d2phi_dy2
+
+        # print(laplacian_phi.mean())
+
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # fig, ax = plt.subplots(nrows=2, ncols=2)
+        # ax = ax.flatten()
+        # ax[0].imshow(output[10].detach().numpy())
+        # ax[0].set_title("Phi")
+        # ax[1].imshow(dphi_dx[10].detach().numpy())
+        # ax[1].set_title("dPhi/dx")
+        # ax[2].imshow(dphi_dy[10].detach().numpy())
+        # ax[2].set_title("dPhi/dy")
+        # ax[3].imshow(laplacian_phi[10].detach().numpy())
+        # ax[3].set_title("Laplacian")
+        # plt.show()
 
         div_u_star = divergence(x[:, 0], x[:, 1], delta_x)
         div_u_star = div_u_star * rho / delta_t
 
-        loss_pde = torch.mean(((laplacian_phi[:, 1:-1, 1:-1] - div_u_star[:, 1:-1, 1:-1]) ** 2))
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # plt.imshow(div_u_star[10].detach().numpy())
+        # plt.show()
+
+        loss_pde = torch.mean(((laplacian_phi - div_u_star) ** 2))
+        # loss_pde = torch.mean(laplacian_phi ** 2)
+        # loss_pde = torch.mean(grad_phi ** 2)
 
         # loss_bc_inlet = torch.mean((output[:, :, 0] - output[:, :, 1]) ** 2)
         # loss_bc_outlet = torch.mean(output[:, :, -1] ** 2)
@@ -42,12 +75,10 @@ class PoissonLoss(nn.Module):
 
         loss_bc = loss_bc_p
 
-        loss_symmetry = torch.mean((output - torch.flip(output, dims=[-3])) ** 2)
+        loss = loss_weights[0] * loss_pde + loss_weights[1] * loss_bc
 
-        loss = loss_weights[0] * loss_pde + loss_weights[1] * loss_bc + loss_weights[2] * loss_symmetry
+        return loss, loss_pde, loss_bc, torch.tensor(0), torch.tensor(0)
 
-        return loss, loss_pde, loss_bc, loss_symmetry, torch.tensor(0)
-    
 class NavierStokesLoss(nn.Module):
     def __init__(self):
         super().__init__()

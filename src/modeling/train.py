@@ -215,7 +215,7 @@ def main():
 
             # FIXME: Figure out how to incorporate dynamic boundary
 
-            x = x.to(device).clone().detach().requires_grad_(True)
+            x = x.to(device).clone().requires_grad_(True)
 
             batch_loss = [0, 0, 0, 0, 0]
 
