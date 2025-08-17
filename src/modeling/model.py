@@ -28,10 +28,15 @@ class CNN(nn.Module):
         self.initialize_weights()
 
     def forward(self, x):
+
+        # mask = x[:, 4]
+
         x = self.encoder(x)
         x = self.decoder(x)
 
         x = x.squeeze(1)
+
+        # x = x * abs(1 - mask)
 
         return x
     
@@ -41,20 +46,3 @@ class CNN(nn.Module):
                 nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('tanh'))
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-
-class MLP(nn.Module):
-    def __init__(self, input_dim=2, output_dim=1, hidden_dim=64, num_layers=4):
-        super().__init__()
-
-        layers = [nn.Linear(input_dim, hidden_dim), 
-                  nn.Tanh()]
-        for _ in range(num_layers - 1):
-            layers.extend([nn.Linear(hidden_dim, hidden_dim), nn.Tanh()])
-
-        layers.append(nn.Linear(hidden_dim, output_dim))
-
-        self.layers = nn.Sequential(*layers)
-
-    def forward(self, x):
-        x = self.layers(x)
-        return x

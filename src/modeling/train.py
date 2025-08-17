@@ -191,8 +191,8 @@ def main():
                            gamma=scheduler_gamma)
 
     # Create the folder for saving the model
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H")
-    model_path = os.path.join(model_path, timestamp)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H_%M")
+    model_path = os.path.join(model_path, model_type, timestamp)
     os.makedirs(model_path, exist_ok=True)
 
     # Define the variables for the best model
@@ -201,7 +201,8 @@ def main():
 
     plt.ion()
     plt.tight_layout()
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(14, 7))
+    ax = ax.flatten()
     im = None
 
     # Training loop
@@ -211,9 +212,7 @@ def main():
         # Iterate through data loader
         for data in dataloader:
             # Extract data
-            x, delta_x, t, delta_t, rho, mu, coords, boundary = data
-
-            # FIXME: Figure out how to incorporate dynamic boundary
+            x, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary = data
 
             x = x.to(device).clone().requires_grad_(True)
 
@@ -223,7 +222,7 @@ def main():
                 optimizer.zero_grad()
                 outputs = model(x)
                 
-                l = criterion(x, outputs, delta_x, t, delta_t, rho, mu, coords, boundary, loss_weights)
+                l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary, loss_weights)
                 l[0].backward()
 
                 for i in range(len(l)):
@@ -265,14 +264,21 @@ def main():
                        "loss4": loss[4]})
             
         with torch.no_grad():
-            x_, delta_x_, _, _, _, _, _, _ = dataset[10]
+            x_, delta_x_, delta_y_, _, _, _, _, _, boundary = dataset[10]
+            phi = dataset.get_phi(10)
 
             out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
+
+            # if epoch == 0:
+                # plt.ioff()
+                # plt.imshow(x_[4])
+                # plt.show()
+                # plt.ion()
 
             if model_type == "full":
                 plot_full(ax, out, delta_x_.item())
             else:
-                plot_poisson(ax, out)
+                plot_poisson(ax, out, phi, boundary)
 
             # if epoch == 0:
             #     im = ax.imshow(out[0, 2].detach().numpy())

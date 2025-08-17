@@ -27,7 +27,11 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20))):
     ax.imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing], alpha=0.5*boundary_image)
     
-def plot_poisson(ax, x):
-    ax.clear()
+def plot_poisson(ax, x, y, boundary):
+    ax[0].clear()
+    ax[1].clear()
+    ax[2].clear()
 
-    ax.imshow(x, cmap=cmap)
+    ax[0].imshow(x, cmap=cmap)
+    ax[1].imshow(y, cmap=cmap)
+    ax[2].imshow(boundary, cmap=cmap)

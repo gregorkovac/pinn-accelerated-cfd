@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from derivatives import compute_grads, divergence
 
@@ -15,10 +16,12 @@ class PoissonLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, t, delta_t, rho, mu, coords, boundary, loss_weights):
+    def forward(self, x, output, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary, loss_weights):
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
+        delta_y = delta_y.to(output.device).view(-1, 1, 1)
         rho = rho.to(output.device).view(-1, 1, 1)
         delta_t = delta_t.to(output.device).view(-1, 1, 1)
+        boundary = boundary.to(output.device)
 
         laplacian_phi = laplacian(output, delta_x)
 
@@ -63,7 +66,9 @@ class PoissonLoss(nn.Module):
         # plt.imshow(div_u_star[10].detach().numpy())
         # plt.show()
 
-        loss_pde = torch.mean(((laplacian_phi - div_u_star) ** 2))
+        # loss_pde_raw = (laplacian_phi - div_u_star) ** 2
+        # loss_pde = torch.mean(loss_pde_raw) / (div_u_star.mean().detach() + 1e-8)
+        loss_pde = torch.mean(((laplacian_phi - div_u_star) / (div_u_star.abs().mean().detach() + 1e-8)) ** 2)
         # loss_pde = torch.mean(laplacian_phi ** 2)
         # loss_pde = torch.mean(grad_phi ** 2)
 
@@ -71,9 +76,52 @@ class PoissonLoss(nn.Module):
         # loss_bc_outlet = torch.mean(output[:, :, -1] ** 2)
         # loss_bc = loss_bc_outlet + loss_bc_inlet
 
-        loss_bc_p = torch.mean((output[:, 1:-1, -1] - output[:, 1:-1, -2]) ** 2)
+        # loss_bc_p = torch.mean((output[:, :, -1] - output[:, :, -2]) ** 2)
+        loss_bc_p = torch.mean(output[:, :, -1] ** 2)
+        loss_bc_p += torch.mean((output[:, 0, :] - output[:, 1, :]) ** 2)
+        loss_bc_p += torch.mean((output[:, -1, :] - output[:, -2, :]) ** 2)
+        loss_bc_p += torch.mean((output[:, :, 0] - output[:, :, 1]) ** 2)
 
-        loss_bc = loss_bc_p
+        # cylinder_x, cylinder_y, cylinder_r = boundary[:, 0], boundary[:, 1], boundary[:, 2]
+        # grid_y = coords[:, 0, :, :]  # shape: (B, H, W)
+        # grid_x = coords[:, 1, :, :]  # shape: (B, H, W)
+
+        # # Extract centers and radii: (B, 1, 1) for broadcasting
+        # cx = boundary[:, 0].view(-1, 1, 1)
+        # cy = boundary[:, 1].view(-1, 1, 1)
+        # r  = boundary[:, 2].view(-1, 1, 1)
+
+        # Mask of cylinder interior: (B, H, W)
+        # mask = ((grid_x / delta_x - cx) ** 2 + (grid_y / delta_y - cy) ** 2) <= (r ** 2)
+        mask = x[:, 4]
+
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # plt.imshow(mask[10].detach().numpy())
+        # plt.show()
+
+        # Velocity inside cylinder
+        # u_inside = x[:, 0] * mask
+        # v_inside = x[:, 1] * mask
+
+        # loss_bc_cylinder = torch.mean(u_inside ** 2) + torch.mean(v_inside ** 2)
+        # loss_bc_p += torch.mean((output * mask) ** 2)
+
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # plt.imshow(output[10].detach().numpy())
+        # plt.colorbar()
+        # plt.show()
+        # plt.imshow(mask[10].detach().numpy())
+        # plt.colorbar()
+        # plt.show()
+        # plt.imshow(((output * mask) ** 2)[10].detach().numpy())
+        # plt.colorbar()
+        # plt.show()
+
+        # loss_bc_cylinder = torch.mean((output * mask) ** 2)
+
+        loss_bc = loss_bc_p #+ loss_bc_cylinder
 
         loss = loss_weights[0] * loss_pde + loss_weights[1] * loss_bc
 
@@ -83,7 +131,7 @@ class NavierStokesLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, t, delta_t, rho, mu, coords, boundary, loss_weights):
+    def forward(self, x, output, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary, loss_weights):
         # Reformat constants
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
         rho = rho.to(output.device).view(-1, 1, 1, 1)
