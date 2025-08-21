@@ -32,10 +32,10 @@ def main(case_name = None):
         case["viscosity"],
         case["beta"],
         case["geometry"],
-        dynamic_time_step=True,
+        dynamic_time_step=False,
         implicit_laplacian=True,
         return_div_u_star=True,
-        method_type="poisson_model"
+        method_type="poisson_model" # numeric, poisson_model, full_model
     )
 
     plot_flow_animation(u, p, case["dx" \

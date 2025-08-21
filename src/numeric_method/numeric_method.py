@@ -187,6 +187,9 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                 )
             coords = torch.stack([grid_y, grid_x], dim=0).unsqueeze(0)
 
+            cylinder_r = None
+            cylinder_y = None
+            cylinder_r = None
             for g in geometry:
                 if g["type"] == "cylinder":
                     cylinder_x = g["pos"]["x"]
@@ -199,7 +202,16 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
             # print(cylinder_x, cylinder_y, cylinder_r)
 
-            mask = ((grid_x / dx - cylinder_x) ** 2 + (grid_y / dy - cylinder_y) ** 2) <= (cylinder_r ** 2)
+            # if cylinder_r == None:
+            #     mask = grid_x * 0
+            # else:
+            #     mask = ((grid_x / dx - cylinder_x) ** 2 + (grid_y / dy - cylinder_y) ** 2) <= (cylinder_r ** 2)
+
+            mask = grid_x * 0
+
+            mask[0, :] = 1
+            mask[-1, :] = 1
+            mask[:8, 8:10] = 1
 
             # mask = torch.flip(mask, dims=[0])
             # plt.imshow(mask)
@@ -207,8 +219,11 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
             mask = mask.unsqueeze(0).unsqueeze(0)
 
-            # plt.imshow(mask[0, 0])
+            # print(u_star_.shape)
+
+            # plt.imshow(u_star_[0, 0])
             # plt.show()
+            # exit(0)
 
             u_star_coords = torch.cat([u_star_, coords, mask], dim=1)
 
@@ -216,13 +231,25 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
             phi = poisson_model(u_star_coords).view(n, m).cpu().numpy()
 
+            # plt.imshow(phi)
+            # plt.show()
+
             # if iter == 0:
             #     phi_nm = solve_discrete_poisson(div_u_star, dx, dy, A=A_poisson)
             #     divisor = np.mean(phi_nm / (phi + 1e-15))
             #     print(divisor)
-                # divisor = 1
+            #     # divisor = 1
 
             # phi = phi * divisor
+
+            # if iter == 0:
+            #     phi_nm = solve_discrete_poisson(div_u_star, dx, dy, A=A_poisson)
+
+            #     divisor = np.mean(phi_nm[:, -1] - phi[:, -1])
+            #     print(divisor)
+
+            # phi = phi + divisor
+
     else:
         phi = solve_discrete_poisson(div_u_star, dx, dy, A=A_poisson)
 
@@ -279,7 +306,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         A_laplacian = None
 
     if method_type in ["full_model", "poisson_model"]:
-        with open(os.path.join("../../models/poisson/2025-08-17_18_48", "params.json"), "r") as f:
+        with open(os.path.join("../../models/poisson/2025-08-21_22_14", "params.json"), "r") as f:
             params = json.load(f)
 
         with torch.no_grad():
@@ -298,7 +325,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
 
             device = torch.device('cpu')
             
-            state_dict = torch.load(os.path.join("../../models/poisson/2025-08-17_18_48", "model.pt"), map_location=device)
+            state_dict = torch.load(os.path.join("../../models/poisson/2025-08-21_22_14", "model.pt"), map_location=device)
 
             # Remove "module." prefix if present
             if any(k.startswith('module.') for k in state_dict.keys()):
