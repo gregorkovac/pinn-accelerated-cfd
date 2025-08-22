@@ -94,12 +94,19 @@ class PINNDataset(Dataset):
 
                 # mask[:-1, 0] = 1
                 # mask[:-1, -1] = 1
+
+                # Dam mask
+                # mask[0, :] = 1
+                # mask[-1, :] = 1
+                # mask[:8, 8:10] = 1
+                # mask[:, 0] = 1
+                # mask[:, -1] = 1
+
+                # Cavity mask
                 mask[0, :] = 1
                 mask[-1, :] = 1
-                mask[:8, 8:10] = 1
-                mask[:, 0] = 1
-                mask[:, -1] = 1
-
+                mask[:-1, 0] = 1
+                mask[:-1, -1] = 1
 
                 # import matplotlib.pyplot as plt
                 # plt.imshow(mask)

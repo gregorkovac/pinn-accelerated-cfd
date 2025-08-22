@@ -187,24 +187,41 @@ class PoissonLoss(nn.Module):
         # Outflow
         # loss_bc_p = torch.mean(output[:, :, -1] ** 2)
 
-        # # Lower wall
-        # loss_bc_p += torch.mean((output[:, 0, :8] - output[:, 1, :8]) ** 2) + torch.mean((output[:, 0, 10:] - output[:, 1, 10:]) ** 2)
-        loss_bc_p = torch.mean(((output[:, 0, :] - output[:, 1, :]) / (2 * delta_y)) ** 2)
+        # # # Lower wall
+        # # loss_bc_p += torch.mean((output[:, 0, :8] - output[:, 1, :8]) ** 2) + torch.mean((output[:, 0, 10:] - output[:, 1, 10:]) ** 2)
+        # loss_bc_p = torch.mean(((output[:, 0, :] - output[:, 1, :]) / (2 * delta_y)) ** 2)
 
-        # # Upper wall
-        loss_bc_p += torch.mean(((output[:, -1, :] - output[:, -2, :]) / (2 * delta_y)) ** 2)
+        # # # Upper wall
+        # loss_bc_p += torch.mean(((output[:, -1, :] - output[:, -2, :]) / (2 * delta_y)) ** 2)
 
-        # # Inflow
-        loss_bc_p += torch.mean(((output[:, :, 0] - output[:, :, 1]) / (2 * delta_x)) ** 2)
+        # # # Inflow
+        # loss_bc_p += torch.mean(((output[:, :, 0] - output[:, :, 1]) / (2 * delta_x)) ** 2)
 
-        # # # Dam - left side
-        loss_bc_p += torch.mean(((output[:, :8, 8] - output[:, :8, 7]) / (2 * delta_x)) ** 2)
+        # # # # Dam - left side
+        # loss_bc_p += torch.mean(((output[:, :8, 8] - output[:, :8, 7]) / (2 * delta_x)) ** 2)
 
-        # # # Dam - right side
-        loss_bc_p += torch.mean(((output[:, :8, 9] - output[:, :8, 10]) / (2 * delta_x)) ** 2)
+        # # # # Dam - right side
+        # loss_bc_p += torch.mean(((output[:, :8, 9] - output[:, :8, 10]) / (2 * delta_x)) ** 2)
 
-        # # # Dam - top side
-        loss_bc_p += torch.mean(((output[:, 8, 8:10] - output[:, 7, 8:10]) / (2 * delta_y)) ** 2)
+        # # # # Dam - top side
+        # loss_bc_p += torch.mean(((output[:, 8, 8:10] - output[:, 7, 8:10]) / (2 * delta_y)) ** 2)
+
+        # Bottom wall
+        loss_bc_p = torch.mean(((output[:, 0, 1:-1] - output[:, 1, 1:-1]) / (2 * delta_y)) ** 2)
+
+        # Left wall
+        loss_bc_p += torch.mean(((output[:, 1:-1, 0] - output[:, 1:-1, 1]) / (2 * delta_x)) ** 2)
+
+        # Right wall
+        loss_bc_p += torch.mean(((output[:, :-1, -1] - output[:, :-1, -2]) / (2 * delta_x)) ** 2)
+
+        # loss_bc_p = torch.tensor(0)
+
+        # Inflow
+        # loss_bc_p += torch.mean(((output[:, -1, 1:-1] - output[:, -2, 1:-1]) / (2 * delta_y)) ** 2)
+
+        # Outflow
+        # loss_bc_p = torch.mean(output[:, -1, -1] ** 2)
 
         # loss_bc_p += torch.mean(output[:, 1, 1] ** 2)
 
