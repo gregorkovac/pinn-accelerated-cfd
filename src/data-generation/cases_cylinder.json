@@ -1,0 +1,14 @@
+[
+    {
+        "path": "../../data/cases/cylinder.json",
+        "num_cases": 30,
+        "params": {
+            "density": [0.1, 10],
+            "viscosity": [0.001, 0.01],
+            "inflow": [0.1, 5],
+            "cylinder_x": [4, 16],
+            "cylinder_y": [4, 16],
+            "cylinder_r": [4, 8]
+        }
+    }
+]

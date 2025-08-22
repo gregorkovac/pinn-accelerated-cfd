@@ -212,6 +212,8 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             mask[0, :] = 1
             mask[-1, :] = 1
             mask[:8, 8:10] = 1
+            mask[:, 0] = 1
+            mask[:, -1] = 1
 
             # mask = torch.flip(mask, dims=[0])
             # plt.imshow(mask)
@@ -261,6 +263,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # Update pressure
     p = phi + beta * p
 
+
     # Apply the boundary conditions
     u, _ = boundary(geometry, u = u)
 
@@ -306,7 +309,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         A_laplacian = None
 
     if method_type in ["full_model", "poisson_model"]:
-        with open(os.path.join("../../models/poisson/2025-08-21_22_14", "params.json"), "r") as f:
+        with open(os.path.join("../../models/poisson/2025-08-22_18_42", "params.json"), "r") as f:
             params = json.load(f)
 
         with torch.no_grad():
@@ -325,7 +328,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
 
             device = torch.device('cpu')
             
-            state_dict = torch.load(os.path.join("../../models/poisson/2025-08-21_22_14", "model.pt"), map_location=device)
+            state_dict = torch.load(os.path.join("../../models/poisson/2025-08-22_18_42", "model.pt"), map_location=device)
 
             # Remove "module." prefix if present
             if any(k.startswith('module.') for k in state_dict.keys()):

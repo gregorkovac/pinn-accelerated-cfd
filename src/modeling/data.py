@@ -11,13 +11,18 @@ def load_case(data_path, idx, samples_per_case=-1):
     u_star = np.load(os.path.join(case_path, "u_star.npy"))
     phi = np.load(os.path.join(case_path, "phi.npy"))
 
+    # u_star = u_star[(len(u_star) // 2):]
+    # phi = phi[(len(phi) // 2):]
+
     with open(os.path.join(case_path, "params.json")) as f:
         params = json.load(f)
 
     if samples_per_case == -1:
         samples_per_case = len(u_star)
 
-    return u_star[:samples_per_case], phi[:samples_per_case], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["cylinder_x"], params["cylinder_y"], params["cylinder_r"]
+    indices = np.random.choice(samples_per_case, samples_per_case, replace=False)
+
+    return u_star[indices], phi[indices], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["cylinder_x"], params["cylinder_y"], params["cylinder_r"]
 
 class PINNDataset(Dataset):
     def __init__(self, data_path, N, samples_per_case=-1):
@@ -83,6 +88,23 @@ class PINNDataset(Dataset):
                 # loss_bc_cylinder = torch.mean(u_inside ** 2) + torch.mean(v_inside ** 2)
 
                 mask = ((grid_x / dx - cylinder_x) ** 2 + (grid_y / dy - cylinder_y) ** 2) <= (cylinder_r ** 2)
+
+                mask = mask * 0
+
+
+                # mask[:-1, 0] = 1
+                # mask[:-1, -1] = 1
+                mask[0, :] = 1
+                mask[-1, :] = 1
+                mask[:8, 8:10] = 1
+                mask[:, 0] = 1
+                mask[:, -1] = 1
+
+
+                # import matplotlib.pyplot as plt
+                # plt.imshow(mask)
+                # plt.show()
+
 
                 # print(cylinder_x, cylinder_y, cylinder_r)
 

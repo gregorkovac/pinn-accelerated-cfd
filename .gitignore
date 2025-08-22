@@ -8,3 +8,5 @@ __pycache__
 **/.vscode
 models/full-pinn/*
 models/poisson-pinn/*
+models/poisson/*
+data/*

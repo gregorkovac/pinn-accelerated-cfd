@@ -152,7 +152,7 @@ def main():
     # Initialize data loader
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
-                            shuffle=True)
+                            shuffle=False)
 
     # Initialize model
     model = CNN(input_channels=input_channels,
@@ -205,6 +205,8 @@ def main():
     ax = ax.flatten()
     im = None
 
+    print(f"DATA LENGTH: {len(dataset)}")
+
     # Training loop
     for epoch in range(epochs):
         running_loss = [0, 0, 0, 0, 0]
@@ -220,6 +222,7 @@ def main():
 
             def closure():
                 optimizer.zero_grad()
+
                 outputs = model(x)
                 
                 l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary, loss_weights)
@@ -264,8 +267,8 @@ def main():
                        "loss4": loss[4]})
             
         with torch.no_grad():
-            x_, delta_x_, delta_y_, _, _, _, _, _, boundary = dataset[10]
-            phi = dataset.get_phi(10)
+            x_, delta_x_, delta_y_, _, _, _, _, _, boundary = dataset[min(10, len(dataset) - 1)]
+            phi = dataset.get_phi(min(10, len(dataset) - 1))
 
             out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
 

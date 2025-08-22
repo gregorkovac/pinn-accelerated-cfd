@@ -2,15 +2,42 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from derivatives import compute_grads, divergence
+from derivatives import compute_grads#, divergence
 
-def laplacian(v, grid_spacing):
-    grid_spacing = grid_spacing[0].item()
-    grad_y, grad_x = torch.gradient(v, spacing=grid_spacing, dim=(1, 2), edge_order=2)
+def laplacian(v, dx, dy):
+    # v: (B, H, W)
+    dy = float(dy[0].item())
+    dx = float(dx[0].item())
+    # grads along (y, x) because v is (B, H, W) with dim=(1, 2)
+    gy, gx = torch.gradient(v, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+    gyy, _  = torch.gradient(gy, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+    _,  gxx = torch.gradient(gx, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+    return gyy + gxx
+
+def divergence(u, v, dx, dy):
+    # u,v: (B, H, W) velocities on cell centers
+    dy = float(dy[0].item())
+    dx = float(dx[0].item())
+    du_dy, du_dx = torch.gradient(u, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+    dv_dy, dv_dx = torch.gradient(v, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+    return du_dx + dv_dy
+
+# def laplacian(v, grid_spacing):
+#     grid_spacing = grid_spacing[0].item()
+#     grad_y, grad_x = torch.gradient(v, spacing=grid_spacing, dim=(1, 2), edge_order=2)
     
-    lapl = torch.gradient(grad_y, spacing=grid_spacing, dim=(1, 2), edge_order=2)[0] + torch.gradient(grad_x, spacing=grid_spacing, dim=(1, 2), edge_order=2)[1]
+#     lapl = torch.gradient(grad_y, spacing=grid_spacing, dim=(1, 2), edge_order=2)[0] + torch.gradient(grad_x, spacing=grid_spacing, dim=(1, 2), edge_order=2)[1]
     
-    return lapl
+#     return lapl
+
+# def laplacian(v, dx, dy):
+#     dx = float(dx[0].item())
+#     dy = float(dy[0].item())
+#     # grads along (y, x) because v is (B, H, W) with dim=(1,2)
+#     gy, gx = torch.gradient(v, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+#     gyy, _ = torch.gradient(gy, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+#     _, gxx = torch.gradient(gx, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+#     return gyy + gxx
 
 class PoissonLoss(nn.Module):
     def __init__(self):
@@ -23,7 +50,7 @@ class PoissonLoss(nn.Module):
         delta_t = delta_t.to(output.device).view(-1, 1, 1)
         boundary = boundary.to(output.device)
 
-        laplacian_phi = laplacian(output, delta_x)
+        laplacian_phi = laplacian(output, delta_x, delta_y)
 
         # grad_phi = torch.autograd.grad(output, x,
         #                         grad_outputs=torch.ones_like(output),
@@ -58,7 +85,7 @@ class PoissonLoss(nn.Module):
         # ax[3].set_title("Laplacian")
         # plt.show()
 
-        div_u_star = divergence(x[:, 0], x[:, 1], delta_x)
+        div_u_star = divergence(x[:, 0], x[:, 1], delta_x, delta_y)
         div_u_star = div_u_star * rho / delta_t
 
         # import matplotlib.pyplot as plt
@@ -68,19 +95,118 @@ class PoissonLoss(nn.Module):
 
         # loss_pde_raw = (laplacian_phi - div_u_star) ** 2
         # loss_pde = torch.mean(loss_pde_raw) / (div_u_star.mean().detach() + 1e-8)
-        loss_pde = torch.mean(((laplacian_phi - div_u_star) / (div_u_star.abs().mean().detach() + 1e-8)) ** 2)
+        # loss_pde = torch.mean(((laplacian_phi - div_u_star) / (div_u_star.abs().mean().detach() + 1e-8)) ** 2)
         # loss_pde = torch.mean(laplacian_phi ** 2)
         # loss_pde = torch.mean(grad_phi ** 2)
+
+        # loss_pde = ((laplacian_phi - div_u_star) / (div_u_star.abs().mean().detach() + 1e-8)) ** 2
+        # mask = (x[:, 4] - 1).abs()
+        # loss_pde = torch.mean(loss_pde * mask)
+
+        loss_pde = ((laplacian_phi - div_u_star) / (div_u_star.abs().mean().detach() + 1e-8)) ** 2
+        mask = (x[:, 4] - 1).abs()
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # plt.imshow(x[0, 4].detach())
+        # plt.show()
+        # plt.imshow(mask[0].detach())
+        # plt.show()
+        # exit(0)
+        loss_pde = torch.mean(loss_pde * mask)
+
+        # rhs = div_u_star
+        # rhs = rhs - rhs.mean(dim=(1,2), keepdim=True)
+        # loss_pde = torch.mean(((laplacian_phi[:, 1:-1, 1:-1] - rhs[:, 1:-1, 1:-1]) /
+        #                (rhs[:, 1:-1, 1:-1].abs().mean().detach() + 1e-8)) ** 2)
 
         # loss_bc_inlet = torch.mean((output[:, :, 0] - output[:, :, 1]) ** 2)
         # loss_bc_outlet = torch.mean(output[:, :, -1] ** 2)
         # loss_bc = loss_bc_outlet + loss_bc_inlet
 
         # loss_bc_p = torch.mean((output[:, :, -1] - output[:, :, -2]) ** 2)
-        loss_bc_p = torch.mean(output[:, :, -1] ** 2)
-        loss_bc_p += torch.mean((output[:, 0, :] - output[:, 1, :]) ** 2)
-        loss_bc_p += torch.mean((output[:, -1, :] - output[:, -2, :]) ** 2)
-        loss_bc_p += torch.mean((output[:, :, 0] - output[:, :, 1]) ** 2)
+        # loss_bc_p = torch.mean(output[:, :, -1] ** 2)
+        # loss_bc_p += torch.mean((output[:, 0, :] - output[:, 1, :]) ** 2)
+        # loss_bc_p += torch.mean((output[:, -1, :] - output[:, -2, :]) ** 2)
+        # loss_bc_p += torch.mean((output[:, :, 0] - output[:, :, 1]) ** 2)
+        # loss_bc_p = torch.mean((output[:, -1, :] - output[:, -2, :]) ** 2)
+
+        # loss_bc_p = torch.mean((output[:, 0, :] - output[:, 1, :]) ** 2)
+        # loss_bc_p += torch.mean((output[:, 1:-1, 0] - output[:, 1:-1, 1]) ** 2)
+        # loss_bc_p += torch.mean((output[:, 1:-1, -1] - output[:, 1:-1, -2]) ** 2)
+
+        # loss_bc_p_bottom = (output[:, 0, :] - output[:, 1, :]).pow(2).mean()
+        # loss_bc_p_left = (output[:, 1:-1, 0] - output[:, 1:-1, 1]).pow(2).mean()
+        # loss_bc_p_right = (output[:, 1:-1, -1] - output[:, 1:-1, -2]).pow(2).mean()
+
+        # loss_bc_p = loss_bc_p_bottom + loss_bc_p_left + loss_bc_p_right
+
+        # loss_bc_p += torch.mean(output ** 2)
+
+        # loss_bc_p = torch.mean(output[:, -1, -1] ** 2)
+
+        # loss_bc_p = torch.mean(output[:, 0, :] ** 2)
+        # loss_bc_p += torch.mean(output[:, 1:-1, 0] ** 2)
+        # loss_bc_p += torch.mean(output[:, 1:-1, -1] ** 2)
+
+        # loss_bc_p = torch.mean((output[:, -1] - output[:, -2]) ** 2)
+
+        # loss_bc_p += torch.mean(output[:, -1, 10] ** 2)
+
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # y = output[0].detach().numpy() * 0
+        # y[0, :] = 100
+        # plt.imshow(y)
+        # plt.show()
+        # exit(0)
+
+        # output[:, 0, :] = 10000
+
+        # loss_bc_p = torch.tensor(0)
+        # loss_bc_p = torch.mean((output[:, -1, :] - output[:, -2, :]) ** 2)
+        # loss_bc_p = torch.mean((output[:, 1:-1, -1] - output[:, 1:-1, -2]) ** 2)
+
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # plt.imshow(x[0, 0].detach())
+        # plt.show()
+        # exit(0)
+
+        # dpdy, dpdx = torch.gradient(output, spacing=(float(delta_y[0].item()), float(delta_x[0].item())), dim=(1, 2), edge_order=2)
+
+        # loss_bc_p = torch.mean(output[:, :, -1] ** 2)
+
+        # loss_bc_p = torch.mean(dpdy[:, 0] ** 2)
+        # loss_bc_p += torch.mean(dpdy[:, -1] ** 2)
+        # loss_bc_p += torch.mean(dpdx[:, :, 0] ** 2)
+        # loss_bc_p += torch.mean(dpdx[:, :8, 8] ** 2)
+        # loss_bc_p += torch.mean(dpdx[:, :8, 9] ** 2)
+        # loss_bc_p += torch.mean(dpdy[:, 8, 8] ** 2)
+        # loss_bc_p += torch.mean(dpdy[:, 8, 9] ** 2)
+
+        # Outflow
+        # loss_bc_p = torch.mean(output[:, :, -1] ** 2)
+
+        # # Lower wall
+        # loss_bc_p += torch.mean((output[:, 0, :8] - output[:, 1, :8]) ** 2) + torch.mean((output[:, 0, 10:] - output[:, 1, 10:]) ** 2)
+        loss_bc_p = torch.mean(((output[:, 0, :] - output[:, 1, :]) / (2 * delta_y)) ** 2)
+
+        # # Upper wall
+        loss_bc_p += torch.mean(((output[:, -1, :] - output[:, -2, :]) / (2 * delta_y)) ** 2)
+
+        # # Inflow
+        loss_bc_p += torch.mean(((output[:, :, 0] - output[:, :, 1]) / (2 * delta_x)) ** 2)
+
+        # # # Dam - left side
+        loss_bc_p += torch.mean(((output[:, :8, 8] - output[:, :8, 7]) / (2 * delta_x)) ** 2)
+
+        # # # Dam - right side
+        loss_bc_p += torch.mean(((output[:, :8, 9] - output[:, :8, 10]) / (2 * delta_x)) ** 2)
+
+        # # # Dam - top side
+        loss_bc_p += torch.mean(((output[:, 8, 8:10] - output[:, 7, 8:10]) / (2 * delta_y)) ** 2)
+
+        # loss_bc_p += torch.mean(output[:, 1, 1] ** 2)
 
         # cylinder_x, cylinder_y, cylinder_r = boundary[:, 0], boundary[:, 1], boundary[:, 2]
         # grid_y = coords[:, 0, :, :]  # shape: (B, H, W)
@@ -93,7 +219,7 @@ class PoissonLoss(nn.Module):
 
         # Mask of cylinder interior: (B, H, W)
         # mask = ((grid_x / delta_x - cx) ** 2 + (grid_y / delta_y - cy) ** 2) <= (r ** 2)
-        mask = x[:, 4]
+        # mask = x[:, 4]
 
         # import matplotlib.pyplot as plt
         # plt.ioff()
