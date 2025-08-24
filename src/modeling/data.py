@@ -22,7 +22,76 @@ def load_case(data_path, idx, samples_per_case=-1):
 
     indices = np.random.choice(samples_per_case, samples_per_case, replace=False)
 
-    return u_star[indices], phi[indices], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["cylinder_x"], params["cylinder_y"], params["cylinder_r"]
+    return u_star[indices], phi[indices], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["geometry"] #, params["cylinder_x"], params["cylinder_y"], params["cylinder_r"]
+
+def geometry_to_mtx(geometry, width, height):
+    # print(geometry)
+    # TODO: Implement BC-s for velocity - when dealing with full model
+
+    # p_dirichlet = np.zeros((height, width))
+    # p_dirichlet_vals = np.zeros((height, width))
+    p_neumann = np.zeros((height, width, 2))
+    # test = np.zeros((height, width))
+
+    for g in geometry:
+        # print(g)
+
+        if g["type"] in ["wall"]:
+            x, y = g["pos"]["x"], g["pos"]["y"]
+            w, h = g["size"]["width"], g["size"]["height"]
+
+            if x == -1:
+                x = width - 1
+            if y == -1:
+                y = height - 1
+            if w == -1:
+                w = width
+            if h == -1:
+                h = height + 1
+
+            w = w - 1
+            h = h - 1
+
+            if x - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["x"] < 0) or g["type"] == "wall"):
+                p_neumann[y:(y+h+1), x] = np.array([0, -1])
+
+            if x + w + 1 < width and ((g["type"] == "inflow" and g["vel"]["x"] > 0) or g["type"] == "wall"):
+                p_neumann[y:(y+h+1), x+w] = np.array([0, 1])
+            
+            if y - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["y"] < 0) or g["type"] == "wall"):
+                p_neumann[y, x:(x+w+1)] = np.array([-1, 0])
+
+            if y + h + 1 < height and ((g["type"] == "inflow" and g["vel"]["y"] > 0) or g["type"] == "wall"):
+                p_neumann[y+h, x:(x+w+1)] = np.array([1, 0])
+
+
+
+    # import matplotlib.pyplot as plt
+    # from matplotlib.patches import Rectangle
+
+    # x = np.arange(width)
+    # y = np.arange(height)
+    # X, Y = np.meshgrid(x, y)   
+    
+    # U = p_neumann[..., 1]                      # (n, m)
+    # V = p_neumann[..., 0]                      # (n, m)
+    
+    # fig, ax = plt.subplots(figsize=(8, 8))
+    # for i in range(height):
+    #     for j in range(width):
+    #         rect = Rectangle((j - 0.5, i - 0.5), 1, 1,
+    #                      edgecolor='gray', facecolor='none', linewidth=0.5)
+    #         ax.add_patch(rect)
+    # # ax.scatter(X, Y, color='black', s=10, alpha=0.8, label='Grid points')
+    # q = ax.quiver(X, Y, U, V, angles='xy', scale_units='xy', scale=1, pivot='mid')
+    # ax.set_aspect('equal')
+
+    # plt.show()
+
+
+    # exit(0)
+
+    return p_neumann
 
 class PINNDataset(Dataset):
     def __init__(self, data_path, N, samples_per_case=-1):
@@ -40,7 +109,7 @@ class PINNDataset(Dataset):
 
         # Iterate over cases
         for i in range(N):
-            u_star, phi, dx, dy, time_step, rho, mu, cylinder_x, cylinder_y, cylinder_r = load_case(data_path, i, samples_per_case)
+            u_star, phi, dx, dy, time_step, rho, mu, geometry = load_case(data_path, i, samples_per_case)
 
             # Save the case shape
             if i == 0:
@@ -54,6 +123,8 @@ class PINNDataset(Dataset):
                         indexing="ij"
                 )
                 self.coords = torch.stack([grid_y, grid_x], dim=0)
+
+            boundary = geometry_to_mtx(geometry, self.width, self.height)
 
             # Iterate over time steps
             for j in range(len(u_star)):
@@ -87,9 +158,9 @@ class PINNDataset(Dataset):
 
                 # loss_bc_cylinder = torch.mean(u_inside ** 2) + torch.mean(v_inside ** 2)
 
-                mask = ((grid_x / dx - cylinder_x) ** 2 + (grid_y / dy - cylinder_y) ** 2) <= (cylinder_r ** 2)
+                # mask = ((grid_x / dx - cylinder_x) ** 2 + (grid_y / dy - cylinder_y) ** 2) <= (cylinder_r ** 2)
 
-                mask = mask * 0
+                # mask = mask * 0
 
 
                 # mask[:-1, 0] = 1
@@ -103,10 +174,10 @@ class PINNDataset(Dataset):
                 # mask[:, -1] = 1
 
                 # Cavity mask
-                mask[0, :] = 1
-                mask[-1, :] = 1
-                mask[:-1, 0] = 1
-                mask[:-1, -1] = 1
+                # mask[0, :] = 1
+                # mask[-1, :] = 1
+                # mask[:-1, 0] = 1
+                # mask[:-1, -1] = 1
 
                 # import matplotlib.pyplot as plt
                 # plt.imshow(mask)
@@ -120,7 +191,7 @@ class PINNDataset(Dataset):
                 # plt.imshow(mask)
                 # plt.show()
 
-                self.boundary.append(mask)
+                self.boundary.append(boundary)
 
             self.data_len += len(u_star)
 
@@ -147,12 +218,12 @@ class PINNDataset(Dataset):
 class PoissonPINNDataset(PINNDataset):
     def __init__(self, data_path, N, samples_per_case=-1):
         super().__init__(data_path, N, samples_per_case)
-        self.input_channels = 5
+        self.input_channels = 6
         self.output_channels = 1
 
     def __getitem__(self, idx):
 
-        x = torch.cat([self.u_star[idx].permute(2, 0, 1), self.coords, self.boundary[idx].unsqueeze(0)], dim=0)
+        x = torch.cat([self.u_star[idx].permute(2, 0, 1), self.coords, self.boundary[idx].permute(2, 0, 1)], dim=0)
 
         return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary[idx]
     

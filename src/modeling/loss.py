@@ -104,7 +104,8 @@ class PoissonLoss(nn.Module):
         # loss_pde = torch.mean(loss_pde * mask)
 
         loss_pde = ((laplacian_phi - div_u_star) / (div_u_star.abs().mean().detach() + 1e-8)) ** 2
-        mask = (x[:, 4] - 1).abs()
+        # mask = (x[:, 4] - 1).abs()
+        # mask = (torch.norm(x[:, 4:6], dim=1) - 1).abs()
         # import matplotlib.pyplot as plt
         # plt.ioff()
         # plt.imshow(x[0, 4].detach())
@@ -112,6 +113,13 @@ class PoissonLoss(nn.Module):
         # plt.imshow(mask[0].detach())
         # plt.show()
         # exit(0)
+        mask = x[:, 4] * 0
+        mask[:, :, 0] = 1
+        mask[:, :, -1] = 1
+        mask[:, 0, :] = 1
+        mask[:, -1, :] = 1
+        mask = (mask - 1).abs()
+
         loss_pde = torch.mean(loss_pde * mask)
 
         # rhs = div_u_star
@@ -206,14 +214,108 @@ class PoissonLoss(nn.Module):
         # # # # Dam - top side
         # loss_bc_p += torch.mean(((output[:, 8, 8:10] - output[:, 7, 8:10]) / (2 * delta_y)) ** 2)
 
+        # neumann_idx = (x[:, 2:4] + x[:, 4:6]).long()
+        # # neumann_phi = output[neumann_idx[:, 0], neumann_idx[:, 1]]
+
+        base_y, base_x = x[:, 2].long(), x[:, 3].long()
+        bc_y, bc_x = x[:, 4].long(), x[:, 5].long()
+
+        bc_y = base_y + bc_y
+        bc_x = base_y + bc_x
+
+        loss_bc_p = torch.mean(((output[:, base_y, base_x] - output[:, bc_y, bc_x]) / delta_x) ** 2)
+
+        # B, Ny, Nx = output.shape
+        # # pressure = output[:, 0]
+
+        # boundary_idx = x[:, 2:4].long()
+        # neumann_idx = (x[:, 2:4] + x[:, 4:6]).long()
+
+        # # boundary and neighbor indices
+        # iy, ix = boundary_idx[:, 0], boundary_idx[:, 1]
+        # jy, jx = neumann_idx[:, 0], neumann_idx[:, 1]
+
+        # # Batch indexing
+        # batch_idx = torch.arange(B, device=output.device).view(B, 1, 1)
+
+        # # Get pressure values at boundary and neighbor
+        # u_boundary = output[batch_idx, iy, ix]
+        # neumann_phi = output[batch_idx, jy, jx]
+
+        # # import matplotlib.pyplot as plt
+        # # plt.ioff()
+        # # fig, ax = plt.subplots(nrows=1, ncols=3)
+        # # ax = ax.flatten()
+        # # ax[0].imshow(output[10].detach())
+        # # ax[1].imshow(u_boundary[10].detach())
+        # # ax[2].imshow(neumann_phi[10].detach())
+        # # plt.show()
+
+        # # Compute direction: x[:, 4:6] is direction (dx_dir, dy_dir)
+        # direction = x[:, 4:6]  # shape [B, 2, H, W]
+        # dx_dir = direction[:, 1]  # [B, H, W]
+        # dy_dir = direction[:, 0]  # [B, H, W]
+
+        # # Compute spacing based on direction
+        # spacing = torch.where(dx_dir != 0, 2 * delta_x, 2 * delta_y)  # [B, H, W]
+
+        # # Neumann loss with proper delta per direction
+        # loss_bc_p = torch.mean(((u_boundary - neumann_phi) / spacing) ** 2)
+
+        # output_flat = output.view(output.shape[0], -1)
+
+        # # # Convert 2D indices (i,j) to flat indices
+        # # flat_idx = neumann_idx[:, 0] * Ny + neumann_idx[:, 1]  # shape [Nb]
+
+        # # # Gather values for boundary neighbor points
+        # # neumann_phi = output_flat[:, flat_idx]
+
+        # # # print(neumann_phi.shape)
+        # # # print(output.shape)
+        # # loss_bc_p = torch.mean((neumann_phi - output) ** 2)
+
+        # boundary_idx = x[:, 2:4].long()
+        # neumann_idx = (x[:, 2:4] + x[:, 4:6]).long()
+
+        # # print(boundary_idx.shape)
+        # # print(neumann_idx.shape)
+        
+        # flat_boundary = boundary_idx[:, 0] * output.shape[2] + boundary_idx[:, 1]
+        # flat_neighbor = neumann_idx[:, 0] * output.shape[2] + neumann_idx[:, 1]
+
+        # flat_boundary = flat_boundary.view(output.shape[0], -1)
+        # flat_neighbor = flat_neighbor.view(output.shape[0], -1) 
+
+        # # print(flat_boundary.shape)
+        # # print(flat_neighbor.shape)
+        
+        # # u_boundary = output_flat[:, flat_boundary]
+        # # neumann_phi = output_flat[:, flat_neighbor]
+        
+        # u_boundary = torch.gather(output_flat, 1, flat_boundary)
+        # neumann_phi = torch.gather(output_flat, 1, flat_neighbor)
+
+        # # print(u_boundary.shape)
+        # # print(neumann_phi.shape)
+
+        # loss_bc_p = torch.mean(((u_boundary - neumann_phi) / delta_x)** 2)
+
+        # exit(0)
+
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # plt.imshow(u_boundary[0].detach())
+        # plt.show()
+
+
         # Bottom wall
-        loss_bc_p = torch.mean(((output[:, 0, 1:-1] - output[:, 1, 1:-1]) / (2 * delta_y)) ** 2)
+        # loss_bc_p = torch.mean(((output[:, 0, 1:-1] - output[:, 1, 1:-1]) / (2 * delta_y)) ** 2)
 
-        # Left wall
-        loss_bc_p += torch.mean(((output[:, 1:-1, 0] - output[:, 1:-1, 1]) / (2 * delta_x)) ** 2)
+        # # Left wall
+        # loss_bc_p += torch.mean(((output[:, 1:-1, 0] - output[:, 1:-1, 1]) / (2 * delta_x)) ** 2)
 
-        # Right wall
-        loss_bc_p += torch.mean(((output[:, :-1, -1] - output[:, :-1, -2]) / (2 * delta_x)) ** 2)
+        # # Right wall
+        # loss_bc_p += torch.mean(((output[:, :-1, -1] - output[:, :-1, -2]) / (2 * delta_x)) ** 2)
 
         # loss_bc_p = torch.tensor(0)
 
