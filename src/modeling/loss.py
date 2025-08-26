@@ -43,12 +43,12 @@ class PoissonLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary, loss_weights):
+    def forward(self, x, output, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights):
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
         delta_y = delta_y.to(output.device).view(-1, 1, 1)
         rho = rho.to(output.device).view(-1, 1, 1)
         delta_t = delta_t.to(output.device).view(-1, 1, 1)
-        boundary = boundary.to(output.device)
+        boundary_mask = boundary_mask.to(output.device)
 
         laplacian_phi = laplacian(output, delta_x, delta_y)
 
@@ -113,12 +113,31 @@ class PoissonLoss(nn.Module):
         # plt.imshow(mask[0].detach())
         # plt.show()
         # exit(0)
-        mask = x[:, 4] * 0
-        mask[:, :, 0] = 1
-        mask[:, :, -1] = 1
-        mask[:, 0, :] = 1
-        mask[:, -1, :] = 1
-        mask = (mask - 1).abs()
+        # mask[:, :, 0] = 1
+        # mask[:, :, -1] = 1
+        # mask[:, 0, :] = 1
+        # mask[:, -1, :] = 1
+        # mask[:, :8, 8:10] = 1
+
+
+        # mask = x[:, 4] * 0
+        # mask[:, 0, :] = 1
+        # mask[:, -1, :] = 1
+        # mask[:, :8, 8:10] = 1
+        # mask[:, :, 0] = 1
+        # mask[:, :, -1] = 1
+
+        
+        # mask = (mask - 1).abs()
+
+        mask = (boundary_mask - 1).abs()
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # # plt.imshow(boundary_mask[0].detach())
+        # # plt.show()
+        # plt.imshow(mask[0].detach())
+        # plt.show()
+
 
         loss_pde = torch.mean(loss_pde * mask)
 
@@ -220,10 +239,16 @@ class PoissonLoss(nn.Module):
         base_y, base_x = x[:, 2].long(), x[:, 3].long()
         bc_y, bc_x = x[:, 4].long(), x[:, 5].long()
 
-        bc_y = base_y + bc_y
-        bc_x = base_y + bc_x
+        # bc_y = base_y + bc_y
+        # bc_x = base_x + bc_x
+
+        bc_y = (base_y + bc_y).clamp(0, 19)
+        bc_x = (base_x + bc_x).clamp(0, 19)
+
 
         loss_bc_p = torch.mean(((output[:, base_y, base_x] - output[:, bc_y, bc_x]) / delta_x) ** 2)
+
+        # loss_bc_p += torch.mean(output[:, 1:-1, -1] ** 2)
 
         # B, Ny, Nx = output.shape
         # # pressure = output[:, 0]

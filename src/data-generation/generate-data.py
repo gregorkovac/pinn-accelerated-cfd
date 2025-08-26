@@ -48,9 +48,22 @@ def main():
             density = np.random.uniform(density_min, density_max)
             viscosity = np.random.uniform(viscosity_min, viscosity_max)
             inflow = np.random.uniform(inflow_min, inflow_max)
-            cylinder_x = np.random.randint(cylinder_x_min, cylinder_x_max)
-            cylinder_y = np.random.randint(cylinder_y_min, cylinder_y_max)
-            cylinder_r = min([np.random.randint(cylinder_r_min, cylinder_r_max), cylinder_x, cylinder_y, case_["width"] - cylinder_x, case_["height"] - cylinder_y])
+            if cylinder_x_min == cylinder_x_max:
+                cylinder_x = cylinder_x_min
+            else:
+                cylinder_x = np.random.randint(cylinder_x_min, cylinder_x_max)
+            
+            if cylinder_y_min == cylinder_y_max:
+                cylinder_y = cylinder_y_min
+            else:
+                cylinder_y = np.random.randint(cylinder_y_min, cylinder_y_max)
+
+            if cylinder_r_min == cylinder_r_max:
+                cylinder_r = cylinder_r_min
+            else:
+                cylinder_r = np.random.randint(cylinder_r_min, cylinder_r_max)
+
+            cylinder_r = min([cylinder_r, cylinder_x, cylinder_y, case_["width"] - cylinder_x, case_["height"] - cylinder_y])
 
             print("Sampled params:")
             print(f"density = {density}")
@@ -63,7 +76,14 @@ def main():
             print()
 
             g = case_["geometry"]
-            g[0]['vel']['x'] = inflow
+
+            for i in range(len(g)):
+                if g[i]["type"] == "inflow":
+                    g[i]["vel"]["x"] = inflow
+                elif g[i]["type"] == "cylinder":
+                    g[i]["pos"]["x"] = cylinder_x
+                    g[i]["pos"]["y"] = cylinder_y
+                    g[i]["size"] = cylinder_r
 
             delta_t = case_["dx"] / 100
 

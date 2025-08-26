@@ -34,4 +34,4 @@ def plot_poisson(ax, x, y, boundary):
 
     ax[0].imshow(x, cmap=cmap)
     ax[1].imshow(y, cmap=cmap)
-    ax[2].imshow(np.linalg.norm(boundary, axis=2).round(), cmap=cmap)
+    ax[2].imshow(boundary, cmap=cmap)

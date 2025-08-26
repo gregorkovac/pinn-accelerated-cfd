@@ -201,7 +201,7 @@ def main():
 
     plt.ion()
     plt.tight_layout()
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(14, 7))
+    fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(14, 7))
     ax = ax.flatten()
     im = None
 
@@ -214,7 +214,7 @@ def main():
         # Iterate through data loader
         for data in dataloader:
             # Extract data
-            x, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary = data
+            x, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask = data
 
             x = x.to(device).clone().requires_grad_(True)
 
@@ -225,7 +225,7 @@ def main():
 
                 outputs = model(x)
                 
-                l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary, loss_weights)
+                l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights)
                 l[0].backward()
 
                 for i in range(len(l)):
@@ -267,26 +267,24 @@ def main():
                        "loss4": loss[4]})
             
         with torch.no_grad():
-            x_, delta_x_, delta_y_, _, _, _, _, _, boundary = dataset[min(10, len(dataset) - 1)]
+            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(10, len(dataset) - 1)]
             phi = dataset.get_phi(min(10, len(dataset) - 1))
-
             out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
 
-            # if epoch == 0:
-                # plt.ioff()
-                # plt.imshow(x_[4])
-                # plt.show()
-                # plt.ion()
+            if model_type == "full":
+                plot_full(ax[:3], out, delta_x_.item())
+            else:
+                plot_poisson(ax[:3], out, phi, boundary_mask)
+
+            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(40, len(dataset) - 1)]
+            phi = dataset.get_phi(min(40, len(dataset) - 1))
+            out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
 
             if model_type == "full":
-                plot_full(ax, out, delta_x_.item())
+                plot_full(ax[3:], out, delta_x_.item())
             else:
-                plot_poisson(ax, out, phi, boundary)
+                plot_poisson(ax[3:], out, phi, boundary_mask)
 
-            # if epoch == 0:
-            #     im = ax.imshow(out[0, 2].detach().numpy())
-            # else:
-            #     im.set_data(out[0, 2].detach().numpy())
             plt.draw()
             plt.pause(0.001)
             

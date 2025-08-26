@@ -17,6 +17,7 @@ import gc
 sys.path.insert(0, "..")
 
 from modeling.model import CNN
+from modeling.data import geometry_to_mtx
 
 try:
     from .derivatives import *
@@ -187,16 +188,16 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                 )
             coords = torch.stack([grid_y, grid_x], dim=0).unsqueeze(0)
 
-            cylinder_r = None
-            cylinder_y = None
-            cylinder_r = None
-            for g in geometry:
-                if g["type"] == "cylinder":
-                    cylinder_x = g["pos"]["x"]
-                    cylinder_y = g["pos"]["y"]
-                    cylinder_r = g["size"]
+            # cylinder_r = None
+            # cylinder_y = None
+            # cylinder_r = None
+            # for g in geometry:
+            #     if g["type"] == "cylinder":
+            #         cylinder_x = g["pos"]["x"]
+            #         cylinder_y = g["pos"]["y"]
+            #         cylinder_r = g["size"]
                     
-                    break
+            #         break
 
             # exit(0)
 
@@ -207,19 +208,19 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             # else:
             #     mask = ((grid_x / dx - cylinder_x) ** 2 + (grid_y / dy - cylinder_y) ** 2) <= (cylinder_r ** 2)
 
-            mask = grid_x * 0
+            # mask = grid_x * 0
 
+            # # mask[0, :] = 1
+            # # mask[-1, :] = 1
+            # # mask[:8, 8:10] = 1
+            # # mask[:, 0] = 1
+            # # mask[:, -1] = 1
+
+            # # Cavity mask
             # mask[0, :] = 1
             # mask[-1, :] = 1
-            # mask[:8, 8:10] = 1
-            # mask[:, 0] = 1
-            # mask[:, -1] = 1
-
-            # Cavity mask
-            mask[0, :] = 1
-            mask[-1, :] = 1
-            mask[:-1, 0] = 1
-            mask[:-1, -1] = 1
+            # mask[:-1, 0] = 1
+            # mask[:-1, -1] = 1
 
             # plt.imshow(mask)
             # plt.show()
@@ -229,7 +230,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             # plt.imshow(mask)
             # plt.show()
 
-            mask = mask.unsqueeze(0).unsqueeze(0)
+            # mask = mask.unsqueeze(0).unsqueeze(0)
 
             # print(u_star_.shape)
 
@@ -237,7 +238,11 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             # plt.show()
             # exit(0)
 
-            u_star_coords = torch.cat([u_star_, coords, mask], dim=1)
+            boundary_, _ = geometry_to_mtx(geometry, m, n)
+            boundary_ = torch.tensor(boundary_, dtype=torch.float32)
+            boundary_ = boundary_.permute(2, 0, 1).unsqueeze(0)
+
+            u_star_coords = torch.cat([u_star_, coords, boundary_], dim=1)
 
             global divisor
 
@@ -319,7 +324,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         A_laplacian = None
 
     if method_type in ["full_model", "poisson_model"]:
-        with open(os.path.join("../../models/poisson/2025-08-22_20_06", "params.json"), "r") as f:
+        with open(os.path.join("../../models/poisson/2025-08-26_20_32", "params.json"), "r") as f:
             params = json.load(f)
 
         with torch.no_grad():
@@ -330,7 +335,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                         input_width=width,
                         input_height=height)
             elif method_type == "poisson_model":
-                model = CNN(input_channels=5,
+                model = CNN(input_channels=6,
                         num_layers=int(params["num_layers"]),
                         hidden_channels=int(params["hidden_dim"]),
                         input_width=width,
@@ -338,7 +343,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
 
             device = torch.device('cpu')
             
-            state_dict = torch.load(os.path.join("../../models/poisson/2025-08-22_20_06", "model.pt"), map_location=device)
+            state_dict = torch.load(os.path.join("../../models/poisson/2025-08-26_20_32", "model.pt"), map_location=device)
 
             # Remove "module." prefix if present
             if any(k.startswith('module.') for k in state_dict.keys()):

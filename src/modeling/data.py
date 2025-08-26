@@ -33,10 +33,12 @@ def geometry_to_mtx(geometry, width, height):
     p_neumann = np.zeros((height, width, 2))
     # test = np.zeros((height, width))
 
+    boundary_mask = np.zeros((height, width))
+
     for g in geometry:
         # print(g)
 
-        if g["type"] in ["wall"]:
+        if g["type"] in ["wall", "inflow"]:
             x, y = g["pos"]["x"], g["pos"]["y"]
             w, h = g["size"]["width"], g["size"]["height"]
 
@@ -54,16 +56,53 @@ def geometry_to_mtx(geometry, width, height):
 
             if x - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["x"] < 0) or g["type"] == "wall"):
                 p_neumann[y:(y+h+1), x] = np.array([0, -1])
+                boundary_mask[y:(y+h+1), x] = 1
 
             if x + w + 1 < width and ((g["type"] == "inflow" and g["vel"]["x"] > 0) or g["type"] == "wall"):
                 p_neumann[y:(y+h+1), x+w] = np.array([0, 1])
+                boundary_mask[y:(y+h+1), x+w] = 1
             
             if y - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["y"] < 0) or g["type"] == "wall"):
                 p_neumann[y, x:(x+w+1)] = np.array([-1, 0])
+                boundary_mask[y, x:(x+w+1)] = 1
 
             if y + h + 1 < height and ((g["type"] == "inflow" and g["vel"]["y"] > 0) or g["type"] == "wall"):
                 p_neumann[y+h, x:(x+w+1)] = np.array([1, 0])
+                boundary_mask[y+h, x:(x+w+1)] = 1
+        
+        elif g["type"] in ["inflow"]:
+            x, y = g["pos"]["x"], g["pos"]["y"]
+            w, h = g["size"]["width"], g["size"]["height"]
 
+            if x == -1:
+                x = width - 1
+            if y == -1:
+                y = height - 1
+            if w == -1:
+                w = width
+            if h == -1:
+                h = height + 1
+
+            # w = w - 1
+            # h = h - 1
+
+            boundary_mask[y:(y+h), x:(x+w)] = 1
+
+        elif g["type"] == "cylinder":
+            x, y, r = g["pos"]["x"], g["pos"]["y"], g["size"]
+
+            x_min = max(0, x - r)
+            x_max = min(width, x + r + 1)
+            y_min = max(0, y - r)
+            y_max = min(height, y + r + 1)
+
+            yy, xx = np.ogrid[y_min:y_max, x_min:x_max]
+
+            dist_sq = (xx - x) ** 2 + (yy - y) ** 2
+
+            mask = dist_sq <= r ** 2
+
+            boundary_mask[y_min:y_max, x_min:x_max][mask] = 1
 
 
     # import matplotlib.pyplot as plt
@@ -88,10 +127,9 @@ def geometry_to_mtx(geometry, width, height):
 
     # plt.show()
 
-
     # exit(0)
 
-    return p_neumann
+    return p_neumann, boundary_mask
 
 class PINNDataset(Dataset):
     def __init__(self, data_path, N, samples_per_case=-1):
@@ -106,6 +144,7 @@ class PINNDataset(Dataset):
         self.rho = []
         self.mu = []
         self.boundary = []
+        self.boundary_mask = []
 
         # Iterate over cases
         for i in range(N):
@@ -124,7 +163,7 @@ class PINNDataset(Dataset):
                 )
                 self.coords = torch.stack([grid_y, grid_x], dim=0)
 
-            boundary = geometry_to_mtx(geometry, self.width, self.height)
+            boundary, boundary_mask = geometry_to_mtx(geometry, self.width, self.height)
 
             # Iterate over time steps
             for j in range(len(u_star)):
@@ -192,6 +231,7 @@ class PINNDataset(Dataset):
                 # plt.show()
 
                 self.boundary.append(boundary)
+                self.boundary_mask.append(boundary_mask)
 
             self.data_len += len(u_star)
 
@@ -205,6 +245,7 @@ class PINNDataset(Dataset):
         self.rho = torch.tensor(np.array(self.rho), dtype=torch.float32)
         self.mu = torch.tensor(np.array(self.mu), dtype=torch.float32)
         self.boundary = torch.tensor(np.array(self.boundary), dtype=torch.float32)
+        self.boundary_mask = torch.tensor(np.array(self.boundary_mask), dtype=torch.float32)
 
     def __len__(self):
         return self.data_len
@@ -225,7 +266,7 @@ class PoissonPINNDataset(PINNDataset):
 
         x = torch.cat([self.u_star[idx].permute(2, 0, 1), self.coords, self.boundary[idx].permute(2, 0, 1)], dim=0)
 
-        return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary[idx]
+        return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
     
     def get_phi(self, idx):
         return self.phi[idx]
