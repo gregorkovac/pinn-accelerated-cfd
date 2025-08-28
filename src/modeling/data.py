@@ -38,7 +38,7 @@ def geometry_to_mtx(geometry, width, height):
     for g in geometry:
         # print(g)
 
-        if g["type"] in ["wall"]:
+        if g["type"] in ["wall", "inflow"]:
             x, y = g["pos"]["x"], g["pos"]["y"]
             w, h = g["size"]["width"], g["size"]["height"]
 
@@ -49,21 +49,32 @@ def geometry_to_mtx(geometry, width, height):
             else:
                 continue
 
+            # oos = False
 
             if x == -1:
                 x = width - 1
+                # oos = True
             if y == -1:
                 y = height - 1
+                # oos = True
             if w == -1:
                 w = width
+                # oos = True
             if h == -1:
                 h = height + 1
+                # oos = True
+
+            # print(x, y, x+w, y+h)
+
+            # if not oos:
+                # continue
 
             p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
 
             # p_neumann[(y+yn):(y+yn+h), (x+xn):(x+xn+w)] = np.array([-yn, -xn])
 
-            boundary_mask[y:(y+h), x:(x+w)] = 1
+            if g["type"] != "outflow":
+                boundary_mask[y:(y+h), x:(x+w)] = 1
 
 
             # w = w - 1
@@ -90,6 +101,7 @@ def geometry_to_mtx(geometry, width, height):
             #     boundary_mask[y+h, x:(x+w+1)] = 1
         
         elif g["type"] in ["inflow", "outflow"]:
+            continue
             x, y = g["pos"]["x"], g["pos"]["y"]
             w, h = g["size"]["width"], g["size"]["height"]
 
@@ -124,6 +136,17 @@ def geometry_to_mtx(geometry, width, height):
             boundary_mask[y_min:y_max, x_min:x_max][mask] = 1
 
 
+    yy, xx = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
+    ny = yy + p_neumann[..., 0].astype(int)
+    nx = xx + p_neumann[..., 1].astype(int)
+
+    invalid = (
+        (boundary_mask == 1) &
+        ((ny < 0) | (ny >= height) | (nx < 0) | (nx >= width) |
+         (boundary_mask[np.clip(ny, 0, height-1), np.clip(nx, 0, width-1)] == 1))
+    )
+
+    p_neumann[invalid] = (0, 0)
 
     # import matplotlib.pyplot as plt
     # from matplotlib.patches import Rectangle

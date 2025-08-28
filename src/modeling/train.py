@@ -204,6 +204,7 @@ def main():
     fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(14, 7))
     ax = ax.flatten()
     im = None
+    cbar = None
 
     print(f"DATA LENGTH: {len(dataset)}")
 
@@ -274,7 +275,7 @@ def main():
             if model_type == "full":
                 plot_full(ax[:3], out, delta_x_.item())
             else:
-                plot_poisson(ax[:3], out, phi, boundary_mask)
+                cbar = plot_poisson(ax[:3], out, phi, boundary_mask, cbar=cbar)
 
             x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(40, len(dataset) - 1)]
             phi = dataset.get_phi(min(40, len(dataset) - 1))
@@ -283,7 +284,7 @@ def main():
             if model_type == "full":
                 plot_full(ax[3:], out, delta_x_.item())
             else:
-                plot_poisson(ax[3:], out, phi, boundary_mask)
+                cbar = plot_poisson(ax[3:], out, phi, boundary_mask, cbar=cbar)
 
             plt.draw()
             plt.pause(0.001)

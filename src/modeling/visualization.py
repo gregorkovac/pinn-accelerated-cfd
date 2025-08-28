@@ -1,4 +1,5 @@
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 
 cmap = mpl.cm.Blues(np.linspace(0,1,20))
@@ -27,11 +28,20 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20))):
     ax.imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing], alpha=0.5*boundary_image)
     
-def plot_poisson(ax, x, y, boundary):
-    ax[0].clear()
-    ax[1].clear()
-    ax[2].clear()
+def plot_poisson(ax, x, y, boundary, cbar=None):
+    for a in ax:
+        a.clear()
 
-    ax[0].imshow(x, cmap=cmap)
-    ax[1].imshow(y, cmap=cmap)
-    ax[2].imshow(boundary, cmap=cmap)
+    im0 = ax[0].imshow(x, cmap=cmap)
+    im1 = ax[1].imshow(y, cmap=cmap)
+    im2 = ax[2].imshow(boundary, cmap=cmap)
+
+    if cbar:
+        for cb in cbar:
+            cb.remove()
+
+    cbar0 = plt.colorbar(im0, ax=ax[0])
+    cbar1 = plt.colorbar(im1, ax=ax[1])
+    cbar2 = plt.colorbar(im2, ax=ax[2])
+
+    return [cbar0, cbar1, cbar2]

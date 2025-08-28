@@ -60,22 +60,112 @@ class PoissonLoss(nn.Module):
         
         batch, height, width = output.shape
 
-        base_y, base_x = (x[:, 2] * (height - 1)).long(), (x[:, 3] * (width - 1)).long()
+        # base_y, base_x = (x[:, 2] * (height - 1)).long(), (x[:, 3] * (width - 1)).long()
         bc_y, bc_x = x[:, 4].long(), x[:, 5].long()
+
+        base_x, base_y = torch.meshgrid(
+                torch.linspace(0, 19, width),
+                torch.linspace(0, 19, height),
+                indexing="ij"
+        )
+
+        base_x = base_x.long()
+        base_y = base_y.long()
 
         bc_y = base_y + bc_y
         bc_x = base_x + bc_x
 
-        valid_mask = (bc_y >= 0) & (bc_y < height) & (bc_x >= 0) & (bc_x < width)
+        B, H, W = output.shape
+        yy, xx = torch.meshgrid(
+            torch.arange(H, device=output.device),
+            torch.arange(W, device=output.device),
+            indexing='ij'
+        )
+        yy = yy.expand(B, -1, -1)
+        xx = xx.expand(B, -1, -1)
 
-        batch_idx = torch.arange(batch, device=output.device)[:, None, None].expand(batch, height, width)
+        off_y = x[:, 4].long()
+        off_x = x[:, 5].long()
 
-        neighbor_vals = output[batch_idx, bc_y.clamp(0, height - 1), bc_x.clamp(0, width - 1)]
-        center_vals   = output[batch_idx, base_y, base_x]
+        bc_y = yy + off_y
+        bc_x = xx + off_x
 
-        diff = center_vals - neighbor_vals
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # fig, ax = plt.subplots(2, 2)
+        # ax = ax.flatten()
+        # ax[0].imshow((yy + off_y)[10].detach())
+        # ax[1].imshow((xx + off_x)[10].detach())
+        # ax[2].imshow((yy - off_y)[10].detach())
+        # ax[3].imshow((xx - off_x)[10].detach())
+        # plt.show()
 
-        loss_bc_p = torch.mean((diff[valid_mask] / delta_x) ** 2)
+        valid = (boundary_mask == 1) & ((off_y != 0) | (off_x != 0)) & (bc_y >= 0) & (bc_y < H) & (bc_x >= 0) & (bc_x < W)
+
+        bidx = torch.arange(B, device=output.device)[:, None, None]
+        p_center = output[bidx, yy, xx]
+        p_interior = output[bidx, bc_y.clamp(0, H-1), bc_x.clamp(0, W-1)]
+
+    #     import matplotlib.pyplot as plt
+    #     from matplotlib.patches import Rectangle
+    #     import numpy as np
+    #     plt.ioff()
+    #     plt.clf()
+    # # 
+    #     x = np.arange(width)
+    #     y = np.arange(height)
+    #     X, Y = np.meshgrid(x, y)   
+    #     # 
+    #     U = off_x[0]                      # (n, m)
+    #     V = off_y[0]                     # (n, m)
+    #     # 
+    #     fig, ax = plt.subplots(figsize=(8, 8))
+    #     for i in range(height):
+    #         for j in range(width):
+    #             rect = Rectangle((j - 0.5, i - 0.5), 1, 1,
+    #                          edgecolor='gray', facecolor='none', linewidth=0.5)
+    #             ax.add_patch(rect)
+    #     # ax.scatter(X, Y, color='black', s=10, alpha=0.8, label='Grid points')
+    #     q = ax.quiver(X, Y, U, V, angles='xy', scale_units='xy', scale=1, pivot='tail')
+    #     ax.set_aspect('equal')
+
+    #     plt.scatter(xx[0], yy[0], color="black")
+    #     plt.scatter((xx + off_x)[0], (yy + off_y)[0], color="red")
+    #     print(xx+off_x)
+    #     plt.show()
+
+    #     exit(0)
+
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # fig, ax = plt.subplots(2, 2)
+        # ax = ax.flatten()
+        # ax[0].imshow(p_center[10].detach())
+        # ax[1].imshow(p_interior[10].detach())
+        # # ax[2].imshow((yy - off_y)[10].detach())
+        # # ax[3].imshow((xx - off_x)[10].detach())
+        # plt.show()
+
+        den = torch.where(off_y != 0, delta_y, delta_x)
+
+        loss_bc_p = torch.mean((((p_center - p_interior) / den) ** 2)[valid])   #.sum() #/ (valid.sum().clamp_min(1))
+
+        loss_bc_p += torch.mean(output[:, 1:-1, -1] ** 2)
+
+        loss_bc_p += torch.mean(torch.relu(-output)**2)
+
+        # valid_mask = (bc_y >= 0) & (bc_y < height) & (bc_x >= 0) & (bc_x < width)
+
+        # batch_idx = torch.arange(batch, device=output.device)[:, None, None].expand(batch, height, width)
+
+        # neighbor_vals = output[batch_idx, bc_y.clamp(0, height - 1), bc_x.clamp(0, width - 1)]
+        # center_vals   = output[batch_idx, base_y, base_x]
+
+        # diff = center_vals - neighbor_vals
+
+        # loss_bc_p = ((diff / delta_x) ** 2)[valid_mask].sum() / (valid_mask.sum() + 1e-6)
+
+        # loss_bc_p = torch.mean((diff[valid_mask] / delta_x) ** 2)
 
         # loss_bc_p += torch.mean(output[:, 1:-1, -1] ** 2)
 
