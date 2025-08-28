@@ -225,7 +225,7 @@ def main():
 
                 outputs = model(x)
                 
-                l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights)
+                l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights, dataset.u_star_mean, dataset.u_star_std)
                 l[0].backward()
 
                 for i in range(len(l)):

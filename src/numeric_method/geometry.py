@@ -140,7 +140,9 @@ def boundary(geometry, u = None, p = None):
 
         # Apply boundary conditions depending on the type
         if g["type"] == "wall":
+            neumann_idx = get_neumann_index(g, height, width)
             u = apply_dirichlet_bc(u, idx, (0, 0))
+            p = apply_neumann_bc(p, idx, neumann_idx)
         elif g["type"] == "inflow":
             u = apply_dirichlet_bc(u, idx, (g["vel"]["x"],
                                             g["vel"]["y"]))

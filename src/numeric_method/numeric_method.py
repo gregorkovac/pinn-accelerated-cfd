@@ -324,7 +324,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         A_laplacian = None
 
     if method_type in ["full_model", "poisson_model"]:
-        with open(os.path.join("../../models/poisson/2025-08-26_20_32", "params.json"), "r") as f:
+        with open(os.path.join("../../models/poisson/2025-08-28_11_02", "params.json"), "r") as f:
             params = json.load(f)
 
         with torch.no_grad():
@@ -343,7 +343,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
 
             device = torch.device('cpu')
             
-            state_dict = torch.load(os.path.join("../../models/poisson/2025-08-26_20_32", "model.pt"), map_location=device)
+            state_dict = torch.load(os.path.join("../../models/poisson/2025-08-28_11_02", "model.pt"), map_location=device)
 
             # Remove "module." prefix if present
             if any(k.startswith('module.') for k in state_dict.keys()):

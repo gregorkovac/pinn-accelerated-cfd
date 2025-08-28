@@ -38,9 +38,17 @@ def geometry_to_mtx(geometry, width, height):
     for g in geometry:
         # print(g)
 
-        if g["type"] in ["wall", "inflow"]:
+        if g["type"] in ["wall"]:
             x, y = g["pos"]["x"], g["pos"]["y"]
             w, h = g["size"]["width"], g["size"]["height"]
+
+            if "dir" in g.keys():
+                xn, yn = g["dir"]["x"], g["dir"]["y"]
+            elif "vel" in g.keys():
+                xn, yn = g["vel"]["x"], g["vel"]["y"]
+            else:
+                continue
+
 
             if x == -1:
                 x = width - 1
@@ -51,26 +59,37 @@ def geometry_to_mtx(geometry, width, height):
             if h == -1:
                 h = height + 1
 
-            w = w - 1
-            h = h - 1
+            p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
 
-            if x - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["x"] < 0) or g["type"] == "wall"):
-                p_neumann[y:(y+h+1), x] = np.array([0, -1])
-                boundary_mask[y:(y+h+1), x] = 1
+            # p_neumann[(y+yn):(y+yn+h), (x+xn):(x+xn+w)] = np.array([-yn, -xn])
 
-            if x + w + 1 < width and ((g["type"] == "inflow" and g["vel"]["x"] > 0) or g["type"] == "wall"):
-                p_neumann[y:(y+h+1), x+w] = np.array([0, 1])
-                boundary_mask[y:(y+h+1), x+w] = 1
+            boundary_mask[y:(y+h), x:(x+w)] = 1
+
+
+            # w = w - 1
+            # h = h - 1
+
+            # if x - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["x"] < 0) or g["type"] == "wall"):
+            #     p_neumann[y:(y+h+1), x] = np.array([0, -1])
+            #     # if g["type"] != "inflow":
+            #     boundary_mask[y:(y+h+1), x] = 1
+
+            # if x + w + 1 < width and ((g["type"] == "inflow" and g["vel"]["x"] > 0) or g["type"] == "wall"):
+            #     p_neumann[y:(y+h+1), x+w] = np.array([0, 1])
+            #     # if g["type"] != "inflow":
+            #     boundary_mask[y:(y+h+1), x+w] = 1
             
-            if y - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["y"] < 0) or g["type"] == "wall"):
-                p_neumann[y, x:(x+w+1)] = np.array([-1, 0])
-                boundary_mask[y, x:(x+w+1)] = 1
+            # if y - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["y"] < 0) or g["type"] == "wall"):
+            #     p_neumann[y, x:(x+w+1)] = np.array([-1, 0])
+            #     # if g["type"] != "inflow":
+            #     boundary_mask[y, x:(x+w+1)] = 1
 
-            if y + h + 1 < height and ((g["type"] == "inflow" and g["vel"]["y"] > 0) or g["type"] == "wall"):
-                p_neumann[y+h, x:(x+w+1)] = np.array([1, 0])
-                boundary_mask[y+h, x:(x+w+1)] = 1
+            # if y + h + 1 < height and ((g["type"] == "inflow" and g["vel"]["y"] > 0) or g["type"] == "wall"):
+            #     p_neumann[y+h, x:(x+w+1)] = np.array([1, 0])
+            #     # if g["type"] != "inflow":
+            #     boundary_mask[y+h, x:(x+w+1)] = 1
         
-        elif g["type"] in ["inflow"]:
+        elif g["type"] in ["inflow", "outflow"]:
             x, y = g["pos"]["x"], g["pos"]["y"]
             w, h = g["size"]["width"], g["size"]["height"]
 
@@ -103,6 +122,7 @@ def geometry_to_mtx(geometry, width, height):
             mask = dist_sq <= r ** 2
 
             boundary_mask[y_min:y_max, x_min:x_max][mask] = 1
+
 
 
     # import matplotlib.pyplot as plt
@@ -246,6 +266,14 @@ class PINNDataset(Dataset):
         self.mu = torch.tensor(np.array(self.mu), dtype=torch.float32)
         self.boundary = torch.tensor(np.array(self.boundary), dtype=torch.float32)
         self.boundary_mask = torch.tensor(np.array(self.boundary_mask), dtype=torch.float32)
+
+        mean = self.u_star[..., :2].mean(dim=(0, 1, 2)) 
+        std = self.u_star[..., :2].std(dim=(0, 1, 2))
+        # self.u_star[..., 0] = (self.u_star[..., 0] - mean[0]) / (std[0] + 1e-6)
+        # self.u_star[..., 1] = (self.u_star[..., 1] - mean[1]) / (std[1] + 1e-6)
+
+        self.u_star_mean = mean
+        self.u_star_std = std
 
     def __len__(self):
         return self.data_len
