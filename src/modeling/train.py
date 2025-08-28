@@ -277,8 +277,8 @@ def main():
             else:
                 cbar = plot_poisson(ax[:3], out, phi, boundary_mask, cbar=cbar)
 
-            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(40, len(dataset) - 1)]
-            phi = dataset.get_phi(min(40, len(dataset) - 1))
+            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(110, len(dataset) - 1)]
+            phi = dataset.get_phi(min(60, len(dataset) - 1))
             out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
 
             if model_type == "full":
