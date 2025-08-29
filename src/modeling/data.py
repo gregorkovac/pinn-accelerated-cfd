@@ -11,9 +11,6 @@ def load_case(data_path, idx, samples_per_case=-1):
     u_star = np.load(os.path.join(case_path, "u_star.npy"))
     phi = np.load(os.path.join(case_path, "phi.npy"))
 
-    # u_star = u_star[(len(u_star) // 2):]
-    # phi = phi[(len(phi) // 2):]
-
     with open(os.path.join(case_path, "params.json")) as f:
         params = json.load(f)
 
@@ -25,23 +22,24 @@ def load_case(data_path, idx, samples_per_case=-1):
     return u_star[indices], phi[indices], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["geometry"] #, params["cylinder_x"], params["cylinder_y"], params["cylinder_r"]
 
 def geometry_to_mtx(geometry, width, height):
-    # print(geometry)
     # TODO: Implement BC-s for velocity - when dealing with full model
 
-    # p_dirichlet = np.zeros((height, width))
-    # p_dirichlet_vals = np.zeros((height, width))
+    # Initialize tensor for storing normals for Neumann boundary conditions on pressure
     p_neumann = np.zeros((height, width, 2))
-    # test = np.zeros((height, width))
 
+    # Initialize a binary mask for storing at which points the boundary is present
     boundary_mask = np.zeros((height, width))
 
     for g in geometry:
-        # print(g)
 
+        # For walls and inflows, set a Neumann boundary condition for pressure
         if g["type"] in ["wall", "inflow"]:
+            
+            # Extract the region
             x, y = g["pos"]["x"], g["pos"]["y"]
             w, h = g["size"]["width"], g["size"]["height"]
 
+            # The normal is defined either by a direction or the velocity of the inflow
             if "dir" in g.keys():
                 xn, yn = g["dir"]["x"], g["dir"]["y"]
             elif "vel" in g.keys():
@@ -49,128 +47,56 @@ def geometry_to_mtx(geometry, width, height):
             else:
                 continue
 
-            # oos = False
-
+            # Convert the "-1" notation to width/height
             if x == -1:
                 x = width - 1
-                # oos = True
             if y == -1:
                 y = height - 1
-                # oos = True
             if w == -1:
+                # TODO: ?
                 w = width
-                # oos = True
             if h == -1:
                 h = height + 1
-                # oos = True
 
-            # print(x, y, x+w, y+h)
-
-            # if not oos:
-                # continue
-
+            # Add values to the pressure Neuman tensor
             p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
 
-            # p_neumann[(y+yn):(y+yn+h), (x+xn):(x+xn+w)] = np.array([-yn, -xn])
-
-            if g["type"] != "outflow":
-                boundary_mask[y:(y+h), x:(x+w)] = 1
-
-
-            # w = w - 1
-            # h = h - 1
-
-            # if x - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["x"] < 0) or g["type"] == "wall"):
-            #     p_neumann[y:(y+h+1), x] = np.array([0, -1])
-            #     # if g["type"] != "inflow":
-            #     boundary_mask[y:(y+h+1), x] = 1
-
-            # if x + w + 1 < width and ((g["type"] == "inflow" and g["vel"]["x"] > 0) or g["type"] == "wall"):
-            #     p_neumann[y:(y+h+1), x+w] = np.array([0, 1])
-            #     # if g["type"] != "inflow":
-            #     boundary_mask[y:(y+h+1), x+w] = 1
-            
-            # if y - 1 > 0 and ((g["type"] == "inflow" and g["vel"]["y"] < 0) or g["type"] == "wall"):
-            #     p_neumann[y, x:(x+w+1)] = np.array([-1, 0])
-            #     # if g["type"] != "inflow":
-            #     boundary_mask[y, x:(x+w+1)] = 1
-
-            # if y + h + 1 < height and ((g["type"] == "inflow" and g["vel"]["y"] > 0) or g["type"] == "wall"):
-            #     p_neumann[y+h, x:(x+w+1)] = np.array([1, 0])
-            #     # if g["type"] != "inflow":
-            #     boundary_mask[y+h, x:(x+w+1)] = 1
-        
-        elif g["type"] in ["inflow", "outflow"]:
-            continue
-            x, y = g["pos"]["x"], g["pos"]["y"]
-            w, h = g["size"]["width"], g["size"]["height"]
-
-            if x == -1:
-                x = width - 1
-            if y == -1:
-                y = height - 1
-            if w == -1:
-                w = width
-            if h == -1:
-                h = height + 1
-
-            # w = w - 1
-            # h = h - 1
-
+            # Add values to the boundary mask
             boundary_mask[y:(y+h), x:(x+w)] = 1
 
         elif g["type"] == "cylinder":
+            # Extract coordinates and radius
             x, y, r = g["pos"]["x"], g["pos"]["y"], g["size"]
 
+            # Determine min and max values in each coordinate direction
             x_min = max(0, x - r)
             x_max = min(width, x + r + 1)
             y_min = max(0, y - r)
             y_max = min(height, y + r + 1)
 
+            # Define a grid
             yy, xx = np.ogrid[y_min:y_max, x_min:x_max]
 
+            # Distance check
             dist_sq = (xx - x) ** 2 + (yy - y) ** 2
 
+            # Mask out points inside the circle
             mask = dist_sq <= r ** 2
 
+            # Set the values in the boundary mask
             boundary_mask[y_min:y_max, x_min:x_max][mask] = 1
 
 
+    # Remove entries where the vector is pointing to another boundary point
     yy, xx = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
     ny = yy + p_neumann[..., 0].astype(int)
     nx = xx + p_neumann[..., 1].astype(int)
-
     invalid = (
         (boundary_mask == 1) &
         ((ny < 0) | (ny >= height) | (nx < 0) | (nx >= width) |
          (boundary_mask[np.clip(ny, 0, height-1), np.clip(nx, 0, width-1)] == 1))
     )
-
     p_neumann[invalid] = (0, 0)
-
-    # import matplotlib.pyplot as plt
-    # from matplotlib.patches import Rectangle
-
-    # x = np.arange(width)
-    # y = np.arange(height)
-    # X, Y = np.meshgrid(x, y)   
-    
-    # U = p_neumann[..., 1]                      # (n, m)
-    # V = p_neumann[..., 0]                      # (n, m)
-    
-    # fig, ax = plt.subplots(figsize=(8, 8))
-    # for i in range(height):
-    #     for j in range(width):
-    #         rect = Rectangle((j - 0.5, i - 0.5), 1, 1,
-    #                      edgecolor='gray', facecolor='none', linewidth=0.5)
-    #         ax.add_patch(rect)
-    # # ax.scatter(X, Y, color='black', s=10, alpha=0.8, label='Grid points')
-    # q = ax.quiver(X, Y, U, V, angles='xy', scale_units='xy', scale=1, pivot='mid')
-    # ax.set_aspect('equal')
-
-    # plt.show()
-
-    # exit(0)
 
     return p_neumann, boundary_mask
 
@@ -222,56 +148,6 @@ class PINNDataset(Dataset):
 
                 self.t.append(t)
                 self.delta_t.append(time_step)
-
-                # grid_x = coords[:, 0, :, :]  # shape: (B, H, W)
-                # grid_y = coords[:, 1, :, :]  # shape: (B, H, W)
-
-                # # Extract centers and radii: (B, 1, 1) for broadcasting
-                # cx = boundary[:, 0].view(-1, 1, 1)
-                # cy = boundary[:, 1].view(-1, 1, 1)
-                # r  = boundary[:, 2].view(-1, 1, 1)
-
-                # # Mask of cylinder interior: (B, H, W)
-                # mask = ((grid_x - cx) ** 2 + (grid_y - cy) ** 2) <= (r ** 2)
-
-                # # Velocity inside cylinder
-                # u_inside = x[:, 0] * mask
-                # v_inside = x[:, 1] * mask
-
-                # loss_bc_cylinder = torch.mean(u_inside ** 2) + torch.mean(v_inside ** 2)
-
-                # mask = ((grid_x / dx - cylinder_x) ** 2 + (grid_y / dy - cylinder_y) ** 2) <= (cylinder_r ** 2)
-
-                # mask = mask * 0
-
-
-                # mask[:-1, 0] = 1
-                # mask[:-1, -1] = 1
-
-                # Dam mask
-                # mask[0, :] = 1
-                # mask[-1, :] = 1
-                # mask[:8, 8:10] = 1
-                # mask[:, 0] = 1
-                # mask[:, -1] = 1
-
-                # Cavity mask
-                # mask[0, :] = 1
-                # mask[-1, :] = 1
-                # mask[:-1, 0] = 1
-                # mask[:-1, -1] = 1
-
-                # import matplotlib.pyplot as plt
-                # plt.imshow(mask)
-                # plt.show()
-
-
-                # print(cylinder_x, cylinder_y, cylinder_r)
-
-                # import matplotlib.pyplot as plt
-
-                # plt.imshow(mask)
-                # plt.show()
 
                 self.boundary.append(boundary)
                 self.boundary_mask.append(boundary_mask)

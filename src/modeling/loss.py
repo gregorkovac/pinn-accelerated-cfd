@@ -4,15 +4,6 @@ import torch.nn.functional as F
 
 from derivatives import compute_grads#, divergence
 
-# def laplacian(v, dx, dy):
-#     dy = float(dy[0].item())
-#     dx = float(dx[0].item())
-
-#     gy, gx = torch.gradient(v, spacing=(dy, dx), dim=(1, 2), edge_order=2)
-#     gyy, _  = torch.gradient(gy, spacing=(dy, dx), dim=(1, 2), edge_order=2)
-#     _,  gxx = torch.gradient(gx, spacing=(dy, dx), dim=(1, 2), edge_order=2)
-#     return gyy + gxx
-
 def laplacian(v, dx, dy):
     v_pad = F.pad(v, (1,1,1,1), mode='replicate')
     lap = (v_pad[:,2:,1:-1] - 2*v + v_pad[:,:-2,1:-1]) / dy**2 + (v_pad[:,1:-1,2:] - 2*v + v_pad[:,1:-1,:-2]) / dx**2
@@ -37,141 +28,96 @@ class PoissonLoss(nn.Module):
         delta_t = delta_t.to(output.device).view(-1, 1, 1)
         boundary_mask = boundary_mask.to(output.device)
 
+        # Compute the laplacian of pressure
         laplacian_phi = laplacian(output, delta_x, delta_y)
 
-        # import matplotlib.pyplot as plt
-        # plt.ioff()
-        # fig, ax = plt.subplots(1, 2)
-        # ax[0].imshow(output[2].detach())
-        # ax[1].imshow(laplacian_phi[2].detach())
-        # plt.show()
-        # exit(0)
-
+        # Compute the divergence of the approximate velocity
         div_u_star = divergence(x[:, 0], 
                                 x[:, 1], 
                                 delta_x, 
                                 delta_y)
+        
+        # Scale
         div_u_star = div_u_star * rho / delta_t
 
+        # Compute the mean of divergence of u star - for normalizing the loss
         norm = div_u_star.abs().mean(dim=(1,2), keepdim=True).detach().clamp(min=1e-6)
+
+        # Compute the PDE loss
         loss_pde = ((laplacian_phi - div_u_star) / norm) ** 2
+
+        # Mask out boundary values and compute the mean
         mask = (boundary_mask - 1).abs()
         loss_pde = torch.mean(loss_pde * mask)
         
+        # Extract output dimensions
+        # batch, height, width = output.shape
+
+        # # Extract the pressure Neumann boundary condition offsets
+        # bc_y, bc_x = x[:, 4].long(), x[:, 5].long()
+
+        # # Create a coordinate grid
+        # base_x, base_y = torch.meshgrid(
+        #         torch.linspace(0, width - 1, width),
+        #         torch.linspace(0, height - 1, height),
+        #         indexing="ij"
+        # )
+        # base_x = base_x.long()
+        # base_y = base_y.long()
+
+        # # Compute offset indices
+        # bc_y = base_y + bc_y
+        # bc_x = base_x + bc_x
+
+
+        # Extract output shape
         batch, height, width = output.shape
 
-        # base_y, base_x = (x[:, 2] * (height - 1)).long(), (x[:, 3] * (width - 1)).long()
-        bc_y, bc_x = x[:, 4].long(), x[:, 5].long()
-
-        base_x, base_y = torch.meshgrid(
-                torch.linspace(0, 19, width),
-                torch.linspace(0, 19, height),
-                indexing="ij"
-        )
-
-        base_x = base_x.long()
-        base_y = base_y.long()
-
-        bc_y = base_y + bc_y
-        bc_x = base_x + bc_x
-
-        B, H, W = output.shape
+        # Create a coordinate grid
         yy, xx = torch.meshgrid(
-            torch.arange(H, device=output.device),
-            torch.arange(W, device=output.device),
+            torch.arange(height, device=output.device),
+            torch.arange(width, device=output.device),
             indexing='ij'
         )
-        yy = yy.expand(B, -1, -1)
-        xx = xx.expand(B, -1, -1)
+        yy = yy.expand(batch, -1, -1)
+        xx = xx.expand(batch, -1, -1)
 
+        # Extract pressure Neumann offsets
         off_y = x[:, 4].long()
         off_x = x[:, 5].long()
 
+        # Compute offset coordinates
         bc_y = yy + off_y
         bc_x = xx + off_x
 
-        # import matplotlib.pyplot as plt
-        # plt.ioff()
-        # fig, ax = plt.subplots(2, 2)
-        # ax = ax.flatten()
-        # ax[0].imshow((yy + off_y)[10].detach())
-        # ax[1].imshow((xx + off_x)[10].detach())
-        # ax[2].imshow((yy - off_y)[10].detach())
-        # ax[3].imshow((xx - off_x)[10].detach())
-        # plt.show()
+        # Check if it is valid to apply each Neumann BC
+        valid = (boundary_mask == 1) & ((off_y != 0) | (off_x != 0)) & (bc_y >= 0) & (bc_y < height) & (bc_x >= 0) & (bc_x < width)
 
-        valid = (boundary_mask == 1) & ((off_y != 0) | (off_x != 0)) & (bc_y >= 0) & (bc_y < H) & (bc_x >= 0) & (bc_x < W)
+        # Batch indices
+        bidx = torch.arange(batch, device=output.device)[:, None, None]
 
-        bidx = torch.arange(B, device=output.device)[:, None, None]
-        p_center = output[bidx, yy, xx]
-        p_interior = output[bidx, bc_y.clamp(0, H-1), bc_x.clamp(0, W-1)]
+        # Base pressure values
+        p_base = output[bidx, yy, xx]
 
-    #     import matplotlib.pyplot as plt
-    #     from matplotlib.patches import Rectangle
-    #     import numpy as np
-    #     plt.ioff()
-    #     plt.clf()
-    # # 
-    #     x = np.arange(width)
-    #     y = np.arange(height)
-    #     X, Y = np.meshgrid(x, y)   
-    #     # 
-    #     U = off_x[0]                      # (n, m)
-    #     V = off_y[0]                     # (n, m)
-    #     # 
-    #     fig, ax = plt.subplots(figsize=(8, 8))
-    #     for i in range(height):
-    #         for j in range(width):
-    #             rect = Rectangle((j - 0.5, i - 0.5), 1, 1,
-    #                          edgecolor='gray', facecolor='none', linewidth=0.5)
-    #             ax.add_patch(rect)
-    #     # ax.scatter(X, Y, color='black', s=10, alpha=0.8, label='Grid points')
-    #     q = ax.quiver(X, Y, U, V, angles='xy', scale_units='xy', scale=1, pivot='tail')
-    #     ax.set_aspect('equal')
+        # Offset pressure values
+        p_offset = output[bidx, bc_y.clamp(0, height-1), bc_x.clamp(0, width-1)]
 
-    #     plt.scatter(xx[0], yy[0], color="black")
-    #     plt.scatter((xx + off_x)[0], (yy + off_y)[0], color="red")
-    #     print(xx+off_x)
-    #     plt.show()
+        # Dynamic spacing for BC in x and y direction
+        spacing = torch.where(off_y != 0, delta_y, delta_x)
 
-    #     exit(0)
+        # Compute BC loss
+        loss_bc_p = torch.mean((((p_base - p_offset) / spacing) ** 2)[valid])
 
-        # import matplotlib.pyplot as plt
-        # plt.ioff()
-        # fig, ax = plt.subplots(2, 2)
-        # ax = ax.flatten()
-        # ax[0].imshow(p_center[10].detach())
-        # ax[1].imshow(p_interior[10].detach())
-        # # ax[2].imshow((yy - off_y)[10].detach())
-        # # ax[3].imshow((xx - off_x)[10].detach())
-        # plt.show()
-
-        den = torch.where(off_y != 0, delta_y, delta_x)
-
-        loss_bc_p = torch.mean((((p_center - p_interior) / den) ** 2)[valid])   #.sum() #/ (valid.sum().clamp_min(1))
-
+        # Add pressure gauge on outflow
         loss_bc_p += torch.mean(output[:, 1:-1, -1] ** 2)
-
-        loss_bc_p += torch.mean(torch.relu(-output)**2)
-
-        # valid_mask = (bc_y >= 0) & (bc_y < height) & (bc_x >= 0) & (bc_x < width)
-
-        # batch_idx = torch.arange(batch, device=output.device)[:, None, None].expand(batch, height, width)
-
-        # neighbor_vals = output[batch_idx, bc_y.clamp(0, height - 1), bc_x.clamp(0, width - 1)]
-        # center_vals   = output[batch_idx, base_y, base_x]
-
-        # diff = center_vals - neighbor_vals
-
-        # loss_bc_p = ((diff / delta_x) ** 2)[valid_mask].sum() / (valid_mask.sum() + 1e-6)
-
-        # loss_bc_p = torch.mean((diff[valid_mask] / delta_x) ** 2)
-
-        # loss_bc_p += torch.mean(output[:, 1:-1, -1] ** 2)
+        # TODO: Convert this to Dirichlet BC
 
         loss_bc = loss_bc_p
 
-        loss = loss_weights[0] * loss_pde + loss_weights[1] * loss_bc
+        # Loss to enforce non-negative values
+        loss_nonneg = torch.mean(torch.relu(-output)**2)
+
+        loss = loss_weights[0] * loss_pde + loss_weights[1] * loss_bc + loss_weights[2] * loss_nonneg
 
         return loss, loss_pde, loss_bc, torch.tensor(0), torch.tensor(0)
 
