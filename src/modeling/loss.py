@@ -17,11 +17,66 @@ def divergence(u, v, dx, dy):
     dv_dy, dv_dx = torch.gradient(v, spacing=(dy, dx), dim=(1, 2), edge_order=2)
     return du_dx + dv_dy
 
+def neumann_bc_loss(off_y, off_x, boundary_mask, output, delta_y, delta_x):
+    # Extract output shape
+    if len(output.shape) == 3:
+        batch, height, width = output.shape
+    else:
+        batch, channels, height, width = output.shape
+
+    # Create a coordinate grid
+    yy, xx = torch.meshgrid(
+        torch.arange(height, device=output.device),
+        torch.arange(width, device=output.device),
+        indexing='ij'
+    )
+    yy = yy.expand(batch, -1, -1)
+    xx = xx.expand(batch, -1, -1)
+
+    # # Extract pressure Neumann offsets
+    # off_y = x[:, 4].long()
+    # off_x = x[:, 5].long()
+
+    # Compute offset coordinates
+    bc_y = yy + off_y
+    bc_x = xx + off_x
+
+    # Check if it is valid to apply each Neumann BC
+    valid = (boundary_mask == 1) & ((off_y != 0) | (off_x != 0)) & (bc_y >= 0) & (bc_y < height) & (bc_x >= 0) & (bc_x < width)
+
+    # Batch indices
+    bidx = torch.arange(batch, device=output.device)[:, None, None]
+
+    if len(output.shape) == 3:
+        # Base pressure values
+        p_base = output[bidx, yy, xx]
+
+        # Offset pressure values
+        p_offset = output[bidx, bc_y.clamp(0, height-1), bc_x.clamp(0, width-1)]
+    else:
+        # Base pressure values
+        p_base = output[bidx, :, yy, xx]
+
+        # Offset pressure values
+        p_offset = output[bidx, :, bc_y.clamp(0, height-1), bc_x.clamp(0, width-1)]
+
+    # Dynamic spacing for BC in x and y direction
+    spacing = torch.where(off_y != 0, delta_y, delta_x)
+
+    if len(output.shape) > 3:
+        spacing = spacing.unsqueeze(-1).repeat(1, 1, 1, channels)
+        valid = valid.unsqueeze(-1).repeat(1, 1, 1, channels)
+
+    # Compute BC loss
+    loss_bc_p = torch.mean((((p_base - p_offset) / spacing) ** 2)[valid])
+
+    return loss_bc_p
+
 class PoissonLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights, u_star_mean, u_star_std):
+    def forward(self, x, output, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights):
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
         delta_y = delta_y.to(output.device).view(-1, 1, 1)
         rho = rho.to(output.device).view(-1, 1, 1)
@@ -69,48 +124,16 @@ class PoissonLoss(nn.Module):
         # bc_y = base_y + bc_y
         # bc_x = base_x + bc_x
 
-
-        # Extract output shape
-        batch, height, width = output.shape
-
-        # Create a coordinate grid
-        yy, xx = torch.meshgrid(
-            torch.arange(height, device=output.device),
-            torch.arange(width, device=output.device),
-            indexing='ij'
-        )
-        yy = yy.expand(batch, -1, -1)
-        xx = xx.expand(batch, -1, -1)
-
-        # Extract pressure Neumann offsets
-        off_y = x[:, 4].long()
-        off_x = x[:, 5].long()
-
-        # Compute offset coordinates
-        bc_y = yy + off_y
-        bc_x = xx + off_x
-
-        # Check if it is valid to apply each Neumann BC
-        valid = (boundary_mask == 1) & ((off_y != 0) | (off_x != 0)) & (bc_y >= 0) & (bc_y < height) & (bc_x >= 0) & (bc_x < width)
-
-        # Batch indices
-        bidx = torch.arange(batch, device=output.device)[:, None, None]
-
-        # Base pressure values
-        p_base = output[bidx, yy, xx]
-
-        # Offset pressure values
-        p_offset = output[bidx, bc_y.clamp(0, height-1), bc_x.clamp(0, width-1)]
-
-        # Dynamic spacing for BC in x and y direction
-        spacing = torch.where(off_y != 0, delta_y, delta_x)
-
-        # Compute BC loss
-        loss_bc_p = torch.mean((((p_base - p_offset) / spacing) ** 2)[valid])
+        loss_bc_p = neumann_bc_loss(off_y=x[:, 4].long(),
+                                    off_x=x[:, 5].long(),
+                                    boundary_mask=boundary_mask,
+                                    output=output,
+                                    delta_y=delta_y,
+                                    delta_x=delta_x)
 
         # Add pressure gauge on outflow
-        loss_bc_p += torch.mean(output[:, 1:-1, -1] ** 2)
-        # TODO: Convert this to Dirichlet BC
+        p_dirichlet_mask = x[:, -1]
+        loss_bc_p += torch.mean(output[p_dirichlet_mask == 1] ** 2)
 
         loss_bc = loss_bc_p
 
@@ -125,9 +148,10 @@ class NavierStokesLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary, loss_weights):
+    def forward(self, x, output, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights):
         # Reformat constants
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
+        delta_y = delta_x.to(output.device).view(-1, 1, 1)
         rho = rho.to(output.device).view(-1, 1, 1, 1)
         mu = mu.to(output.device).view(-1, 1, 1, 1)
         delta_t = delta_t.to(output.device).view(-1, 1, 1)
@@ -186,12 +210,52 @@ class NavierStokesLoss(nn.Module):
         loss_mom = torch.mean((du_dt + u_dot_del_u + (1 / rho) * grad_p_ - mu * laplacian_u) ** 2)
 
         # Compute boundary condition loss
-        loss_bc_uy = torch.mean((output[:, 1, 0, :] - output[:, 1, 1, :]) ** 2) + torch.mean((output[:, 1, -1, :] - output[:, 1, -2, :]) ** 2)
-        loss_bc_ux = torch.mean((output[:, 0, 0, :] - output[:, 0, 1, :]) ** 2
-                            + torch.mean((output[:, 0, -1, :] - output[:, 0, -2, :]) ** 2)
-                            + torch.mean((output[:, 0, 1:-1, 0] - 1) ** 2))
-        loss_bc_p = torch.mean((output[:, 2, 1:-1, -1] - output[:, 2, 1:-1, -2]) ** 2)
-        loss_bc = loss_bc_uy + loss_bc_ux + loss_bc_p
+        # loss_bc_uy = torch.mean((output[:, 1, 0, :] - output[:, 1, 1, :]) ** 2) + torch.mean((output[:, 1, -1, :] - output[:, 1, -2, :]) ** 2)
+        # loss_bc_ux = torch.mean((output[:, 0, 0, :] - output[:, 0, 1, :]) ** 2
+        #                     + torch.mean((output[:, 0, -1, :] - output[:, 0, -2, :]) ** 2)
+        #                     + torch.mean((output[:, 0, 1:-1, 0] - 1) ** 2))
+        # loss_bc_p = torch.mean((output[:, 2, 1:-1, -1] - output[:, 2, 1:-1, -2]) ** 2)
+        # loss_bc = loss_bc_uy + loss_bc_ux + loss_bc_p
+
+        # TODO: u dirichelt
+        # TODO: u neumann
+        
+        loss_bc_p = neumann_bc_loss(off_y=x[:, 10].long(),
+                                    off_x=x[:, 11].long(),
+                                    boundary_mask=boundary_mask,
+                                    output=output[:, 2],
+                                    delta_y=delta_y,
+                                    delta_x=delta_x)
+
+        # Add pressure gauge on outflow
+        p_dirichlet_mask = x[:, 9]
+        loss_bc_p += torch.mean(output[:, 2][p_dirichlet_mask == 1] ** 2)
+
+        loss_bc_u = neumann_bc_loss(off_y=x[:, 6].long(),
+                                    off_x=x[:, 7].long(),
+                                    boundary_mask=boundary_mask,
+                                    output=output[:, :2],
+                                    delta_y=delta_y,
+                                    delta_x=delta_x)
+
+        # Add pressure gauge on outflow
+        u_dirichlet_mask = x[:, 5]                # Shape: [B, H, W]
+        u_dirichlet_val = x[:, 3:5]              # Shape: [B, 2, H, W]
+
+        # Extract the first two channels from output
+        u_output = output[:, :2]                 # Shape: [B, 2, H, W]
+
+        # Make mask broadcastable by adding a channel dimension
+        mask = (u_dirichlet_mask == 1).unsqueeze(1)  # Shape: [B, 1, H, W]
+
+        # Apply mask correctly (select masked elements for both tensors)
+        u_output_masked = u_output.permute(0, 2, 3, 1)[u_dirichlet_mask == 1]       # Shape: [N, 2]
+        u_val_masked    = u_dirichlet_val.permute(0, 2, 3, 1)[u_dirichlet_mask == 1] # Shape: [N, 2]
+
+        # Compute loss only on masked points
+        loss_bc_u += torch.mean((u_output_masked - u_val_masked) ** 2)
+        
+        loss_bc = loss_bc_p + loss_bc_u
 
         # Weighted sum of losses
         loss = loss_weights[0] * loss_div + loss_weights[1] * loss_mom + loss_weights[2] * loss_bc

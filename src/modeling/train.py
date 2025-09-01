@@ -226,7 +226,7 @@ def main():
 
                 outputs = model(x)
                 
-                l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights, dataset.u_star_mean, dataset.u_star_std)
+                l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights)
                 l[0].backward()
 
                 for i in range(len(l)):
@@ -269,21 +269,21 @@ def main():
             
         with torch.no_grad():
             x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(10, len(dataset) - 1)]
-            phi = dataset.get_phi(min(10, len(dataset) - 1))
             out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
 
             if model_type == "full":
                 plot_full(ax[:3], out, delta_x_.item())
             else:
+                phi = dataset.get_phi(min(10, len(dataset) - 1))
                 cbar = plot_poisson(ax[:3], out, phi, boundary_mask, cbar=cbar)
 
             x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(110, len(dataset) - 1)]
-            phi = dataset.get_phi(min(60, len(dataset) - 1))
             out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
 
             if model_type == "full":
                 plot_full(ax[3:], out, delta_x_.item())
             else:
+                phi = dataset.get_phi(min(60, len(dataset) - 1))
                 cbar = plot_poisson(ax[3:], out, phi, boundary_mask, cbar=cbar)
 
             plt.draw()

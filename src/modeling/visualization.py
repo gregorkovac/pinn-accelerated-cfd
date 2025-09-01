@@ -16,16 +16,18 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20))):
     x_max = (width - 1) * grid_spacing
     y_max = (height - 1) * grid_spacing
 
-    ax.clear()
+    for a in ax:
+        a.clear()
+        
     X, Y = np.meshgrid(np.linspace(0, x_max, width) + 0.5 * grid_spacing, 
                        np.linspace(0, y_max, height) + 0.5 * grid_spacing)
     # ax.contourf(X, Y, p, cmap=cmap)
-    ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
+    ax[0].imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing])
-    ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
+    ax[0].quiver(X, Y, u[:,:,0], u[:,:,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
 
     boundary_image = boundary_image[::-1, :]
-    ax.imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
+    ax[0].imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing], alpha=0.5*boundary_image)
     
 def plot_poisson(ax, x, y, boundary, cbar=None):
