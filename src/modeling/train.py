@@ -212,6 +212,11 @@ def main():
     for epoch in range(epochs):
         running_loss = [0, 0, 0, 0, 0]
 
+        # if loss_weights[2] < 1000:
+        #     loss_weights = (loss_weights[0], loss_weights[1], loss_weights[2] * 1.1, loss_weights[3])
+        #     if loss_weights[2] >= 1000:
+        #         print("EXCEEDED")
+
         # Iterate through data loader
         for data in dataloader:
             # Extract data
@@ -225,6 +230,17 @@ def main():
                 optimizer.zero_grad()
 
                 outputs = model(x)
+
+                # u_dirichlet = x[:, 3:5]
+                # u_dirichlet_mask = x[:, 5].unsqueeze(1).repeat(1, 2, 1, 1)
+
+                # u_bc = outputs[:, :2] * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
+
+                # outputs_bc = torch.cat([u_bc, outputs[:, 2:3]], dim=1)
+
+                # plt.ioff()
+                # plt.imshow(outputs_bc[0, 2].detach())
+                # plt.show()
                 
                 l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights)
                 l[0].backward()
@@ -258,7 +274,7 @@ def main():
         if use_scheduler:
             scheduler.step()
 
-        print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL LOSS = {loss[0]:.5f}   LOSS PARTS = [{loss[1]:.5f}, {loss[2]:.5f}, {loss[3]:.5f}, {loss[4]:.5f}]")
+        print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL LOSS = {loss[0]:.10f}   LOSS PARTS = [{loss[1]:.10f}, {loss[2]:.10f}, {loss[3]:.10f}, {loss[4]:.10f}]")
 
         if use_wandb:
             wandb.log({"loss": loss[0],

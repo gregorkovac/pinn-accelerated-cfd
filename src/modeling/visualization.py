@@ -10,9 +10,9 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20))):
     u = x[:2]
     p = x[2]
 
-    u = np.transpose(u, (1, 2, 0))
+    # u = np.transpose(u, (1, 2, 0))
 
-    width, height = np.shape(u)[1], np.shape(u)[0]
+    width, height = np.shape(u)[1], np.shape(u)[2]
     x_max = (width - 1) * grid_spacing
     y_max = (height - 1) * grid_spacing
 
@@ -24,7 +24,7 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20))):
     # ax.contourf(X, Y, p, cmap=cmap)
     ax[0].imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing])
-    ax[0].quiver(X, Y, u[:,:,0], u[:,:,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
+    ax[0].quiver(X, Y, u[1,:,:], u[0,:,:], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
 
     boundary_image = boundary_image[::-1, :]
     ax[0].imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
