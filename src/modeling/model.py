@@ -20,7 +20,7 @@ class CNN(nn.Module):
             encoder_layers.extend([
                 nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1, padding_mode="zeros"),
                 # nn.BatchNorm2d(hidden_channels),
-                nn.GroupNorm(num_groups=8, num_channels=hidden_channels),
+                nn.GroupNorm(num_groups=4, num_channels=hidden_channels),
                 # nn.LayerNorm([hidden_channels, input_height, input_width]),
                 nn.Tanh()
             ])
@@ -35,7 +35,7 @@ class CNN(nn.Module):
             nn.Conv2d(hidden_channels, output_channels, 3, padding=1, padding_mode="zeros")
         )
 
-        self.skip = nn.Conv2d(3, output_channels, 1)
+        self.skip = nn.Conv2d(4, output_channels, 1)
 
         # self.bc_skip = nn.Conv2d(3, output_channels, 1)
 
@@ -54,8 +54,9 @@ class CNN(nn.Module):
         u_dirichlet = x[:, 3:5]
         u_dirichlet_mask = x[:, 5]
 
+        sdf = x[:, -1].unsqueeze(1)
 
-        x_skip = torch.cat([u_dirichlet, (1 - u_dirichlet_mask).unsqueeze(1)], dim=1)
+        x_skip = torch.cat([sdf, u_dirichlet, u_dirichlet_mask.unsqueeze(1)], dim=1)
 
         skip = self.skip(x_skip)
 
@@ -89,7 +90,7 @@ class CNN(nn.Module):
         # bc_feat = torch.cat([u_dirichlet, u_dirichlet_mask.unsqueeze(1)], dim=1)
         # skip = self.bc_skip(bc_feat) 
 
-        # x += skip
+        x += skip
 
         # x = x * 0
 
@@ -100,7 +101,7 @@ class CNN(nn.Module):
 
         # x[:, :2][u_dirichlet_mask.unsqueeze(1).expand(-1, 2, -1, -1) == 1] = u_dirichlet[u_dirichlet_mask.unsqueeze(1).expand(-1, 2, -1, -1) == 1]
  
-        x = x + skip
+        # x = x + skip
 
         # if self.output_channels == 1:
         x = x.squeeze(1)
@@ -116,13 +117,25 @@ class CNN(nn.Module):
             # nonzero_mask = nonzero_mask.unsqueeze(1).expand(-1, 2, self.input_height, self.input_width)
     
 
-            # print(u_dirichlet_mask.shape)
-            # print(nonzero_mask.shape)
-            u_dirichlet_mask = u_dirichlet_mask * nonzero_mask
+            # # print(u_dirichlet_mask.shape)
+            # # print(nonzero_mask.shape)
+            # u_dirichlet_mask = u_dirichlet_mask * nonzero_mask
             # print(u_dirichlet_mask.shape)
 
             x[:, :2] *= (1 - u_dirichlet_mask)
             x[:, :2] += u_dirichlet_mask * u_dirichlet
+
+
+            # k = 10
+            # alpha = torch.exp(-k * torch.abs(sdf))
+
+            # import matplotlib.pyplot as plt
+            # plt.ioff()
+            # plt.imshow(alpha[0].detach())
+            # plt.show()
+
+            # x[:, :2] *= (1 - alpha)
+            # x[:, :2] += alpha * u_dirichlet
 
             
         # x[:, :2] = (1 - u_dirichlet_mask).abs() * x[:, :2] + u_dirichlet_mask * u_dirichlet

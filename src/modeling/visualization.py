@@ -5,7 +5,7 @@ import numpy as np
 cmap = mpl.cm.Blues(np.linspace(0,1,20))
 cmap = mpl.colors.ListedColormap(cmap[10:,:-1])
 
-def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20))):
+def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=None):
 
     u = x[:2]
     p = x[2]
@@ -22,13 +22,23 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20))):
     X, Y = np.meshgrid(np.linspace(0, x_max, width) + 0.5 * grid_spacing, 
                        np.linspace(0, y_max, height) + 0.5 * grid_spacing)
     # ax.contourf(X, Y, p, cmap=cmap)
-    ax[0].imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
+    im0 = ax[0].imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing])
+    
+    if cbar:
+        for cb in cbar:
+            cb.remove()
+    
+    cbar0 = plt.colorbar(im0, ax=ax[0])
+
     ax[0].quiver(X, Y, u[1,:,:], u[0,:,:], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
 
     boundary_image = boundary_image[::-1, :]
     ax[0].imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing], alpha=0.5*boundary_image)
+    
+
+    return [cbar0]
     
 def plot_poisson(ax, x, y, boundary, cbar=None):
     for a in ax:

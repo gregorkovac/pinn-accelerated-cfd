@@ -238,7 +238,7 @@ class NavierStokesLoss(nn.Module):
         # Compute divergence loss
         loss_div = div_u ** 2
         
-        loss_div = torch.mean(loss_div)
+        loss_div = torch.mean(loss_div * mask)
         
 
         # Compute momentum loss
@@ -305,7 +305,7 @@ class NavierStokesLoss(nn.Module):
         # plt.show()
 
         weights = torch.ones_like(u_val_masked)
-        weights[u_val_masked == 0] = 100.0
+        weights[u_val_masked == 0] = 10.0
 
         # TODO: Remove unneeded input params (like time)
         # TODO: Check if delta t is ok
@@ -338,6 +338,18 @@ class NavierStokesLoss(nn.Module):
         loss_nonneg_p = torch.mean(torch.relu(-output[:, 2])**2)
         # loss_nonneg_p = torch.tensor(0)
 
+        # loss_nonzero = output.abs()
+        # mask_nonzero = loss_nonzero < 0.0001
+        # loss_nonzero = loss_nonzero * mask_nonzero * mask
+        # loss_nonzero = loss_nonzero.mean() * 100
+
+        # print(loss_nonzero)
+
+        # import matplotlib.pyplot as plt
+        # plt.ioff()
+        # plt.imshow(loss_nonzero[0, 1].detach())
+        # plt.show()
+
         global init_losses
         if len(init_losses) == 0:
             init_losses["loss_div"] = loss_div.detach().item()
@@ -351,8 +363,10 @@ class NavierStokesLoss(nn.Module):
             loss_bc /= (init_losses["loss_bc"] + 1e-10)
             loss_nonneg_p /= (init_losses["loss_nonneg_p"] + 1e-10)
 
+        # loss_energy = 1000 * (torch.mean(output[:2] * mask) - 1) ** 2
+
         # Weighted sum of losses
-        loss = loss_weights[0] * loss_div + loss_weights[1] * loss_mom + loss_weights[2] * loss_bc + loss_weights[3] * loss_nonneg_p
+        loss = loss_weights[0] * loss_div + loss_weights[1] * loss_mom + loss_weights[2] * loss_bc + loss_weights[3] * loss_nonneg_p #+ loss_energy
 
         return loss, loss_div, loss_mom, loss_bc, torch.tensor(0)
 

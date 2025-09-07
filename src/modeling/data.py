@@ -36,6 +36,8 @@ def geometry_to_mtx(geometry, width, height):
     # Initialize a binary mask for storing at which points the boundary is present
     boundary_mask = np.zeros((height, width))
 
+    cylinder_mask = None
+
     for g in geometry:
 
         # For walls and inflows, set a Neumann boundary condition for pressure
@@ -140,6 +142,8 @@ def geometry_to_mtx(geometry, width, height):
             # ny = dy / norm
             # p_neumann[y_min:y_max, x_min:x_max][mask] = np.stack([ny[mask], nx[mask]], axis=-1)
 
+            cylinder_mask = np.zeros((height, width), dtype=bool)
+            cylinder_mask[y_min:y_max, x_min:x_max][mask] = 1
 
     # Remove entries where the vector is pointing to another boundary point
     yy, xx = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
@@ -150,6 +154,8 @@ def geometry_to_mtx(geometry, width, height):
         ((ny < 0) | (ny >= height) | (nx < 0) | (nx >= width) |
          (boundary_mask[np.clip(ny, 0, height-1), np.clip(nx, 0, width-1)] == 1))
     )
+    if cylinder_mask is not None:
+        invalid[cylinder_mask] = False
     p_neumann[invalid] = (0, 0)
 
     # Remove entries where the vector is pointing to another boundary point
@@ -184,8 +190,6 @@ def geometry_to_mtx(geometry, width, height):
     # ax.set_aspect('equal')
 
     # plt.show()
-
-    
 
     return u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask
 
@@ -320,12 +324,13 @@ def compute_sdf(mask):
 class FullPINNDataset(PINNDataset):
     def __init__(self, data_path, N, samples_per_case=-1):
         super().__init__(data_path, N, samples_per_case)
-        self.input_channels = 12
+        self.input_channels = 13
         self.output_channels = 3
 
     def __getitem__(self, idx):
 
         sdf = compute_sdf(self.u_dirichlet_mask[idx].unsqueeze(0))
+        sdf[sdf < 0] = 0
         sdf = torch.tensor(sdf, dtype=torch.float32)
 
         # import matplotlib.pyplot as plt
@@ -343,6 +348,7 @@ class FullPINNDataset(PINNDataset):
                        self.p_dirichlet[idx].unsqueeze(0), # 8
                        self.p_dirichlet_mask[idx].unsqueeze(0), # 9
                        self.p_neumann[idx].permute(2, 0, 1), # 10, 11
+                       sdf # 12
                     ], dim=0) 
 
         return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
