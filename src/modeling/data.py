@@ -108,7 +108,7 @@ def geometry_to_mtx(geometry, width, height):
             p_dirichlet[y:(y+h), x:(x+w)] = 0
             p_dirichlet_mask[y:(y+h), x:(x+w)] = 1
 
-            # u_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
+            u_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
         elif g["type"] == "cylinder":
             # Extract coordinates and radius
             x, y, r = g["pos"]["x"], g["pos"]["y"], g["size"]

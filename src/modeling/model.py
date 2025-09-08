@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class CNN(nn.Module):
-    def __init__(self, input_channels=2, output_channels=1, num_layers=3, hidden_channels=64, input_width=20, input_height=20, enforceBC=False):
+    def __init__(self, input_channels=2, output_channels=1, num_layers=3, hidden_channels=64, input_width=20, input_height=20, enforceBC=True):
         super(CNN, self).__init__()
         
         self.input_width = input_width
@@ -110,8 +110,8 @@ class CNN(nn.Module):
 
             u_dirichlet_mask = u_dirichlet_mask.unsqueeze(1).expand(-1, 2, self.input_height, self.input_width)
 
-            nonzero_mask = (u_dirichlet == 0).float()
-            nonzero_mask = nonzero_mask.all(dim=1).unsqueeze(1)
+            nonzero_mask = (u_dirichlet != 0).float()
+            nonzero_mask = nonzero_mask.any(dim=1).unsqueeze(1)
             # nonzero_mask = 1 - nonzero_mask
             # print(nonzero_mask.shape)
             # nonzero_mask = nonzero_mask.unsqueeze(1).expand(-1, 2, self.input_height, self.input_width)
@@ -131,7 +131,7 @@ class CNN(nn.Module):
 
             # import matplotlib.pyplot as plt
             # plt.ioff()
-            # plt.imshow(alpha[0].detach())
+            # plt.imshow(u_dirichlet_mask[0, 1].detach())
             # plt.show()
 
             # x[:, :2] *= (1 - alpha)
