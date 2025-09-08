@@ -20,7 +20,7 @@ class CNN(nn.Module):
             encoder_layers.extend([
                 nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1, padding_mode="zeros"),
                 # nn.BatchNorm2d(hidden_channels),
-                nn.GroupNorm(num_groups=4, num_channels=hidden_channels),
+                nn.GroupNorm(num_groups=8, num_channels=hidden_channels),
                 # nn.LayerNorm([hidden_channels, input_height, input_width]),
                 nn.Tanh()
             ])

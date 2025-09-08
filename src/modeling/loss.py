@@ -305,30 +305,23 @@ class NavierStokesLoss(nn.Module):
         # plt.show()
 
         weights = torch.ones_like(u_val_masked)
-        weights[u_val_masked == 0] = 10.0
-
-        # TODO: Remove unneeded input params (like time)
-        # TODO: Check if delta t is ok
-        # TODO: See what the derivatives are doing on the masked output
-
-        # print(weights)
-        # exit(0)
-
+        weights[u_val_masked == 0] = 1.0
         loss_bc_u_dirichlet = (u_output_masked - u_val_masked) ** 2
-
-
-
-        # print(loss_bc_u_dirichlet.shape)
-        # exit(0)
-
-        # print(f"< INFLOW: {torch.mean(loss_bc_u_dirichlet[weights == 1]):.10f} CYLINDER: {torch.mean(loss_bc_u_dirichlet[weights != 1]):.10f}>")
 
         loss_bc_u_dirichlet = torch.mean(weights * loss_bc_u_dirichlet)
 
-        # print(loss_bc_u_dirichlet)
+        # sdf = x[:, -1]
 
-        # # Compute loss only on masked points
-        # loss_bc_u_dirichlet = torch.mean((u_output_masked - u_val_masked) ** 2)
+        # k = 10.0
+        # alpha = torch.exp(-k * sdf)
+
+        # # import matplotlib.pyplot as plt
+        # # plt.ioff()
+        # # plt.imshow(alpha[0].detach())
+        # # plt.show()
+
+        # # Apply to u and v boundary conditions
+        # loss_bc_u_dirichlet = torch.mean(alpha * (u_output - u_dirichlet_val) ** 2)
 
         if not torch.isnan(loss_bc_u_dirichlet):
             loss_bc_u += loss_bc_u_dirichlet
@@ -363,12 +356,18 @@ class NavierStokesLoss(nn.Module):
             loss_bc /= (init_losses["loss_bc"] + 1e-10)
             loss_nonneg_p /= (init_losses["loss_nonneg_p"] + 1e-10)
 
-        # loss_energy = 1000 * (torch.mean(output[:2] * mask) - 1) ** 2
+
+        # TODO: Google mass flux
+        inflow_flux = (output[:, 1, 1:-1, 0]).sum()
+        outflow_flux = (output[:, 1, 1:-1, -1]).sum()
+        loss_mass_flux = ((inflow_flux - outflow_flux) / outflow_flux) ** 2
+
+        # print(f"[{inflow_flux}]   [{outflow_flux}]   -> {loss_mass_flux}")
 
         # Weighted sum of losses
-        loss = loss_weights[0] * loss_div + loss_weights[1] * loss_mom + loss_weights[2] * loss_bc + loss_weights[3] * loss_nonneg_p #+ loss_energy
+        loss = loss_weights[0] * loss_div + loss_weights[1] * loss_mom + loss_weights[2] * loss_bc + loss_weights[3] * loss_nonneg_p + loss_mass_flux
 
-        return loss, loss_div, loss_mom, loss_bc, torch.tensor(0)
+        return loss, loss_div, loss_mom, loss_bc, loss_mass_flux
 
 # class PoissonLoss(nn.Module):
 #     def __init__(self):
