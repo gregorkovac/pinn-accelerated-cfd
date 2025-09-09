@@ -105,8 +105,8 @@ class PoissonLoss(nn.Module):
         laplacian_phi = laplacian(output, delta_x, delta_y)
 
         # Compute the divergence of the approximate velocity
-        div_u_star = divergence(x[:, 0], 
-                                x[:, 1], 
+        div_u_star = divergence(x[:, 1], 
+                                x[:, 0], 
                                 delta_x, 
                                 delta_y)
         
@@ -176,14 +176,6 @@ class NavierStokesLoss(nn.Module):
         mu = mu.to(output.device).view(-1, 1, 1, 1)
         delta_t = delta_t.to(output.device).view(-1, 1, 1)
 
-        # u_dirichlet = x[:, 3:5]
-        # u_dirichlet_mask = x[:, 5].unsqueeze(1).repeat(1, 2, 1, 1)
-
-        # u_bc = output[:, :2] * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
-
-        # output_bc = torch.cat([u_bc, output[:, 2:3]], dim=1)
-
-        # Compute derivatives of output w.r.t. input
         grad_uy, grad_ux, grad_p = compute_grads(x, output)
 
         # Split derivatives for brevity
@@ -199,54 +191,21 @@ class NavierStokesLoss(nn.Module):
         dp_dy = grad_p[:, 1]
         dp_dx = grad_p[:, 2]
 
-        # import matplotlib.pyplot as plt
-        # plt.ioff()
-        # fig, ax = plt.subplots(1, 3)
-        # ax[0].imshow(duy_dt[0].detach())
-        # ax[1].imshow(duy_dy[0].detach())
-        # ax[2].imshow(duy_dx[0].detach())
-        # plt.show()
-
         du_dt = torch.stack([duy_dt, dux_dt], dim=1)
 
         div_u = divergence(output[:, 1], output[:, 0], delta_x, delta_y)
-        # div_u = du_dx + dv_dy
-        # div_u = dux_dx + duy_dy
 
-        # print(grad_first_channel)
-        # print(grad_first_channel.shape)
-        # exit(0)
-
-
-        u_dot_del_u_x = output[:, 1] * dux_dx + output[:, 0] * dux_dy # ux * dux/dx + uy * dux/dy 
-        u_dot_del_u_y = output[:, 1] * duy_dx + output[:, 0] * duy_dy # ux * duy/dx + uy * duy/dy
+        u_dot_del_u_x = output[:, 1] * dux_dx + output[:, 0] * dux_dy
+        u_dot_del_u_y = output[:, 1] * duy_dx + output[:, 0] * duy_dy
         u_dot_del_u = torch.stack([u_dot_del_u_y, u_dot_del_u_x], dim=1)
 
         grad_p_ = torch.stack([dp_dy, dp_dx], dim=1)
 
         laplacian_u = laplacian_2d(output[:, :2, :, :], delta_x, delta_y)
 
-        mask = (boundary_mask - 1).abs()
-        # mask[:, 1:-1, 0] = 1
-        # mask[:, 1:-1, -1] = 1
-        # print(mask.shape)
+        loss_div = torch.mean(div_u ** 2)
 
-        # import matplotlib.pyplot as plt
-        # plt.ioff()
-        # plt.imshow(mask[0].detach())
-        # plt.show()
-
-
-        # Compute divergence loss
-        loss_div = div_u ** 2
-        
-        loss_div = torch.mean(loss_div * mask)
-        
-
-        # Compute momentum loss
-        loss_mom = (du_dt + u_dot_del_u + (1 / rho) * grad_p_ - mu * laplacian_u) ** 2
-        # loss_mom = torch.mean(loss_mom * mask.unsqueeze(1).repeat(1, 2, 1, 1))
-        loss_mom = torch.mean(loss_mom)
+        loss_mom = torch.mean((du_dt + u_dot_del_u + (1 / rho) * grad_p_ - mu * laplacian_u) ** 2)
         
         loss_bc_p = neumann_bc_loss(off_y=x[:, 10].long(),
                                     off_x=x[:, 11].long(),
@@ -254,14 +213,6 @@ class NavierStokesLoss(nn.Module):
                                     output=output[:, 2],
                                     delta_y=delta_y,
                                     delta_x=delta_x)
-    
-
-        # Add pressure gauge on outflow
-        p_dirichlet_mask = x[:, 9]
-        loss_bc_p_dirichlet = torch.mean(output[:, 2][p_dirichlet_mask == 1] ** 2)
-
-        if not torch.isnan(loss_bc_p_dirichlet):
-            loss_bc_p += loss_bc_p_dirichlet
 
         loss_bc_u = neumann_bc_loss(off_y=x[:, 6].long(),
                                     off_x=x[:, 7].long(),
@@ -269,80 +220,10 @@ class NavierStokesLoss(nn.Module):
                                     output=output[:, :2],
                                     delta_y=delta_y,
                                     delta_x=delta_x)
-        
-        # import matplotlib.pyplot as plt
-        # plt.ioff()
-        # plt.imshow(x[0, 7].detach())
-        # plt.colorbar()
-        # plt.show()
-
-        u_dirichlet_mask = x[:, 5].unsqueeze(-1).repeat(1, 1, 1, 2)
-        u_dirichlet_val = x[:, 3:5]
-
-        # Extract the first two channels from output
-        u_output = output[:, :2]
-
-        # Apply mask correctly (select masked elements for both tensors)
-        u_output_masked = u_output.permute(0, 2, 3, 1)[u_dirichlet_mask == 1]
-        u_val_masked = u_dirichlet_val.permute(0, 2, 3, 1)[u_dirichlet_mask == 1]
-        
-        # weights = torch.ones_like(u_dirichlet_mask)
-
-        # weights = (u_dirichlet_val == 0).float()
-        # weights = weights.all(dim=1).unsqueeze(-1)
-        # weights = weights * 99 + 1
-
-        # # print(u_dirichlet_val.permute(0, 2, 3, 1).shape)
-        # # print(weights.shape)
-
-        # weights = weights.repeat(1, 1, 1, 2)[u_dirichlet_mask == 1]
-        # print(weights)
-        # exit(0)
-
-        # print(weights.shape)
-        # print(u_dirichlet_mask.shape)
-        # import matplotlib.pyplot as plt
-        # plt.ioff()
-        # plt.imshow(weights[0, :, :, 0].detach())
-        # plt.show()
-
-        # weights = torch.ones_like(u_val_masked)
-        # weights[u_val_masked != 0] = 10.0
-        loss_bc_u_dirichlet = (u_output_masked - u_val_masked) ** 2
-        loss_bc_u_dirichlet = torch.mean(loss_bc_u_dirichlet)
-
-        # sdf = x[:, -1]
-
-        # k = 10.0
-        # alpha = torch.exp(-k * sdf)
-
-        # # import matplotlib.pyplot as plt
-        # # plt.ioff()
-        # # plt.imshow(alpha[0].detach())
-        # # plt.show()
-
-        # # Apply to u and v boundary conditions
-        # loss_bc_u_dirichlet = torch.mean(alpha * (u_output - u_dirichlet_val) ** 2)
-
-        if not torch.isnan(loss_bc_u_dirichlet):
-            loss_bc_u += loss_bc_u_dirichlet
-
+    
         loss_bc = loss_bc_p + loss_bc_u
 
         loss_nonneg_p = torch.mean(torch.relu(-output[:, 2])**2)
-        # loss_nonneg_p = torch.tensor(0)
-
-        # loss_nonzero = output.abs()
-        # mask_nonzero = loss_nonzero < 0.0001
-        # loss_nonzero = loss_nonzero * mask_nonzero * mask
-        # loss_nonzero = loss_nonzero.mean() * 100
-
-        # print(loss_nonzero)
-
-        # import matplotlib.pyplot as plt
-        # plt.ioff()
-        # plt.imshow(loss_nonzero[0, 1].detach())
-        # plt.show()
 
         global init_losses
         if len(init_losses) == 0:
@@ -357,21 +238,7 @@ class NavierStokesLoss(nn.Module):
             loss_bc /= (init_losses["loss_bc"] + 1e-10)
             loss_nonneg_p /= (init_losses["loss_nonneg_p"] + 1e-10)
 
-
-        # # TODO: Google mass flux
-        # inflow_flux = (output[:, 1, 1:-1, 0]).sum()
-        # outflow_flux = ((output * (1 - mask))[:, 1, :, 1:]).sum()
-
-        # # import matplotlib.pyplot as plt
-        # # plt.ioff()
-        # # plt.imshow((output * (1 - mask))[0, 1].detach())
-        # # plt.show()
-
-        # loss_mass_flux = ((inflow_flux - outflow_flux) / outflow_flux) ** 2
-
-        # print(f"[{inflow_flux}]   [{outflow_flux}]   -> {loss_mass_flux}")
-
         # Weighted sum of losses
-        loss = loss_weights[0] * loss_div + loss_weights[1] * loss_mom + loss_weights[2] * loss_bc + loss_weights[3] * loss_nonneg_p #+ 10 * loss_mass_flux
+        loss = loss_weights[0] * loss_div + loss_weights[1] * loss_mom + loss_weights[2] * loss_bc + loss_weights[3] * loss_nonneg_p
 
-        return loss, loss_div, loss_mom, loss_bc, torch.tensor(0) #, loss_mass_flux
+        return loss, loss_div, loss_mom, loss_bc, torch.tensor(0)

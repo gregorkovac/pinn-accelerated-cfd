@@ -108,7 +108,7 @@ def geometry_to_mtx(geometry, width, height):
             p_dirichlet[y:(y+h), x:(x+w)] = 0
             p_dirichlet_mask[y:(y+h), x:(x+w)] = 1
 
-            u_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
+            # u_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
         elif g["type"] == "cylinder":
             # Extract coordinates and radius
             x, y, r = g["pos"]["x"], g["pos"]["y"], g["size"]
@@ -293,6 +293,9 @@ class PINNDataset(Dataset):
     def get_dims(self):
         return self.input_channels, self.height, self.width, self.output_channels
     
+    def enforceBC(self, x, out):
+        return NotImplementedError
+    
 class PoissonPINNDataset(PINNDataset):
     def __init__(self, data_path, N, samples_per_case=-1):
         super().__init__(data_path, N, samples_per_case)
@@ -301,44 +304,30 @@ class PoissonPINNDataset(PINNDataset):
 
     def __getitem__(self, idx):
 
-        x = torch.cat([self.u_star[idx].permute(2, 0, 1), 
-                       self.coords, 
-                       self.p_neumann[idx].permute(2, 0, 1), 
-                       self.p_dirichlet[idx].unsqueeze(0),
-                       self.p_dirichlet_mask[idx].unsqueeze(0)], dim=0)
+        x = torch.cat([self.u_star[idx].permute(2, 0, 1), # 0, 1
+                       self.coords, # 2, 3
+                       self.p_neumann[idx].permute(2, 0, 1), # 4, 6
+                       self.p_dirichlet[idx].unsqueeze(0), # 7
+                       self.p_dirichlet_mask[idx].unsqueeze(0)], dim=0) # 8
 
         return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
     
     def get_phi(self, idx):
         return self.phi[idx]
+    
+    def enforceBC(self, x, out):
+        p_dirichlet = x[:, 7]
+        p_dirichlet_mask = x[:, 8]
 
-from scipy.ndimage import distance_transform_edt
-def compute_sdf(mask):
-    # mask: numpy array, 1 = boundary, 0 = fluid
-    outside = distance_transform_edt(1 - mask)
-    inside = distance_transform_edt(mask)
-    sdf = outside - inside  # negative inside obstacle, positive outside
-    sdf = sdf / np.max(np.abs(sdf))  # normalize to [-1, 1]
-    return sdf.astype(np.float32)
+        return out * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
 
 class FullPINNDataset(PINNDataset):
     def __init__(self, data_path, N, samples_per_case=-1):
         super().__init__(data_path, N, samples_per_case)
-        self.input_channels = 13
+        self.input_channels = 12
         self.output_channels = 3
 
     def __getitem__(self, idx):
-
-        sdf = compute_sdf(self.u_dirichlet_mask[idx].unsqueeze(0))
-        sdf[sdf < 0] = 0
-        sdf = torch.tensor(sdf, dtype=torch.float32)
-
-        # import matplotlib.pyplot as plt
-        # plt.ioff()
-        # plt.imshow(sdf[0])
-        # plt.show()
-
-        # exit(0)
 
         x = torch.cat([self.t[idx], # 0
                        self.coords, # 1, 2
@@ -348,7 +337,21 @@ class FullPINNDataset(PINNDataset):
                        self.p_dirichlet[idx].unsqueeze(0), # 8
                        self.p_dirichlet_mask[idx].unsqueeze(0), # 9
                        self.p_neumann[idx].permute(2, 0, 1), # 10, 11
-                       sdf # 12
                     ], dim=0) 
 
         return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
+    
+    def enforceBC(self, x, out):
+        u_dirichlet = x[:, 3:5]
+        u_dirichlet_mask = x[:, 5:6].expand(-1, 2, -1, -1)
+        p_dirichlet = x[:, 8:9]
+        p_dirichlet_mask = x[:, 9:10]
+
+        u = out[:, :2]
+        p = out[:, 2:3]
+
+        u = u * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
+        p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
+
+        return torch.cat([u, p], dim=1)
+

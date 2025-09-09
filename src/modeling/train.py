@@ -160,7 +160,8 @@ def main():
                 num_layers=num_layers,
                 hidden_channels=hidden_dim,
                 input_width=input_width,
-                input_height=input_height)
+                input_height=input_height,
+                enforceBC=dataset.enforceBC)
     
     # Move model to device if possible
     if torch.cuda.device_count() > 1:
@@ -284,7 +285,7 @@ def main():
                        "loss4": loss[4]})
             
         with torch.no_grad():
-            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(10, len(dataset) - 1)]
+            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(0, len(dataset) - 1)]
             out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
 
             if model_type == "full":
@@ -293,7 +294,7 @@ def main():
                 phi = dataset.get_phi(min(10, len(dataset) - 1))
                 cbar = plot_poisson(ax[:3], out, phi, boundary_mask, cbar=cbar)
 
-            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(110, len(dataset) - 1)]
+            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = dataset[min(31, len(dataset) - 1)]
             out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
 
             if model_type == "full":
