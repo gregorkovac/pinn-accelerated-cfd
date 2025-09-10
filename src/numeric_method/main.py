@@ -35,11 +35,13 @@ def main(case_name = None):
         dynamic_time_step=False,
         implicit_laplacian=True,
         return_div_u_star=True,
-        method_type="poisson_model" # numeric, poisson_model, full_model
+        method_type="full_model", # numeric, poisson_model, full_model
+        model_path="../../models/full/2025-09-10_15_31"
+        # model_path="../../models/poisson/2025-09-10_15_03"
     )
 
     plot_flow_animation(u, p, case["dx" \
-    ""], case["geometry"], frame_step=1)
+    ""], case["geometry"], frame_step=5)
     # plot_poisson_animation(div_u_star, phi, case["grid_spacing"], case["geometry"], frame_step=100)
     # plot_navier_stokes_error(u, p, case["density"], case["viscosity"], case["time_step"], case["grid_spacing"], case["geometry"])
 

@@ -150,7 +150,7 @@ def boundary(geometry, u = None, p = None):
             neumann_idx = get_neumann_index(g, height, width)
 
             u = apply_neumann_bc(u, idx, neumann_idx)
-            p = apply_neumann_bc(p, idx, neumann_idx)
+            # p = apply_neumann_bc(p, idx, neumann_idx)
             # p = apply_dirichlet_bc(p, idx, 0)
         elif g["type"] == "cylinder":
             u = apply_dirichlet_bc(u, idx, (0, 0))
