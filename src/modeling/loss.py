@@ -105,8 +105,8 @@ class PoissonLoss(nn.Module):
         laplacian_phi = laplacian(output, delta_x, delta_y)
 
         # Compute the divergence of the approximate velocity
-        div_u_star = divergence(x[:, 1], 
-                                x[:, 0], 
+        div_u_star = divergence(x[:, 0], 
+                                x[:, 1], 
                                 delta_x, 
                                 delta_y)
         
@@ -150,8 +150,8 @@ class PoissonLoss(nn.Module):
                                     delta_x=delta_x)
 
         # Add pressure gauge on outflow
-        p_dirichlet_mask = x[:, -1]
-        loss_bc_p += torch.mean(output[p_dirichlet_mask == 1] ** 2)
+        # p_dirichlet_mask = x[:, -1]
+        # loss_bc_p += torch.mean(output[p_dirichlet_mask == 1] ** 2)
 
         loss_bc = loss_bc_p
 
@@ -207,15 +207,15 @@ class NavierStokesLoss(nn.Module):
 
         loss_mom = torch.mean((du_dt + u_dot_del_u + (1 / rho) * grad_p_ - mu * laplacian_u) ** 2)
         
-        loss_bc_p = neumann_bc_loss(off_y=x[:, 10].long(),
-                                    off_x=x[:, 11].long(),
+        loss_bc_p = neumann_bc_loss(off_y=x[:, 9].long(),
+                                    off_x=x[:, 10].long(),
                                     boundary_mask=boundary_mask,
                                     output=output[:, 2],
                                     delta_y=delta_y,
                                     delta_x=delta_x)
 
-        loss_bc_u = neumann_bc_loss(off_y=x[:, 6].long(),
-                                    off_x=x[:, 7].long(),
+        loss_bc_u = neumann_bc_loss(off_y=x[:, 5].long(),
+                                    off_x=x[:, 6].long(),
                                     boundary_mask=boundary_mask,
                                     output=output[:, :2],
                                     delta_y=delta_y,

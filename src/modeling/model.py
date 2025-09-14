@@ -9,7 +9,8 @@ class CNN(nn.Module):
                  hidden_channels=64, 
                  input_width=20, 
                  input_height=20, 
-                 enforceBC=lambda x, out: out):
+                 enforceBC=lambda x, out: out,
+                 use_skip=False):
         
         super(CNN, self).__init__()
         
@@ -37,7 +38,10 @@ class CNN(nn.Module):
             nn.Conv2d(hidden_channels, output_channels, 3, padding=1, padding_mode="replicate")
         )
 
-        self.skip = nn.Conv2d(input_channels, output_channels, kernel_size=1)
+        if use_skip:
+            self.skip = nn.Conv2d(input_channels, output_channels, kernel_size=1)
+        else:
+            self.skip = None
 
         self.initialize_weights()
 
@@ -46,11 +50,12 @@ class CNN(nn.Module):
         out = self.encoder(x)
         out = self.decoder(out)
 
-        out = out.squeeze(1)
+        if self.skip is not None:
+            out = out + self.skip(x)
 
-        out = out + self.skip(x)
-        
         out = self.enforceBC(x, out)
+
+        out = out.squeeze(1)
 
         return out
     
@@ -60,3 +65,6 @@ class CNN(nn.Module):
                 nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('tanh'))
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
+        return out

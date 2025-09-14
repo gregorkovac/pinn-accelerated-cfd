@@ -161,7 +161,8 @@ def main():
                 hidden_channels=hidden_dim,
                 input_width=input_width,
                 input_height=input_height,
-                enforceBC=dataset.enforceBC)
+                enforceBC=dataset.enforceBC,
+                use_skip=False)
     
     # Move model to device if possible
     if torch.cuda.device_count() > 1:
@@ -231,17 +232,6 @@ def main():
                 optimizer.zero_grad()
 
                 outputs = model(x)
-
-                # u_dirichlet = x[:, 3:5]
-                # u_dirichlet_mask = x[:, 5].unsqueeze(1).repeat(1, 2, 1, 1)
-
-                # u_bc = outputs[:, :2] * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
-
-                # outputs_bc = torch.cat([u_bc, outputs[:, 2:3]], dim=1)
-
-                # plt.ioff()
-                # plt.imshow(outputs_bc[0, 2].detach())
-                # plt.show()
                 
                 l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights)
                 l[0].backward()

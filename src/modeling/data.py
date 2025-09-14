@@ -74,9 +74,9 @@ def geometry_to_mtx(geometry, width, height):
             # Add values to the pressure Neuman tensor
             # TODO: For inflow normalize this to (0, 1). For example, we can have (0, 5) as inflow
 
-            p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
             # Add values to the boundary mask
             boundary_mask[y:(y+h), x:(x+w)] = 1
+            p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
 
             if g["type"] == "inflow":
                 u_dirichlet[y:(y+h), x:(x+w)] = np.array([yn, xn])
@@ -195,6 +195,11 @@ def geometry_to_mtx(geometry, width, height):
 
 class PINNDataset(Dataset):
     def __init__(self, data_path, N, samples_per_case=-1):
+        if data_path == None:
+            self.height = 0
+            self.width = 0
+            return
+
         # Initialize variables
         self.data_len = 0
         self.u_star = []
@@ -293,7 +298,7 @@ class PINNDataset(Dataset):
     def get_dims(self):
         return self.input_channels, self.height, self.width, self.output_channels
     
-    def enforceBC(self, x, out):
+    def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
         return NotImplementedError
     
 class PoissonPINNDataset(PINNDataset):
@@ -306,46 +311,45 @@ class PoissonPINNDataset(PINNDataset):
 
         x = torch.cat([self.u_star[idx].permute(2, 0, 1), # 0, 1
                        self.coords, # 2, 3
-                       self.p_neumann[idx].permute(2, 0, 1), # 4, 6
-                       self.p_dirichlet[idx].unsqueeze(0), # 7
-                       self.p_dirichlet_mask[idx].unsqueeze(0)], dim=0) # 8
+                       self.p_neumann[idx].permute(2, 0, 1), # 4, 5
+                       self.p_dirichlet[idx].unsqueeze(0), # 6
+                       self.p_dirichlet_mask[idx].unsqueeze(0)], dim=0) # 7
 
         return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
     
     def get_phi(self, idx):
         return self.phi[idx]
     
-    def enforceBC(self, x, out):
-        p_dirichlet = x[:, 7]
-        p_dirichlet_mask = x[:, 8]
+    def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
+        p_dirichlet = x[:, 6:7]
+        p_dirichlet_mask = x[:, 7:8]
 
         return out * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
 
 class FullPINNDataset(PINNDataset):
     def __init__(self, data_path, N, samples_per_case=-1):
         super().__init__(data_path, N, samples_per_case)
-        self.input_channels = 12
+        self.input_channels = 11
         self.output_channels = 3
 
     def __getitem__(self, idx):
 
-        x = torch.cat([self.t[idx], # 0
-                       self.coords, # 1, 2
-                       self.u_dirichlet[idx].permute(2, 0, 1), # 3, 4
-                       self.u_dirichlet_mask[idx].unsqueeze(0), # 5
-                       self.u_neumann[idx].permute(2, 0, 1), # 6, 7
-                       self.p_dirichlet[idx].unsqueeze(0), # 8
-                       self.p_dirichlet_mask[idx].unsqueeze(0), # 9
-                       self.p_neumann[idx].permute(2, 0, 1), # 10, 11
+        x = torch.cat([self.coords, # 0, 1
+                       self.u_dirichlet[idx].permute(2, 0, 1), # 2, 3
+                       self.u_dirichlet_mask[idx].unsqueeze(0), # 4
+                       self.u_neumann[idx].permute(2, 0, 1), # 5, 6
+                       self.p_dirichlet[idx].unsqueeze(0), # 7
+                       self.p_dirichlet_mask[idx].unsqueeze(0), # 8
+                       self.p_neumann[idx].permute(2, 0, 1), # 9, 10
                     ], dim=0) 
 
         return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
     
-    def enforceBC(self, x, out):
-        u_dirichlet = x[:, 3:5]
-        u_dirichlet_mask = x[:, 5:6].expand(-1, 2, -1, -1)
-        p_dirichlet = x[:, 8:9]
-        p_dirichlet_mask = x[:, 9:10]
+    def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
+        u_dirichlet = x[:, 2:4]
+        u_dirichlet_mask = x[:, 4:5].expand(-1, 2, -1, -1)
+        p_dirichlet = x[:, 7:8]
+        p_dirichlet_mask = x[:, 8:9]
 
         u = out[:, :2]
         p = out[:, 2:3]

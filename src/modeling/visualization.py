@@ -38,6 +38,8 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=Non
                                     0, y_max + grid_spacing], alpha=0.5*boundary_image)
     
 
+    ax[0].set_title(f"p = {np.mean(p):.2f} +- {np.std(p):.2f}")
+
     return [cbar0]
     
 def plot_poisson(ax, x, y, boundary, cbar=None):
@@ -47,6 +49,9 @@ def plot_poisson(ax, x, y, boundary, cbar=None):
     im0 = ax[0].imshow(x, cmap=cmap)
     im1 = ax[1].imshow(y, cmap=cmap)
     im2 = ax[2].imshow(boundary, cmap=cmap)
+
+    ax[0].set_title(f"p = {np.mean(x):.2f} +- {np.std(x):.2f}")
+    ax[1].set_title(f"p = {np.mean(y):.2f} +- {np.std(x):.2f}")
 
     if cbar:
         for cb in cbar:
