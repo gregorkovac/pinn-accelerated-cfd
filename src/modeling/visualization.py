@@ -51,7 +51,7 @@ def plot_poisson(ax, x, y, boundary, cbar=None):
     im2 = ax[2].imshow(boundary, cmap=cmap)
 
     ax[0].set_title(f"p = {np.mean(x):.2f} +- {np.std(x):.2f}")
-    ax[1].set_title(f"p = {np.mean(y):.2f} +- {np.std(x):.2f}")
+    ax[1].set_title(f"p = {np.mean(np.array(y)):.2f} +- {np.std(np.array(y)):.2f}")
 
     if cbar:
         for cb in cbar:

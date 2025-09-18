@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 def compute_grads(x, y):
     grads = []
@@ -13,19 +14,26 @@ def compute_grads(x, y):
 
     return grads
 
-# def divergence(v, u, grid_spacing):
+def laplacian(v, dx, dy):
+    v_pad = F.pad(v, (1,1,1,1), mode='replicate')
+    lap = (v_pad[:,2:,1:-1] - 2*v + v_pad[:,:-2,1:-1]) / dy**2 + (v_pad[:,1:-1,2:] - 2*v + v_pad[:,1:-1,:-2]) / dx**2
+    
+    return lap
 
-#     grid_spacing = grid_spacing[0].item()
+def laplacian_2d(v, dx, dy):
+    dx = dx.view(-1, 1, 1, 1)
+    dy = dy.view(-1, 1, 1, 1)
 
-#     grad_x = torch.gradient(v, spacing=grid_spacing, dim=(1, 2), edge_order=2)
-#     grad_y = torch.gradient(u, spacing=grid_spacing, dim=(1, 2), edge_order=2)
+    v_pad = F.pad(v, (1, 1, 1, 1), mode='replicate')
 
-#     # return v * grad_x[1] + u * grad_x[0] + v * grad_y[1] + u * grad_y[0]
-#     return grad_y[0] + grad_x[1]
+    lap = ((v_pad[:, :, 2:, 1:-1] - 2 * v + v_pad[:, :, :-2, 1:-1]) / dy**2 +
+           (v_pad[:, :, 1:-1, 2:] - 2 * v + v_pad[:, :, 1:-1, :-2]) / dx**2)
+    
+    return lap
 
 def divergence(u, v, dx, dy):
-    dx_ = float(dx[0].item())
-    dy_ = float(dy[0].item())
-    du_dx = torch.gradient(u, spacing=dx_, dim=2, edge_order=2)
-    dv_dy = torch.gradient(v, spacing=dy_, dim=1, edge_order=2)
-    return du_dx[0] + dv_dy[0]
+    dy = float(dy[0].item())
+    dx = float(dx[0].item())
+    du_dy, du_dx = torch.gradient(u, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+    dv_dy, dv_dx = torch.gradient(v, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+    return du_dx + dv_dy

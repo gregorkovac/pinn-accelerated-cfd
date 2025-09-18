@@ -30,7 +30,7 @@ def geometry_to_mtx(geometry, width, height):
     p_neumann = np.zeros((height, width, 2))
 
     u_dirichlet = np.zeros((height, width, 2))
-    u_dirichlet_mask = np.zeros((height, width))
+    u_dirichlet_mask = np.zeros((height, width, 2))
     u_neumann = np.zeros((height, width, 2))
 
     # Initialize a binary mask for storing at which points the boundary is present
@@ -55,10 +55,10 @@ def geometry_to_mtx(geometry, width, height):
             else:
                 continue
 
-            if xn != 0:
-                xn = np.sign(xn)
-            if yn != 0:
-                yn = np.sign(yn)
+            # if xn != 0:
+            #     xn = np.sign(xn)
+            # if yn != 0:
+            #     yn = np.sign(yn)
 
             # Convert the "-1" notation to width/height
             if x == -1:
@@ -76,15 +76,16 @@ def geometry_to_mtx(geometry, width, height):
 
             # Add values to the boundary mask
             boundary_mask[y:(y+h), x:(x+w)] = 1
-            p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
+            # p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
 
             if g["type"] == "inflow":
                 u_dirichlet[y:(y+h), x:(x+w)] = np.array([yn, xn])
-                u_dirichlet_mask[y:(y+h), x:(x+w)] = 1
+                u_dirichlet_mask[y:(y+h), x:(x+w), :] = 1
             # else:
             if g["type"] == "wall":
                 u_dirichlet[y:(y+h), x:(x+w)] = np.array([0, 0])
-                u_dirichlet_mask[y:(y+h), x:(x+w)] = 1
+                u_dirichlet_mask[y:(y+h), x:(x+w), 0] = 1
+                # p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
 
         elif g["type"] == "outflow":
             # Extract the region
@@ -108,7 +109,7 @@ def geometry_to_mtx(geometry, width, height):
             p_dirichlet[y:(y+h), x:(x+w)] = 0
             p_dirichlet_mask[y:(y+h), x:(x+w)] = 1
 
-            # u_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
+            u_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
         elif g["type"] == "cylinder":
             # Extract coordinates and radius
             x, y, r = g["pos"]["x"], g["pos"]["y"], g["size"]
@@ -132,7 +133,7 @@ def geometry_to_mtx(geometry, width, height):
             boundary_mask[y_min:y_max, x_min:x_max][mask] = 1
 
             u_dirichlet[y_min:y_max, x_min:x_max][mask] = np.array([0, 0])
-            u_dirichlet_mask[y_min:y_max, x_min:x_max][mask] = 1
+            u_dirichlet_mask[y_min:y_max, x_min:x_max, :][mask] = 1
 
             # TODO: Check this code
             # dx = xx - x
@@ -194,7 +195,7 @@ def geometry_to_mtx(geometry, width, height):
     return u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask
 
 class PINNDataset(Dataset):
-    def __init__(self, data_path, N, samples_per_case=-1):
+    def __init__(self, data_path, N, samples_per_case=-1, start_sample=0):
         if data_path == None:
             self.height = 0
             self.width = 0
@@ -219,11 +220,11 @@ class PINNDataset(Dataset):
         self.boundary_mask = []
 
         # Iterate over cases
-        for i in range(N):
+        for i in range(start_sample, start_sample + N):
             u_star, phi, dx, dy, time_step, rho, mu, geometry = load_case(data_path, i, samples_per_case)
 
             # Save the case shape
-            if i == 0:
+            if i == start_sample:
                 shape = np.shape(u_star)
                 self.height, self.width = shape[1], shape[2]
 
@@ -281,13 +282,13 @@ class PINNDataset(Dataset):
         self.p_neumann = torch.tensor(np.array(self.p_neumann), dtype=torch.float32)
         self.boundary_mask = torch.tensor(np.array(self.boundary_mask), dtype=torch.float32)
 
-        mean = self.u_star[..., :2].mean(dim=(0, 1, 2)) 
-        std = self.u_star[..., :2].std(dim=(0, 1, 2))
+        # mean = self.u_star[..., :2].mean(dim=(0, 1, 2)) 
+        # std = self.u_star[..., :2].std(dim=(0, 1, 2))
         # self.u_star[..., 0] = (self.u_star[..., 0] - mean[0]) / (std[0] + 1e-6)
         # self.u_star[..., 1] = (self.u_star[..., 1] - mean[1]) / (std[1] + 1e-6)
 
-        self.u_star_mean = mean
-        self.u_star_std = std
+        # self.u_star_mean = mean
+        # self.u_star_std = std
 
     def __len__(self):
         return self.data_len
@@ -302,8 +303,8 @@ class PINNDataset(Dataset):
         return NotImplementedError
     
 class PoissonPINNDataset(PINNDataset):
-    def __init__(self, data_path, N, samples_per_case=-1):
-        super().__init__(data_path, N, samples_per_case)
+    def __init__(self, data_path, N, samples_per_case=-1, start_sample=0):
+        super().__init__(data_path, N, samples_per_case, start_sample)
         self.input_channels = 8
         self.output_channels = 1
 
@@ -327,33 +328,35 @@ class PoissonPINNDataset(PINNDataset):
         return out * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
 
 class FullPINNDataset(PINNDataset):
-    def __init__(self, data_path, N, samples_per_case=-1):
-        super().__init__(data_path, N, samples_per_case)
-        self.input_channels = 11
+    def __init__(self, data_path, N, samples_per_case=-1, start_sample=0):
+        super().__init__(data_path, N, samples_per_case, start_sample)
+        self.input_channels = 12
         self.output_channels = 3
 
     def __getitem__(self, idx):
 
         x = torch.cat([self.coords, # 0, 1
                        self.u_dirichlet[idx].permute(2, 0, 1), # 2, 3
-                       self.u_dirichlet_mask[idx].unsqueeze(0), # 4
-                       self.u_neumann[idx].permute(2, 0, 1), # 5, 6
-                       self.p_dirichlet[idx].unsqueeze(0), # 7
-                       self.p_dirichlet_mask[idx].unsqueeze(0), # 8
-                       self.p_neumann[idx].permute(2, 0, 1), # 9, 10
+                       self.u_dirichlet_mask[idx].permute(2, 0, 1), # 4, 5
+                       self.u_neumann[idx].permute(2, 0, 1), # 6, 7
+                       self.p_dirichlet[idx].unsqueeze(0), # 8
+                       self.p_dirichlet_mask[idx].unsqueeze(0), # 9
+                       self.p_neumann[idx].permute(2, 0, 1), # 10, 11
                     ], dim=0) 
 
         return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
     
     def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
         u_dirichlet = x[:, 2:4]
-        u_dirichlet_mask = x[:, 4:5].expand(-1, 2, -1, -1)
-        p_dirichlet = x[:, 7:8]
-        p_dirichlet_mask = x[:, 8:9]
+        u_dirichlet_mask = x[:, 4:6] #.expand(-1, 2, -1, -1)
+        p_dirichlet = x[:, 8:9]
+        p_dirichlet_mask = x[:, 9:10]
 
         u = out[:, :2]
         p = out[:, 2:3]
 
+        # u_y = u[:, 0] * (1 - u_dirichlet_mask) + u_dirichlet[:, 0] * u_dirichlet_mask
+        # u_x = u[:, 1] * (1 - u_dirichlet_mask) + u_dirichlet[:, 1] * u_dirichlet_mask
         u = u * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
         p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
 

@@ -1,35 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from derivatives import compute_grads#, divergence
-
-def laplacian(v, dx, dy):
-    v_pad = F.pad(v, (1,1,1,1), mode='replicate')
-    lap = (v_pad[:,2:,1:-1] - 2*v + v_pad[:,:-2,1:-1]) / dy**2 + (v_pad[:,1:-1,2:] - 2*v + v_pad[:,1:-1,:-2]) / dx**2
-    
-    return lap
-
-def laplacian_2d(v, dx, dy):
-    dx = dx.view(-1, 1, 1, 1)
-    dy = dy.view(-1, 1, 1, 1)
-
-    v_pad = F.pad(v, (1, 1, 1, 1), mode='replicate')
-
-    lap = ((v_pad[:, :, 2:, 1:-1] - 2 * v + v_pad[:, :, :-2, 1:-1]) / dy**2 +
-           (v_pad[:, :, 1:-1, 2:] - 2 * v + v_pad[:, :, 1:-1, :-2]) / dx**2)
-    
-    return lap
-
-def divergence(u, v, dx, dy):
-    dy = float(dy[0].item())
-    dx = float(dx[0].item())
-    du_dy, du_dx = torch.gradient(u, spacing=(dy, dx), dim=(1, 2), edge_order=2)
-    dv_dy, dv_dx = torch.gradient(v, spacing=(dy, dx), dim=(1, 2), edge_order=2)
-    return du_dx + dv_dy
+from derivatives import compute_grads, divergence, laplacian, laplacian_2d
 
 def neumann_bc_loss(off_y, off_x, boundary_mask, output, delta_y, delta_x):
-
 
     # Extract output shape
     if len(output.shape) == 3:
@@ -114,10 +88,16 @@ class PoissonLoss(nn.Module):
         div_u_star = div_u_star * rho / delta_t
 
         # Compute the mean of divergence of u star - for normalizing the loss
-        norm = div_u_star.abs().mean(dim=(1,2), keepdim=True).detach().clamp(min=1e-6)
+        # norm = div_u_star.abs().mean(dim=(1,2), keepdim=True).detach().clamp(min=1e-6)
+        # norm = div_u_star.abs().mean().detach().clamp(min=1e-6)
 
         # Compute the PDE loss
+        # loss_pde = ((laplacian_phi - div_u_star) / norm) ** 2
+        # loss_pde = torch.mean((laplacian_phi - div_u_star) ** 2)
+        norm = torch.mean(torch.abs(div_u_star)) + 1e-6
         loss_pde = ((laplacian_phi - div_u_star) / norm) ** 2
+
+        # loss_pde = torch.mean(loss_pde)
 
         # Mask out boundary values and compute the mean
         mask = (boundary_mask - 1).abs()
@@ -207,15 +187,15 @@ class NavierStokesLoss(nn.Module):
 
         loss_mom = torch.mean((du_dt + u_dot_del_u + (1 / rho) * grad_p_ - mu * laplacian_u) ** 2)
         
-        loss_bc_p = neumann_bc_loss(off_y=x[:, 9].long(),
-                                    off_x=x[:, 10].long(),
+        loss_bc_p = neumann_bc_loss(off_y=x[:, 10].long(),
+                                    off_x=x[:, 11].long(),
                                     boundary_mask=boundary_mask,
                                     output=output[:, 2],
                                     delta_y=delta_y,
                                     delta_x=delta_x)
 
-        loss_bc_u = neumann_bc_loss(off_y=x[:, 5].long(),
-                                    off_x=x[:, 6].long(),
+        loss_bc_u = neumann_bc_loss(off_y=x[:, 6].long(),
+                                    off_x=x[:, 7].long(),
                                     boundary_mask=boundary_mask,
                                     output=output[:, :2],
                                     delta_y=delta_y,
