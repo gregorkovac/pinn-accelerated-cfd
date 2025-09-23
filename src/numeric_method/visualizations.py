@@ -57,7 +57,8 @@ def update_animation(i, ax, u, p, grid_spacing, boundary_image = None, frame_ste
 
     plot_flow(ax, u[i], p[i], grid_spacing, boundary_image)
     # ax.set_title(f"Frame {i} / {np.shape(u)[0]}{title_note}")
-    ax.set_title(f"[{i} / {np.shape(u)[0]}{title_note}] u = {np.mean(u[i]):.2f} +- {np.std(u[i]):.2f}   p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
+    # ax.set_title(f"[{i} / {np.shape(u)[0]}{title_note}] u = {np.mean(u[i]):.2f} +- {np.std(u[i]):.2f}   p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
+    # ax.set_title(f"p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
 
 def plot_flow_animation(u, p, grid_spacing, geometry = None, frame_step=10):
     """

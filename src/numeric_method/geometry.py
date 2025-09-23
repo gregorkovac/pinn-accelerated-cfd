@@ -1,22 +1,57 @@
 import numpy as np
 
-def apply_dirichlet_bc(u, idx, val):
-    """
-    Applies a Dirichlet boundary condition to a scalar or vector field
+# def apply_dirichlet_bc(u, idx, val, mask=(1, 1)):
+#     """
+#     Applies a Dirichlet boundary condition to a scalar or vector field
 
-    Args:
-        u (numpy.ndarray) - scalar or vector field of shape (n, m) or (n, m, 2)
-        idx (tuple) - index of where to apply the boundary condition
-        val (float) - boundary condition value
+#     Args:
+#         u (numpy.ndarray) - scalar or vector field of shape (n, m) or (n, m, 2)
+#         idx (tuple) - index of where to apply the boundary condition
+#         val (float) - boundary condition value
 
-    Returns:
-        (numpy.ndarray) - u with applied boundary condition
-    """
+#     Returns:
+#         (numpy.ndarray) - u with applied boundary condition
+#     """
 
+#     if u is None:
+#         return None
+
+#     if u.ndim == 2 or len(np.shape(idx)) == 2:
+#         u[idx] = val
+#         return u
+
+#     # print(np.shape(u))
+#     # print(idx)
+#     # print(idx + (0,))
+#     # exit(0)
+
+#     if mask[0] == 1:
+#         u[idx[0], idx[1], 0] = val[0]
+
+#     if mask[1] == 1:
+#         u[idx[0], idx[1], 0] = val[1]
+
+#     return u
+
+def apply_dirichlet_bc(u, idx, val, mask=(1, 1)):
     if u is None:
         return None
-    
-    u[idx] = val
+
+    if u.ndim == 2:
+        u[idx] = val
+        return u
+
+    if isinstance(idx, tuple):  
+        if mask[0] == 1:
+            u[idx[0], idx[1], 0] = val[0]
+        if mask[1] == 1:
+            u[idx[0], idx[1], 1] = val[1]
+    else:
+        if mask[0] == 1:
+            u[idx, 0] = val[0]
+        if mask[1] == 1:
+            u[idx, 1] = val[1]
+
     return u
 
 def apply_neumann_bc(u, idx, neumann_idx):
@@ -34,7 +69,7 @@ def apply_neumann_bc(u, idx, neumann_idx):
 
     if u is None:
         return None
-
+    
     u[idx] = u[neumann_idx]
 
     return u
@@ -94,9 +129,30 @@ def get_neumann_index(g, height = None, width = None):
         (tuple) - the shifted index
     """
 
+    if g["type"] == "cylinder":
+        x, y, r = g["pos"]["x"], g["pos"]["y"], g["size"]
+
+        yy, xx = np.meshgrid(np.arange(height), np.arange(width), indexing="ij")
+
+        mask = (xx - x)**2 + (yy - y)**2 <= r**2
+
+        shifted_mask = (xx - x)**2 + (yy - y)**2 <= (r + 1)**2
+
+        neumann_mask = np.logical_and(shifted_mask, ~mask)
+
+        return np.where(neumann_mask)
+        
+
     x, y = g["pos"]["x"], g["pos"]["y"]
     w, h = g["size"]["width"], g["size"]["height"]
-    dir_x, dir_y = g["dir"]["x"], g["dir"]["y"]
+    if "dir" in g.keys():
+        dir_x, dir_y = g["dir"]["x"], g["dir"]["y"]
+    elif "vel" in g.keys():
+        dir_x, dir_y = g["vel"]["x"], g["vel"]["y"]
+        if dir_x != 0:
+            dir_x = 1
+        if dir_y != 0:
+            dir_y = 1
     
     if x == -1:
         x = width - 1
@@ -109,6 +165,18 @@ def get_neumann_index(g, height = None, width = None):
 
     return (slice(y + dir_y, y + h + dir_y), 
             slice(x + dir_x, x + w + dir_x))
+
+def get_normal(g):
+    if "dir" in g.keys():
+        dir_x, dir_y = g["dir"]["x"], g["dir"]["y"]
+    elif "vel" in g.keys():
+        dir_x, dir_y = g["vel"]["x"], g["vel"]["y"]
+        if dir_x != 0:
+            dir_x = 1
+        if dir_y != 0:
+            dir_y = 1
+
+    return np.array([dir_y, dir_x])
 
 def boundary(geometry, u = None, p = None):
     """
@@ -141,17 +209,19 @@ def boundary(geometry, u = None, p = None):
         # Apply boundary conditions depending on the type
         if g["type"] == "wall":
             neumann_idx = get_neumann_index(g, height, width)
-            u = apply_dirichlet_bc(u, idx, (0, 0))
+            normal = get_normal(g)
+            u = apply_dirichlet_bc(u, idx, (0, 0), mask=(1 - np.abs(normal)))
             p = apply_neumann_bc(p, idx, neumann_idx)
         elif g["type"] == "inflow":
+            neumann_idx = get_neumann_index(g, height, width)
             u = apply_dirichlet_bc(u, idx, (g["vel"]["x"],
                                             g["vel"]["y"]))
+            # p = apply_neumann_bc(p, idx, neumann_idx)
         elif g["type"] == "outflow":
             neumann_idx = get_neumann_index(g, height, width)
 
             u = apply_neumann_bc(u, idx, neumann_idx)
-            # p = apply_neumann_bc(p, idx, neumann_idx)
-            # p = apply_dirichlet_bc(p, idx, 0)
+            p = apply_dirichlet_bc(p, idx, 0)
         elif g["type"] == "cylinder":
             u = apply_dirichlet_bc(u, idx, (0, 0))
 

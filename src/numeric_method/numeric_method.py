@@ -281,7 +281,8 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                         hidden_channels=int(params["hidden_dim"]),
                         input_width=width,
                         input_height=height,
-                        enforceBC=dataset.enforceBC)
+                        enforceBC=dataset.enforceBC,
+                        use_skip=True)
 
             device = torch.device('cpu')
             
@@ -343,7 +344,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         
         x = torch.cat([coords,
                        u_dirichlet.permute(2, 0, 1),
-                       u_dirichlet_mask.unsqueeze(0),
+                       u_dirichlet_mask.permute(2, 0, 1),
                        u_neumann.permute(2, 0, 1),
                        p_dirichlet.unsqueeze(0),
                        p_dirichlet_mask.unsqueeze(0),
@@ -361,7 +362,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         div_u_star = np.zeros((20, 20))
         phi = np.zeros((20, 20))
 
-        for _ in range(0, 2):
+        for _ in range(max_iter):
             results_u.append(u)
             results_p.append(p)
             results_u_star.append(u_star)
