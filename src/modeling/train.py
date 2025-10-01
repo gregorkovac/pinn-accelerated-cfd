@@ -230,14 +230,17 @@ def main():
 
     plt.ion()
     plt.tight_layout()
-    fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(14, 7))
+    fig, ax = plt.subplots(nrows=2, ncols=4, figsize=(18, 7))
     ax = ax.flatten()
     im = None
     cbar = None
 
     print(f"DATA LENGTH: {len(train_dataset)}")
 
+    prev_loss = 0
+
     # Training loop
+    # TODO: FIX THIS
     for epoch in range(epochs):
         running_loss = [0, 0, 0, 0, 0]
         val_running_loss = [0, 0, 0, 0, 0]
@@ -295,8 +298,10 @@ def main():
 
         val_loss = np.array(val_running_loss) / len(val_dataloader.dataset)
 
-        if val_loss[0] <= best_loss:
-            best_loss = val_loss[0]
+        val_loss_unweighted = val_loss[1] + val_loss[2] + val_loss[3] + val_loss[4]
+
+        if val_loss_unweighted <= best_loss:
+            best_loss = val_loss_unweighted
             best_model_dict = model.state_dict()
 
             torch.save(best_model_dict, os.path.join(model_path, "model.pt"))
@@ -307,37 +312,56 @@ def main():
         if use_scheduler:
             scheduler.step()
 
-        # print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL LOSS = {loss[0]:.10f}   LOSS PARTS = [{loss[1]:.10f}, {loss[2]:.10f}, {loss[3]:.10f}, {loss[4]:.10f}]")
-        print(f"EPOCHS [{epoch + 1}/{epochs}]   TRAIN LOSS = {loss[0]:.10f}   VAL LOSS = {val_loss[0]:.10f}")
+        print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL TRAIN LOSS = {loss[0]:.10f}   TRAIN LOSS PARTS = [{loss[1]:.5f}, {loss[2]:.5f}, {loss[3]:.5f}, {loss[4]:.5f}]   |   TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.5f}, {val_loss[2]:.5f}, {val_loss[3]:.5f}, {val_loss[4]:.5f}]")
+        # print(f"                                TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.10f}, {val_loss[2]:.10f}, {val_loss[3]:.10f}, {val_loss[4]:.10f}]")
+        # print(f"EPOCHS [{epoch + 1}/{epochs}]   TRAIN LOSS = {loss[0]:.10f}   VAL LOSS = {val_loss[0]:.10f}")
+
+        # if np.abs(loss[0] - prev_loss) < 1e-6 and epoch != 0:
+        #     print("LOSS STOPPED MINIMIZING - STOPPING TRAINING")
+        #     break
+
+        # if best_loss < val_loss_unweighted and np.abs(best_loss - val_loss_unweighted) > 0.01:
+        #     print("OVERFITTING DETECTED - STOPPING TRAINING")
+        #     break
+
+        prev_loss = loss[0]
 
         if use_wandb:
-            wandb.log({"loss": loss[0],
-                       "loss1": loss[1],
-                       "loss2": loss[2],
-                       "loss3": loss[3],
-                       "loss4": loss[4]})
+            wandb.log({"train_loss": loss[0],
+                       "train_loss1": loss[1],
+                       "train_loss2": loss[2],
+                       "train_loss3": loss[3],
+                       "train_loss4": loss[4],
+                       "val_loss": val_loss_unweighted,
+                       "val_loss1": val_loss[1],
+                       "val_loss2": val_loss[2],
+                       "val_loss3": val_loss[3],
+                       "val_loss4": val_loss[4],
+                       "log_val_loss": np.log(val_loss_unweighted)})
             
-        with torch.no_grad():
-            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = train_dataset[min(0, len(train_dataset) - 1)]
-            out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
+        #with torch.no_grad():
+        x_, delta_x_, delta_y_, _, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(0, len(train_dataset) - 1)]
+        x_ = x_.clone().detach().requires_grad_(True)
+        out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
 
-            if model_type == "full":
-                cbar = plot_full(ax[:3], out, delta_x_.item(), cbar=cbar)
-            else:
-                phi = train_dataset.get_phi(min(10, len(train_dataset) - 1))
-                cbar = plot_poisson(ax[:3], out, phi, boundary_mask, cbar=cbar)
+        if model_type == "full":
+            cbar = plot_full(ax[:4], out, delta_x_.item(), cbar=cbar)
+        else:
+            phi = train_dataset.get_phi(min(10, len(train_dataset) - 1))
+            cbar = plot_poisson(ax[:4], out, phi, boundary_mask, cbar=cbar, in_=x_, delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)
 
-            x_, delta_x_, delta_y_, _, _, _, _, _, boundary_mask = train_dataset[min(31, len(train_dataset) - 1)]
-            out = model(x_.unsqueeze(0)).detach().cpu().squeeze().numpy()
+        x_, delta_x_, delta_y_, _, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(31, len(train_dataset) - 1)]
+        x_ = x_.clone().detach().requires_grad_(True)
+        out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
 
-            if model_type == "full":
-                cbar = plot_full(ax[3:], out, delta_x_.item(), cbar=cbar)
-            else:
-                phi = train_dataset.get_phi(min(60, len(train_dataset) - 1))
-                cbar = plot_poisson(ax[3:], out, phi, boundary_mask, cbar=cbar)
+        if model_type == "full":
+            cbar = plot_full(ax[4:], out, delta_x_.item(), cbar=cbar)
+        else:
+            phi = train_dataset.get_phi(min(60, len(train_dataset) - 1))
+            cbar = plot_poisson(ax[4:], out, phi, boundary_mask, cbar=cbar, in_=x_, delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)
 
-            plt.draw()
-            plt.pause(0.001)
+        plt.draw()
+        plt.pause(0.001)
             
     if use_wandb:
         wandb.finish()

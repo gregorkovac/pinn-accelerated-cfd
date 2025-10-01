@@ -27,14 +27,18 @@ class CNN(nn.Module):
             in_channels = input_channels if i == 0 else hidden_channels
 
             encoder_layers.extend([
+                # nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1, padding_mode="zeros"),
                 nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1, padding_mode="replicate"),
-                nn.BatchNorm2d(hidden_channels),
+                # nn.BatchNorm2d(hidden_channels),
+                # nn.LayerNorm([hidden_channels, input_height, input_width]),
+                nn.GroupNorm(1, hidden_channels),
                 nn.Tanh()
             ])
 
         self.encoder = nn.Sequential(*encoder_layers)
 
         self.decoder = nn.Sequential(
+            # nn.Conv2d(hidden_channels, output_channels, 3, padding=1, padding_mode="zeros")
             nn.Conv2d(hidden_channels, output_channels, 3, padding=1, padding_mode="replicate")
         )
 

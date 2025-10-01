@@ -60,22 +60,38 @@ def v_dot_del_u(v, u, dx, dy):
 
     return res
 
+# def laplace(v, dx, dy):
+#     if v.ndim == 2:
+#         grad = np.gradient(v, dy, dx, edge_order=2)
+#         lapl = np.gradient(grad[0], dy, dx, edge_order=2)[0] + np.gradient(grad[1], dy, dx, edge_order=2)[1]
+#         return lapl
+
+#     grad_x = np.gradient(v[:,:,0], dy, dx, edge_order=2)
+#     grad_y = np.gradient(v[:,:,1], dy, dx, edge_order=2)
+
+#     partial_1 = np.gradient(grad_x[0], dy, dx, edge_order=2)[0]
+#     partial_2 = np.gradient(grad_x[1], dy, dx, edge_order=2)[1]
+#     partial_3 = np.gradient(grad_y[0], dy, dx, edge_order=2)[0]
+#     partial_4 = np.gradient(grad_y[1], dy, dx, edge_order=2)[1]
+
+#     lapl = np.zeros_like(v)
+#     lapl[:,:,0] = partial_1 + partial_2
+#     lapl[:,:,1] = partial_3 + partial_4
+
+#     return lapl
+
 def laplace(v, dx, dy):
     if v.ndim == 2:
-        grad = np.gradient(v, dy, dx, edge_order=2)
-        lapl = np.gradient(grad[0], dy, dx, edge_order=2)[0] + np.gradient(grad[1], dy, dx, edge_order=2)[1]
+        # Scalar field
+        d2v_dx2 = np.gradient(np.gradient(v, dx, axis=1, edge_order=2), dx, axis=1, edge_order=2)
+        d2v_dy2 = np.gradient(np.gradient(v, dy, axis=0, edge_order=2), dy, axis=0, edge_order=2)
+        return d2v_dx2 + d2v_dy2
+
+    elif v.ndim == 3 and v.shape[2] == 2:
+        # Vector field, component-wise Laplacian
+        lapl = np.zeros_like(v)
+        for i in range(2):
+            d2v_dx2 = np.gradient(np.gradient(v[:,:,i], dx, axis=1, edge_order=2), dx, axis=1, edge_order=2)
+            d2v_dy2 = np.gradient(np.gradient(v[:,:,i], dy, axis=0, edge_order=2), dy, axis=0, edge_order=2)
+            lapl[:,:,i] = d2v_dx2 + d2v_dy2
         return lapl
-
-    grad_x = np.gradient(v[:,:,0], dy, dx, edge_order=2)
-    grad_y = np.gradient(v[:,:,1], dy, dx, edge_order=2)
-
-    partial_1 = np.gradient(grad_x[0], dy, dx, edge_order=2)[0]
-    partial_2 = np.gradient(grad_x[1], dy, dx, edge_order=2)[1]
-    partial_3 = np.gradient(grad_y[0], dy, dx, edge_order=2)[0]
-    partial_4 = np.gradient(grad_y[1], dy, dx, edge_order=2)[1]
-
-    lapl = np.zeros_like(v)
-    lapl[:,:,0] = partial_1 + partial_2
-    lapl[:,:,1] = partial_3 + partial_4
-
-    return lapl

@@ -76,15 +76,19 @@ def geometry_to_mtx(geometry, width, height):
 
             # Add values to the boundary mask
             boundary_mask[y:(y+h), x:(x+w)] = 1
-            # p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
 
             if g["type"] == "inflow":
                 u_dirichlet[y:(y+h), x:(x+w)] = np.array([yn, xn])
                 u_dirichlet_mask[y:(y+h), x:(x+w), :] = 1
+            # p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
             # else:
             if g["type"] == "wall":
                 u_dirichlet[y:(y+h), x:(x+w)] = np.array([0, 0])
+                # TODO: Make this dynamic for dam
                 u_dirichlet_mask[y:(y+h), x:(x+w), 0] = 1
+
+
+                # TODO: NS has this
                 # p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
 
         elif g["type"] == "outflow":
@@ -132,15 +136,23 @@ def geometry_to_mtx(geometry, width, height):
             # Set the values in the boundary mask
             boundary_mask[y_min:y_max, x_min:x_max][mask] = 1
 
-            u_dirichlet[y_min:y_max, x_min:x_max][mask] = np.array([0, 0])
-            u_dirichlet_mask[y_min:y_max, x_min:x_max, :][mask] = 1
+            # u_dirichlet[y_min:y_max, x_min:x_max][mask] = np.array([0, 0])
+            # u_dirichlet_mask[y_min:y_max, x_min:x_max, :][mask] = 1
 
-            # TODO: Check this code
-            # dx = xx - x
-            # dy = yy - y
-            # norm = np.sqrt(dx**2 + dy**2) + 1e-12
-            # nx = dx / norm
-            # ny = dy / norm
+            dx = xx - x
+            dy = yy - y
+            norm = np.sqrt(dx**2 + dy**2) + 1e-12
+            nx = dx / norm
+            ny = dy / norm
+
+            ny = np.round(ny).astype(int)
+            nx = np.round(nx).astype(int)
+
+            u_dirichlet_mask[y_min:y_max, x_min:x_max, :][mask] = 1
+            u_dirichlet_mask[y_min:y_max, x_min:x_max, 0][mask] = ny[mask]
+            u_dirichlet_mask[y_min:y_max, x_min:x_max, 1][mask] = nx[mask]
+
+            # TODO: NS loss has this
             # p_neumann[y_min:y_max, x_min:x_max][mask] = np.stack([ny[mask], nx[mask]], axis=-1)
 
             cylinder_mask = np.zeros((height, width), dtype=bool)
@@ -170,6 +182,18 @@ def geometry_to_mtx(geometry, width, height):
     )
     u_neumann[invalid] = (0, 0)
 
+    yy, xx = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
+    ny = yy + u_dirichlet_mask[..., 0].astype(int)
+    nx = xx + u_dirichlet_mask[..., 1].astype(int)
+    invalid = (
+        (boundary_mask == 1) &
+        (cylinder_mask == 1) &
+        ((ny < 0) | (ny >= height) | (nx < 0) | (nx >= width) |
+         (boundary_mask[np.clip(ny, 0, height-1), np.clip(nx, 0, width-1)] == 1))
+    )
+    u_dirichlet_mask[invalid] = (1, 1)
+    u_dirichlet_mask[y_min:y_max, x_min:x_max, :] = np.abs(u_dirichlet_mask[y_min:y_max, x_min:x_max, :])
+
     # import matplotlib.pyplot as plt
     # from matplotlib.patches import Rectangle
 
@@ -177,8 +201,8 @@ def geometry_to_mtx(geometry, width, height):
     # y = np.arange(height)
     # X, Y = np.meshgrid(x, y)   
     
-    # U = p_neumann[..., 1]                      # (n, m)
-    # V = p_neumann[..., 0]                      # (n, m)
+    # U = u_dirichlet_mask[..., 1]                      # (n, m)
+    # V = u_dirichlet_mask[..., 0]                      # (n, m)
     
     # fig, ax = plt.subplots(figsize=(8, 8))
     # for i in range(height):

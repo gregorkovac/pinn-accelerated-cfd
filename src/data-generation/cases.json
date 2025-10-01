@@ -1,14 +1,19 @@
 [
     {
         "path": "../../data/cases/cylinder.json",
-        "num_cases": 1,
+        "num_cases": 100,
+        "num_test_cases": 10,
         "params": {
             "density": [1, 1],
             "viscosity": [0.1, 0.1],
             "inflow": [1, 1],
-            "cylinder_x": [10, 10],
-            "cylinder_y": [10, 10],
-            "cylinder_r": [4, 4]
+            "cylinder_x": [6, 14],
+            "cylinder_y": [6, 14],
+            "cylinder_r": [4, 4],
+            "dam_x": [3, 17],
+            "dam_y": [3, 17],
+            "dam_height": [2, 10],
+            "dam_width": [2, 10]
         }
     }
 ]
