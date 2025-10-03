@@ -51,6 +51,21 @@ def laplacian(v, dx, dy, boundary):
 
 #     return d2v_dx2 + d2v_dy2
 
+# def laplacian(u, ins, dx, dy, boundary):
+#     u = u.clone().requires_grad_(True)
+
+#     d2u_dx2 = torch.autograd.grad(
+#         torch.autograd.grad(u, ins, grad_outputs=torch.ones_like(u), create_graph=True)[0][:, 2],
+#         ins, grad_outputs=torch.ones_like(u[:, 0]), create_graph=True
+#     )[0][:, 0].view_as(u) / dx**2
+
+#     d2u_dy2 = torch.autograd.grad(
+#         torch.autograd.grad(u, ins, grad_outputs=torch.ones_like(u), create_graph=True)[0][:, 2],
+#         ins, grad_outputs=torch.ones_like(u[:, 1]), create_graph=True
+#     )[0][:, 3].view_as(u) / dy**2
+
+#     return d2u_dx2 + d2u_dy2
+
 def laplacian_2d(v, dx, dy):
     dx = dx.view(-1, 1, 1, 1)
     dy = dy.view(-1, 1, 1, 1)
@@ -72,7 +87,6 @@ def divergence(u, v, dx, dy, boundary, numpy_=False):
 
     # du_dx = derivative(u, dx, boundary, numpy_)
 
-
     # if numpy_:
     #     dv_dy = derivative(v.transpose(0, 2, 1), dy, boundary.transpose(0, 2, 1), numpy_).transpose(0, 2, 1)
     # else:
@@ -80,71 +94,123 @@ def divergence(u, v, dx, dy, boundary, numpy_=False):
 
     return du_dx + dv_dy
 
+# def derivative(x, h, boundary, numpy_=False):
+#     if numpy_:
+#         diff = np.zeros_like(x)
+#     else:
+#         diff = torch.empty_like(x)
+
+#     # Central differences for inner points
+#     central_diff = (x[:, :, 2:] - x[:, :, :-2]) / (2 * h[:, :, 1:-1])
+#     # Forward/backward differences for shifted points
+#     forward_diff = (x[:, :, 2:] - x[:, :, 1:-1]) / h[:, :, 1:-1]
+#     backward_diff = (x[:, :, 1:-1] - x[:, :, :-2]) / h[:, :, 1:-1]
+
+#     # Boundary masks
+#     if numpy_:
+#         forward_mask = np.roll(boundary, 1, axis=2).astype(bool)[:, :, 1:-1]
+#         backward_mask = np.roll(boundary, -1, axis=2).astype(bool)[:, :, 1:-1]
+#     else:
+#         forward_mask = torch.roll(boundary, 1, dims=2).bool()[:, :, 1:-1]
+#         backward_mask = torch.roll(boundary, -1, dims=2).bool()[:, :, 1:-1]
+
+#     central_mask = ~(forward_mask | backward_mask)
+
+#     diff[:, :, 1:-1] = forward_mask * forward_diff + backward_mask * backward_diff + central_mask * central_diff
+
+#     # Use one-sided difference at the edges
+#     diff[:, :, 0] = (x[:, :, 1] - x[:, :, 0]) / h[:, :, 0]
+#     diff[:, :, -1] = (x[:, :, -1] - x[:, :, -2]) / h[:, :, -1]
+
+#     diff *= (1 - boundary)
+
+#     return diff
+
+
+# def second_derivative(x, h, boundary, numpy_=False):
+#     if numpy_:
+#         diff = np.zeros_like(x)
+#     else:
+#         diff = torch.empty_like(x)
+
+#     # Central differences for inner points
+#     central_diff = (x[:, :, 2:] - 2 * x[:, :, 1:-1] + x[:, :, :-2]) / (h[:, :, 1:-1] ** 2)
+#     # Forward/backward differences for points near boundaries
+#     forward_diff = (2 * x[:, :, 0:-3] - 5 * x[:, :, 1:-2] + 4 * x[:, :, 2:-1] - x[:, :, 3:]) / (h[:, :, 1:-2] ** 2)
+#     backward_diff = (2 * x[:, :, 3:] - 5 * x[:, :, 2:-1] + 4 * x[:, :, 1:-2] - x[:, :, 0:-3]) / (h[:, :, 1:-2] ** 2)
+
+#     # Boundary masks
+#     if numpy_:
+#         forward_mask = np.roll(boundary, 1, axis=2).astype(bool)[:, :, 1:-2]
+#         backward_mask = np.roll(boundary, -1, axis=2).astype(bool)[:, :, 1:-2]
+#     else:
+#         forward_mask = torch.roll(boundary, 1, dims=2).bool()[:, :, 1:-2]
+#         backward_mask = torch.roll(boundary, -1, dims=2).bool()[:, :, 1:-2]
+
+#     central_mask = ~(forward_mask | backward_mask)
+
+#     # Apply masks
+#     diff[:, :, 1:-2] = forward_mask * forward_diff + backward_mask * backward_diff + central_mask * central_diff[:, :, :-1]
+
+#     # One-sided second derivatives at edges
+#     diff[:, :, 0] = (2 * x[:, :, 0] - 5 * x[:, :, 1] + 4 * x[:, :, 2] - x[:, :, 3]) / (h[:, :, 0] ** 2)
+#     diff[:, :, -1] = (2 * x[:, :, -1] - 5 * x[:, :, -2] + 4 * x[:, :, -3] - x[:, :, -4]) / (h[:, :, -1] ** 2)
+
+#     diff *= (1 - boundary)
+
+#     return diff
+
 def derivative(x, h, boundary, numpy_=False):
-    if numpy_:
-        diff = np.zeros_like(x)
-    else:
-        diff = torch.empty_like(x)
+    deriv = torch.zeros_like(x)
+    forward = torch.roll(x, -1, dims=2)
+    backward = torch.roll(x, 1, dims=2)
+    
+    deriv = (forward - backward) / (2 * h)
 
-    # Central differences for inner points
-    central_diff = (x[:, :, 2:] - x[:, :, :-2]) / (2 * h[:, :, 1:-1])
-    # Forward/backward differences for shifted points
-    forward_diff = (x[:, :, 2:] - x[:, :, 1:-1]) / h[:, :, 1:-1]
-    backward_diff = (x[:, :, 1:-1] - x[:, :, :-2]) / h[:, :, 1:-1]
+    deriv *= boundary
 
-    # Boundary masks
-    if numpy_:
-        forward_mask = np.roll(boundary, 1, axis=2).astype(bool)[:, :, 1:-1]
-        backward_mask = np.roll(boundary, -1, axis=2).astype(bool)[:, :, 1:-1]
-    else:
-        forward_mask = torch.roll(boundary, 1, dims=2).bool()[:, :, 1:-1]
-        backward_mask = torch.roll(boundary, -1, dims=2).bool()[:, :, 1:-1]
-
-    central_mask = ~(forward_mask | backward_mask)
-
-    diff[:, :, 1:-1] = forward_mask * forward_diff + backward_mask * backward_diff + central_mask * central_diff
-
-    # Use one-sided difference at the edges
-    diff[:, :, 0] = (x[:, :, 1] - x[:, :, 0]) / h[:, :, 0]
-    diff[:, :, -1] = (x[:, :, -1] - x[:, :, -2]) / h[:, :, -1]
-
-    diff *= (1 - boundary)
-
-    return diff
-
+    deriv = torch.where(torch.roll(boundary.bool(), -1, dims=2), (x - backward) / h, deriv)
+    deriv = torch.where(torch.roll(boundary.bool(), 1, dims=2), (forward - x) / h, deriv)
+    
+    return deriv
 
 def second_derivative(x, h, boundary, numpy_=False):
-    if numpy_:
-        diff = np.zeros_like(x)
-    else:
-        diff = torch.empty_like(x)
+    deriv = torch.zeros_like(x)
+    forward = torch.roll(x, -1, dims=2)
+    backward = torch.roll(x, 1, dims=2)
 
-    # Central differences for inner points
-    central_diff = (x[:, :, 2:] - 2 * x[:, :, 1:-1] + x[:, :, :-2]) / (h[:, :, 1:-1] ** 2)
-    # Forward/backward differences for points near boundaries
-    forward_diff = (2 * x[:, :, 0:-3] - 5 * x[:, :, 1:-2] + 4 * x[:, :, 2:-1] - x[:, :, 3:]) / (h[:, :, 1:-2] ** 2)
-    backward_diff = (2 * x[:, :, 3:] - 5 * x[:, :, 2:-1] + 4 * x[:, :, 1:-2] - x[:, :, 0:-3]) / (h[:, :, 1:-2] ** 2)
+    deriv = (forward - 2 * x + backward) / (h ** 2)
+    deriv *= boundary
 
-    # Boundary masks
-    if numpy_:
-        forward_mask = np.roll(boundary, 1, axis=2).astype(bool)[:, :, 1:-2]
-        backward_mask = np.roll(boundary, -1, axis=2).astype(bool)[:, :, 1:-2]
-    else:
-        forward_mask = torch.roll(boundary, 1, dims=2).bool()[:, :, 1:-2]
-        backward_mask = torch.roll(boundary, -1, dims=2).bool()[:, :, 1:-2]
+    # forward / backward second-order differences near boundaries
+    deriv = torch.where(
+        torch.roll(boundary.bool(), -1, dims=2),       # next cell is boundary
+        (x - 2 * backward + torch.roll(x, 2, dims=2)) / (h ** 2),
+        deriv
+    )
+    deriv = torch.where(
+        torch.roll(boundary.bool(), 1, dims=2),        # prev cell is boundary
+        (x - 2 * forward + torch.roll(x, -2, dims=2)) / (h ** 2),
+        deriv
+    )
 
-    central_mask = ~(forward_mask | backward_mask)
+    return deriv
 
-    # Apply masks
-    diff[:, :, 1:-2] = forward_mask * forward_diff + backward_mask * backward_diff + central_mask * central_diff[:, :, :-1]
 
-    # One-sided second derivatives at edges
-    diff[:, :, 0] = (2 * x[:, :, 0] - 5 * x[:, :, 1] + 4 * x[:, :, 2] - x[:, :, 3]) / (h[:, :, 0] ** 2)
-    diff[:, :, -1] = (2 * x[:, :, -1] - 5 * x[:, :, -2] + 4 * x[:, :, -3] - x[:, :, -4]) / (h[:, :, -1] ** 2)
+# def second_derivative(x, h, boundary, numpy_=False):
+#     deriv = torch.zeros_like(x)
+#     forward = torch.roll(x, -1, dims=2)
+#     backward = torch.roll(x, 1, dims=2)
+    
+#     deriv = (forward - 2 * x + backward) / (h ** 2)
 
-    diff *= (1 - boundary)
+#     deriv *= boundary
 
-    return diff
+#     neighbor_mask = torch.roll(boundary, -1, dims=2) * torch.roll(boundary, 1, dims=2)
+#     deriv *= neighbor_mask
+    
+#     return deriv
+
 
 # def derivative(x, h, boundary, numpy_=False):
 #     if numpy_:

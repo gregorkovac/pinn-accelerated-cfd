@@ -91,7 +91,7 @@ def divergence_err(y, dy, dx, bound):
     grad_x = np.gradient(y[:,:,0], dy, dx, edge_order=2)[1]
     grad_y = np.gradient(y[:,:,1], dy, dx, edge_order=2)[0]
 
-    return bound * (grad_x + grad_y)
+    return bound * (grad_x + grad_y) ** 2
 
 def compute_errors(case):
     u_err_poisson = [vec_rrmse(case["u_numeric"][i], case["u_poisson"][i]) for i in range(len(case["u_numeric"]))]

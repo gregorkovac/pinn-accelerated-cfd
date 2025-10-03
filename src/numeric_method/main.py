@@ -35,9 +35,9 @@ def main(case_name = None):
         dynamic_time_step=False,
         implicit_laplacian=True,
         return_div_u_star=True,
-        method_type="poisson_model", # numeric, poisson_model, full_model
-        # model_path="../../models/full/2025-09-24_18_52"
-        model_path="../../models/poisson/2025-10-01_19_36"
+        method_type="numeric", # numeric, poisson_model, full_model
+        # model_path="../../models/full/2025-09-29_11_53"
+        model_path="../../models/poisson/2025-10-02_10_49"
     )
 
     plot_flow_animation(u, p, case["dx" \

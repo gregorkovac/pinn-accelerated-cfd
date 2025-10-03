@@ -9,4 +9,7 @@ __pycache__
 models/full-pinn/*
 models/poisson-pinn/*
 models/poisson/*
+models/full/*
 data/*
+misc
+**/wandb

@@ -80,6 +80,7 @@ def geometry_to_mtx(geometry, width, height):
             if g["type"] == "inflow":
                 u_dirichlet[y:(y+h), x:(x+w)] = np.array([yn, xn])
                 u_dirichlet_mask[y:(y+h), x:(x+w), :] = 1
+                # p_neumann[y:(y+h), x:(x+w)] = np.array([np.sign(yn), np.sign(xn)])
             # p_neumann[y:(y+h), x:(x+w)] = np.array([yn, xn])
             # else:
             if g["type"] == "wall":

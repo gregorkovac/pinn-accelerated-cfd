@@ -82,6 +82,7 @@ class PoissonLoss(nn.Module):
         # Compute the laplacian of pressure
         laplacian_phi = laplacian(output, delta_x, delta_y, boundary_mask)
 
+
         # Compute the divergence of the approximate velocity
         div_u_star = divergence(x[:, 0], 
                                 x[:, 1], 
@@ -103,9 +104,9 @@ class PoissonLoss(nn.Module):
         # Compute the PDE loss
         # loss_pde = torch.mean((laplacian_phi - div_u_star) ** 2)
         norm = torch.mean(torch.abs(div_u_star)) + 1e-10
-        loss_pde = (laplacian_phi - div_u_star) ** 2 
+        loss_pde = (1 - boundary_mask) * (laplacian_phi - div_u_star) ** 2 
         # mask = (boundary_mask - 1).abs()
-        loss_pde = ((laplacian_phi - div_u_star) / norm) ** 2
+        # loss_pde = ((laplacian_phi - div_u_star) / norm) ** 2
         # loss_pde = torch.sum((laplacian_phi - div_u_star) ** 2) / torch.sum(div_u_star ** 2)
 
         # print(loss_pde.shape)
@@ -144,7 +145,7 @@ class PoissonLoss(nn.Module):
         
         # grad_phi = torch.autograd.grad(output, x, grad_outputs=torch.ones_like(output), create_graph=True)[0][:, 2:4]
 
-        grad_phi_y, grad_phi_x = torch.gradient(output, spacing=(float(delta_y[0].item()), float(delta_x[0].item())), dim=(1, 2), edge_order=2)
+        # grad_phi_y, grad_phi_x = torch.gradient(output, spacing=(float(delta_y[0].item()), float(delta_x[0].item())), dim=(1, 2), edge_order=2)
         # grad_phi_x = grad_phi[:, 0]
         # grad_phi_y = grad_phi[:, 1]
 
@@ -152,8 +153,8 @@ class PoissonLoss(nn.Module):
         # grad_phi_y = derivative(output.transpose(1, 2), delta_y, boundary_mask.transpose(1, 2)).transpose(1, 2)
 
         # u = x[:, :2] - (delta_t / rho).unsqueeze(1) * grad_phi
-        ux = x[:, 0] - (delta_t / rho) * grad_phi_x
-        uy = x[:, 1] - (delta_t / rho) * grad_phi_y
+        # ux = x[:, 0] - (delta_t / rho) * grad_phi_x
+        # uy = x[:, 1] - (delta_t / rho) * grad_phi_y
 
         # import matplotlib.pyplot as plt
         # plt.ioff()
@@ -164,15 +165,17 @@ class PoissonLoss(nn.Module):
         # print(grad_phi[:, 0].shape)
         # print((delta_t / rho).unsqueeze(1).shape)
 
-        div_u = divergence(ux,
-                           uy,
-                           delta_x,
-                           delta_y,
-                           boundary_mask)
+        # div_u = divergence(ux,
+        #                    uy,
+        #                    delta_x,
+        #                    delta_y,
+        #                    boundary_mask)
 
         # div_u = div_u * (1 - boundary_mask)
         
-        loss_div = torch.mean(div_u ** 2)
+        # loss_div = torch.mean(div_u ** 2)
+        loss_div = torch.tensor(0)
+        # loss_div = torch.mean(output ** 2)
 
         # print(loss_div)
 
