@@ -15,15 +15,19 @@ import matplotlib.pyplot as plt
 import gc
 
 sys.path.insert(0, "..")
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from modeling.model import CNN
 from modeling.data import geometry_to_mtx, PoissonPINNDataset, FullPINNDataset
 
+from derivatives import *
+
 try:
-    from .derivatives import *
+    # from .derivatives import *
+    # from ..derivatives import *
     from .geometry import boundary
 except ImportError:
-    from derivatives import *
+    # from derivatives import *
     from geometry import boundary
 
 def compute_A_matrix(n, m):
@@ -59,7 +63,7 @@ def compute_discrete_laplacian(n, m, dx, dy):
     # Compute scaling factor
     # h2_inv = 1.0 / (grid_spacing ** 2) 
     dx_inv = 1.0 / dx ** 2
-    dy_inv = 1.0 / dx ** 2
+    dy_inv = 1.0 / dy ** 2
 
     # Compute main diagonal
     # D = -4 * h2_inv * sp.eye(m) 
@@ -137,6 +141,14 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         p (numpy.ndarray) - pressure scalar field of shape (n, m) in next time step
     """
 
+    n, m, _ = u.shape
+
+    _, _, _, _, _, _, boundary_mask = geometry_to_mtx(geometry, m, n)
+    boundary_mask =  boundary_mask.transpose(1, 0) * 0
+
+    boundary_mask_3 = np.expand_dims(boundary_mask, axis=0)
+    boundary_mask_3 = np.repeat(boundary_mask_3, 2, axis=0)
+
     # Handle the Laplacian term implicitly
     if A_laplacian is not None:
 
@@ -145,8 +157,25 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         # Extract shape
         n, m, _ = u_star.shape
 
+        conv_u = convective(u = u.transpose(2, 1, 0),
+                          dx = dx,
+                          dy = dy,
+                          boundary=boundary_mask_3,
+                          numpy_=True).transpose(2, 1, 0)
+
+        # conv_u = v_dot_del_v(u, dx, dy)
+
+        grad_p = grad(u=p.transpose(1, 0),
+                      dx=dx,
+                      dy=dy,
+                      boundary=boundary_mask,
+                      numpy_=True).transpose(2, 1, 0)
+
+        # grad_p = del_v(p, dx, dy)
+
         # Compute right hand side for implicit Laplacian system
-        b = (u - delta_t * v_dot_del_v(u, dx, dy) - beta * delta_t / density * del_v(p, dx, dy))
+        # b = (u - delta_t * v_dot_del_v(u, dx, dy) - beta * delta_t / density * del_v(p, dx, dy))
+        b = (u - delta_t * conv_u - beta * delta_t / density * grad_p)
 
         # Reshape
         b_x = b[:, :, 0].ravel()
@@ -161,16 +190,46 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         u_star[:, :, 0] = u_star_x.reshape((n, m))
         u_star[:, :, 1] = u_star_y.reshape((n, m))
     else:
+        conv_u = convective(u=u.transpose(2, 1, 0),
+                          dx=dx,
+                          dy=dy,
+                          boundary=boundary_mask_3,
+                          numpy_=True).transpose(2, 1, 0)
+
+        # conv_u = v_dot_del_v(u, dx, dy)
+        
+        grad_p = grad(u=p.transpose(1, 0),
+                      dx=dx,
+                      dy=dy,
+                      boundary=boundary_mask,
+                      numpy_=True).transpose(2, 1, 0)
+
+        # grad_p = del_dot_v(u, dx, dy)
+        
+        lapl_u = laplacian(u=u.transpose(2, 1, 0),
+                           dx=dx,
+                           dy=dy,
+                           boundary=boundary_mask_3,
+                           numpy_=True).transpose(2, 1, 0)
+        # lapl_u = laplace(u, dx, dy)
+
         # Compute intermediate velocity
-        u_star = u - delta_t * v_dot_del_v(u, dx, dy) \
-            - beta * delta_t / density * del_v(p, dx, dy) \
-            + delta_t * viscosity * laplace(u, dx, dy)
+        u_star = u - delta_t * conv_u - beta * delta_t / density * grad_p + delta_t * viscosity * lapl_u
 
     # Apply boundary
     u_star, _ = boundary(geometry, u = u_star)
 
+    div = divergence(u=u_star.transpose(2, 1, 0),
+                     dx=dx,
+                     dy=dy,
+                     boundary=boundary_mask_3,
+                     numpy_=True).transpose(1, 0)
+
+    # div = del_dot_v(u, dx, dy)
+
     # Multiply by constant
-    div_u_star = density / delta_t * del_dot_v(u_star, dx, dy)
+    # div_u_star = density / delta_t * del_dot_v(u_star, dx, dy)
+    div_u_star = density / delta_t * div
 
     if poisson_model is not None:
 
@@ -209,8 +268,17 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
     _, phi = boundary(geometry, p = phi)
 
+    grad_phi = grad(u=phi.transpose(1, 0),
+                    dx=dx,
+                    dy=dy,
+                    boundary=boundary_mask,
+                    numpy_=True).transpose(2, 1, 0)
+    # grad_phi = del_v(phi, dx, dy)
+
     # Update veclocity
-    u = u_star - delta_t / density * del_v(phi, dx, dy)
+    # u = u_star - delta_t / density * del_v(phi, dx, dy)
+
+    u = u_star - delta_t / density * grad_phi
 
     # Update pressure
     p = phi + beta * p

@@ -4,6 +4,8 @@ import torch
 def derivative(u, h, boundary, numpy_=False):
     # Compute forward and backward shifted arrays with Torch/NumPy
     if numpy_:
+        boundary = boundary.astype(bool)
+
         u_fwd = np.roll(u, 1, axis=-1)
         b_fwd = np.roll(boundary, 1, axis=-1)
 
@@ -15,6 +17,8 @@ def derivative(u, h, boundary, numpy_=False):
         else:
             h_fwd = np.roll(h, 1, axis=-1)
     else:
+        boundary = boundary.bool()
+        
         u_fwd = torch.roll(u, 1, dims=-1)
         b_fwd = torch.roll(boundary, 1, dims=-1)
 
@@ -26,8 +30,21 @@ def derivative(u, h, boundary, numpy_=False):
         else:
             h_fwd = torch.roll(h, 1, dims=-1)
 
+    # b_bwd = b_bwd & (1 - b_fwd)
+
+    b_fwd[boundary] = 0
+    b_bwd[boundary] = 0
+
     # Compute central difference mask
     b_cent = 1 - (b_bwd | b_fwd)
+
+    # if len(np.shape(u)) == 3:
+    #     import matplotlib.pyplot as plt
+    #     fig, ax = plt.subplots(1, 3)
+    #     ax[0].imshow(b_fwd[0])
+    #     ax[1].imshow(b_bwd[0])
+    #     ax[2].imshow(b_cent[0])
+    #     plt.show()
 
     # Set edge cases
     b_fwd[..., 0] = 1
@@ -42,15 +59,6 @@ def derivative(u, h, boundary, numpy_=False):
 
     # Compute final difference array
     diff = (b_cent * diff_cent + b_bwd * diff_bwd + b_fwd * diff_fwd)
-
-    # Compute boundary sum for each point
-    b_sum = b_cent + b_bwd + b_fwd
-
-    # Set boundary points to 0
-    diff = diff * (1 - boundary)
-
-    # Set "illegal" points to 0
-    diff[b_sum > 1] = 0
 
     return diff
 
@@ -82,7 +90,10 @@ def grad(u, dx, dy, boundary, numpy_=False):
     else:
         du_dy = du_dy.transpose(-2, -1)
 
-    return (du_dy, du_dx)
+    if numpy_:
+        return np.stack([du_dy, du_dx], axis=0)
+    else:
+        return torch.stack([du_dy, du_dx], dim=1)
 
 def unpack_grad(grad_u):
     du_dy, du_dx = grad_u
@@ -99,7 +110,7 @@ def divergence(u, dx, dy, boundary, numpy_=False):
                   boundary=boundary,
                   numpy_=numpy_)
 
-    duy_dy, _, _, dux_dx = unpack_grad(grad_u)
+    duy_dy, dux_dy, duy_dx, dux_dx = unpack_grad(grad_u)
 
     div = dux_dx + duy_dy
 
