@@ -15,13 +15,22 @@ def compute_grads(x, y):
 
     return grads
 
+# def compute_spatial_derivatives(u, dx, dy):
+#     dx = float(dx[0].item())
+#     dy = float(dy[0].item())
+
+#     du_dy, du_dx = torch.gradient(u, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+
+#     return du_dy, du_dx
+
 def compute_spatial_derivatives(u, dx, dy):
     dx = float(dx[0].item())
     dy = float(dy[0].item())
-
     du_dy, du_dx = torch.gradient(u, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+    d2u_dy2, _ = torch.gradient(du_dy, spacing=(dy, dx), dim=(1, 2), edge_order=2)
+    _, d2u_dx2 = torch.gradient(du_dx, spacing=(dy, dx), dim=(1, 2), edge_order=2)
 
-    return du_dy, du_dx
+    return du_dy, du_dx, d2u_dy2, d2u_dx2
 
 def laplacian(v, dx, dy, boundary):
     # v_pad = F.pad(v, (1,1,1,1), mode='constant', value=0)

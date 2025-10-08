@@ -345,7 +345,8 @@ def main():
         out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
 
         if model_type == "full":
-            cbar = plot_full(ax[:4], out, delta_x_.item(), cbar=cbar)
+            out = out.detach().cpu().squeeze().numpy()
+            cbar = plot_full(ax[:4], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
         else:
             phi = train_dataset.get_phi(min(10, len(train_dataset) - 1))
             cbar = plot_poisson(ax[:4], out, phi, boundary_mask, cbar=cbar, in_=x_, delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)
@@ -355,7 +356,8 @@ def main():
         out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
 
         if model_type == "full":
-            cbar = plot_full(ax[4:], out, delta_x_.item(), cbar=cbar)
+            out = out.detach().cpu().squeeze().numpy()
+            cbar = plot_full(ax[4:], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
         else:
             phi = train_dataset.get_phi(min(60, len(train_dataset) - 1))
             cbar = plot_poisson(ax[4:], out, phi, boundary_mask, cbar=cbar, in_=x_, delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)

@@ -30,8 +30,8 @@ class CNN(nn.Module):
                 # nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1, padding_mode="zeros"),
                 nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1, padding_mode="replicate"),
                 # nn.BatchNorm2d(hidden_channels),
-                nn.LayerNorm([hidden_channels, input_height, input_width]),
-                # nn.GroupNorm(1, hidden_channels),
+                # nn.LayerNorm([hidden_channels, input_height, input_width]),
+                nn.GroupNorm(1, hidden_channels),
                 nn.Tanh()
             ])
 

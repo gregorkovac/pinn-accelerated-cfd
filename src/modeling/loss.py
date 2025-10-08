@@ -3,6 +3,15 @@ import torch.nn as nn
 
 from derivatives import compute_grads, divergence, laplacian, laplacian_2d, compute_spatial_derivatives, derivative
 
+# from derivatives import *
+
+# import sys
+# import os
+# sys.path.insert(0, "..")
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# from derivatives import *
+
 def neumann_bc_loss(off_y, off_x, boundary_mask, output, delta_y, delta_x):
 
     # Extract output shape
@@ -79,8 +88,16 @@ class PoissonLoss(nn.Module):
         # delta_x = delta_x.expand(-1, 20, 20)
         # delta_y = delta_y.expand(-1, 20, 20)
 
+        p = output
+
+        dp_dy, dp_dx, d2p_dy2, d2p_dx2= compute_spatial_derivatives(p, delta_x, delta_y)
+
+        # d2p_dy2, _ = compute_spatial_derivatives(dp_dy, delta_x, delta_y)
+        # _ , d2p_dx2 = compute_spatial_derivatives(dp_dx, delta_x, delta_y)
+
         # Compute the laplacian of pressure
         laplacian_phi = laplacian(output, delta_x, delta_y, boundary_mask)
+        # laplacian_phi = d2p_dx2 + d2p_dy2
 
 
         # Compute the divergence of the approximate velocity
@@ -209,6 +226,11 @@ class NavierStokesLoss(nn.Module):
         ux = output[:, 1]
         p = output[:, 2]
 
+        boundary_mask_u = boundary_mask.unsqueeze(1).expand(-1, 2, -1, -1)
+
+        # delta_x = delta_x.view(-1, 1, 1, 1).expand(-1, 2, uy.shape[1], uy.shape[2])
+        # delta_y = delta_y.view(-1, 1, 1, 1).expand(-1, 2, uy.shape[1], uy.shape[2])
+
         # print(len(compute_grads(x, output)))
         # exit(0)
 
@@ -227,16 +249,25 @@ class NavierStokesLoss(nn.Module):
         # dp_dy = grad_p[:, 0]
         # dp_dx = grad_p[:, 1]
 
-        duy_dy, duy_dx = compute_spatial_derivatives(uy, delta_x, delta_y)
-        dux_dy, dux_dx = compute_spatial_derivatives(ux, delta_x, delta_y)
-        dp_dy, dp_dx = compute_spatial_derivatives(p, delta_x, delta_y)
+        duy_dy, duy_dx, d2uy_dy2, d2uy_dx2 = compute_spatial_derivatives(uy, delta_x, delta_y)
+        dux_dy, dux_dx, d2ux_dy2, d2ux_dx2 = compute_spatial_derivatives(ux, delta_x, delta_y)
+        dp_dy, dp_dx, _, _ = compute_spatial_derivatives(p, delta_x, delta_y)
+
+        # d2uy_dy2, _ = compute_spatial_derivatives(duy_dy, delta_x, delta_y)
+        # _, d2uy_dx2 = compute_spatial_derivatives(duy_dx, delta_x, delta_y)
+
+        # d2ux_dy2, _ = compute_spatial_derivatives(dux_dy, delta_x, delta_y)
+        # _, d2ux_dx2 = compute_spatial_derivatives(dux_dx, delta_x, delta_y)
+
+
+        div_u = dux_dx + duy_dy
 
         # du_dt = torch.stack([duy_dt, dux_dt], dim=1)
 
-        div_u = divergence(u = ux,
-                           v = uy,
-                           dx = delta_x,
-                           dy = delta_y)
+        # div_u = divergence(u = torch.stack([uy, ux], axis=1),
+        #                    dx = delta_x,
+        #                    dy = delta_y,
+        #                    boundary = boundary_mask_u)
 
         # u_dot_del_u_x = output[:, 1] * dux_dx + output[:, 0] * dux_dy
         # u_dot_del_u_y = output[:, 1] * duy_dx + output[:, 0] * duy_dy
@@ -245,49 +276,87 @@ class NavierStokesLoss(nn.Module):
         u_dot_del_u_x = (ux * dux_dx + uy * dux_dy).unsqueeze(1)
         u_dot_del_u_y = (ux * duy_dx + uy * duy_dy).unsqueeze(1)
         u_dot_del_u = torch.cat([u_dot_del_u_y, u_dot_del_u_x], dim=1)
+        # u_dot_del_u = convective(u = torch.stack([uy, ux], axis=1),
+        #                    dx = delta_x,
+        #                    dy = delta_y,
+        #                    boundary = boundary_mask_u)
  
         grad_p_ = torch.stack([dp_dy, dp_dx], dim=1)
+        # grad_p_ = grad(u = p,
+        #                dx = delta_x,
+        #                dy = delta_y,
+        #                boundary = boundary_mask)
 
         # laplacian_u = laplacian_2d(output[:, :2, :, :], delta_x, delta_y)
-        laplacian_u = laplacian_2d(torch.cat([uy.unsqueeze(1), ux.unsqueeze(1)], dim=1), delta_x, delta_y)
+        # laplacian_u = laplacian_2d(torch.cat([uy.unsqueeze(1), ux.unsqueeze(1)], dim=1), delta_x, delta_y)
 
-        loss_div = torch.mean(div_u ** 2)
+        # laplacian_u = divergence(u = torch.stack([uy, ux], axis=1),
+        #                    dx = delta_x,
+        #                    dy = delta_y,
+        #                    boundary = boundary_mask_u)
+
+        laplacian_uy = d2uy_dy2 + d2uy_dx2
+        laplacian_ux = d2ux_dy2 + d2ux_dx2
+        # laplacian_uy = laplacian(v = uy,
+        #                          dx = delta_x,
+        #                          dy = delta_y,
+        #                          boundary=boundary_mask)
+        # laplacian_ux = laplacian(v = ux,
+        #                          dx = delta_x,
+        #                          dy = delta_y,
+        #                          boundary=boundary_mask)
+        laplacian_u = torch.stack([laplacian_uy, laplacian_ux], dim=1)
+
+        loss_div = torch.mean((1 - boundary_mask) * div_u ** 2)
+        # loss_div = torch.mean(div_u ** 2)
 
         # loss_mom = torch.mean((du_dt + u_dot_del_u + (1 / rho) * grad_p_ - mu * laplacian_u) ** 2)
-        loss_mom = torch.mean((u_dot_del_u + (1 / rho) * grad_p_ - mu * laplacian_u) ** 2)
+        loss_mom = torch.mean((1 - boundary_mask).unsqueeze(1).expand(-1, 2, -1, -1) * (u_dot_del_u + (1 / rho) * grad_p_ - mu * laplacian_u) ** 2)
+        # loss_mom = torch.mean((u_dot_del_u + (1 / rho) * grad_p_ - mu * laplacian_u) ** 2)
 
-        loss_bc_p = neumann_bc_loss(off_y=x[:, 10].long(),
-                                    off_x=x[:, 11].long(),
-                                    boundary_mask=boundary_mask,
-                                    output=output[:, 2],
-                                    delta_y=delta_y,
-                                    delta_x=delta_x)
+        # loss_bc_p = neumann_bc_loss(off_y=x[:, 10].long(),
+        #                             off_x=x[:, 11].long(),
+        #                             boundary_mask=boundary_mask,
+        #                             output=output[:, 2],
+        #                             delta_y=delta_y,
+        #                             delta_x=delta_x)
 
-        loss_bc_u = neumann_bc_loss(off_y=x[:, 6].long(),
-                                    off_x=x[:, 7].long(),
-                                    boundary_mask=boundary_mask,
-                                    output=output[:, :2],
-                                    delta_y=delta_y,
-                                    delta_x=delta_x)
+        # loss_bc_u = neumann_bc_loss(off_y=x[:, 6].long(),
+        #                             off_x=x[:, 7].long(),
+        #                             boundary_mask=boundary_mask,
+        #                             output=output[:, :2],
+        #                             delta_y=delta_y,
+        #                             delta_x=delta_x)
         
     
-        loss_bc = loss_bc_p + loss_bc_u
+        # loss_bc = loss_bc_p + loss_bc_u
+
+        # loss_bc = torch.mean(grad_p_[:, 1, 1:-1, -1] ** 2)
+
+        mask_dy = 1 - x[:, 6]
+        mask_dx = 1 - x[:, 7]
+        loss_bc = torch.mean((mask_dy * dux_dy) ** 2 + (mask_dy * duy_dy) ** 2 + (mask_dx * dux_dx) ** 2 + (mask_dx * duy_dx) ** 2)
+
+        mask_dy = 1 - x[:, 10]
+        mask_dx = 1 - x[:, 11]
+        loss_bc += torch.mean((mask_dy * dp_dy) ** 2 + (mask_dx * dp_dx) ** 2)
+
 
         loss_nonneg_p = torch.mean(torch.relu(-output[:, 2])**2)
         # loss_nonneg_p = torch.mean(output[:, 2] ** 2)
 
-        global init_losses
-        if len(init_losses) == 0:
-            init_losses["loss_div"] = loss_div.detach().item()
-            init_losses["loss_mom"] = loss_mom.detach().item()
-            init_losses["loss_bc"] = loss_bc.detach().item()
-            init_losses["loss_nonneg_p"] = loss_nonneg_p.detach().item()
+        # global init_losses
+        # if len(init_losses) == 0:
+        #     init_losses["loss_div"] = loss_div.detach().item()
+        #     init_losses["loss_mom"] = loss_mom.detach().item()
+        #     init_losses["loss_bc"] = loss_bc.detach().item()
+        #     init_losses["loss_nonneg_p"] = loss_nonneg_p.detach().item()
 
-        if init_losses != None:
-            loss_div /= (init_losses["loss_div"] + 1e-10)
-            loss_mom /= (init_losses["loss_mom"] + 1e-10)
-            loss_bc /= (init_losses["loss_bc"] + 1e-10)
-            loss_nonneg_p /= (init_losses["loss_nonneg_p"] + 1e-10)
+        # if init_losses != None:
+        #     loss_div /= (init_losses["loss_div"] + 1e-10)
+        #     loss_mom /= (init_losses["loss_mom"] + 1e-10)
+        #     loss_bc /= (init_losses["loss_bc"] + 1e-10)
+        #     loss_nonneg_p /= (init_losses["loss_nonneg_p"] + 1e-10)
 
         # loss_div = loss_div / (loss_div.detach().mean() + 1e-10)
         # loss_mom = loss_mom / (loss_div.detach().mean() + 1e-10)
