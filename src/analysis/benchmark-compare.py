@@ -1,133 +1,123 @@
-import os
-import json
-import sys
 import numpy as np
+import pandas as pd
+import os
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-import matplotlib.animation as animation
+import seaborn as sns
+import importlib
+import sys
+import json
+import analysis_functions
+importlib.reload(analysis_functions)
+from analysis_functions import *
+import copy
 
 sys.path.insert(0, "..")
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '..')))
 
 from numeric_method.numeric_method import solve_navier_stokes
+from modeling.data import geometry_to_mtx
 
-def plot_flow(ax, u, dx, dy):
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Computer Modern Roman"],
+    "axes.labelsize": 12,
+    "font.size": 12,
+    "legend.fontsize": 10,
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+})
 
-    width, height = np.shape(u)[1], np.shape(u)[0]
-    x_max = (width - 1) * dx
-    y_max = (height - 1) * dy
-
-    ax.clear()
-    X, Y = np.meshgrid(np.linspace(0, x_max, width) + 0.5 * dx, 
-                       np.linspace(0, y_max, height) + 0.5 * dy)
-
-    ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="black")
-
-    ax.set_aspect(dx / dy)
-
-def plot_err(ax, u, dx, dy):
-    ax.clear()
-    extent = [0, u.shape[1] * dx, 0, u.shape[0] * dy]
-    ax.imshow(u, extent=extent, aspect=dx/dy)
-
-def update_animation(i, ax, u, dx, dy, frame_step = 10, title_note=""):
-
-    i = (i * frame_step) % np.shape(u)[0]
-
-    plot_flow(ax, u[i], dx, dy)
-    ax.set_title(f"Frame {i} / {np.shape(u)[0]}{title_note}")
-
-def update_err_animation(i, ax, u, dx, dy, frame_step = 10, title_note=""):
-
-    i = (i * frame_step) % np.shape(u)[0]
-
-    plot_err(ax, u[i], dx, dy)
-    ax.set_title(f"{np.mean(u[i])} +- {np.std(u[i])}")
-
-def plot_flow_animation(u_base, u, err, dx, dy, frame_step=10):
-    fig, ax = plt.subplots(1, 3, figsize=(16, 6))
-
-    anim = animation.FuncAnimation(
-        fig, update_animation, fargs=(ax[0], u_base, dx, dy, frame_step),
-        frames=len(u) - 1, interval=10, blit=False
-    )
-
-    anim1 = animation.FuncAnimation(
-        fig, update_animation, fargs=(ax[1], u, dx, dy, frame_step),
-        frames=len(u) - 1, interval=10, blit=False
-    )
-
-    anim2 = animation.FuncAnimation(
-        fig, update_err_animation, fargs=(ax[2], err, dx, dy, frame_step),
-        frames=len(u) - 1, interval=10, blit=False
-    )
-
-    plt.show()
-
-BENCHAMRK_PATH = "../../data/CFDBench"
+BENCHAMRK_PATH = "../../data/CFDBench/tube/bc"
 
 def eval_case(case_path):
-    with open(os.path.join(case_path, "case.json")) as f:
-        case = json.load(f)
+    ux = np.load(os.path.join(case_path, "u.npy")) 
+    uy = np.load(os.path.join(case_path, "v.npy"))
+    with open(os.path.join(case_path, "case.json"), "r") as f:
+        case_ = json.load(f)
 
-    print(case)
-    # exit(0)
+    with open("../../data/cases/pipe.json", "r") as f:
+        case_nm = json.load(f)
 
-    u_base = np.load(os.path.join(case_path, "u.npy"))
-    v_base = np.load(os.path.join(case_path, "v.npy"))
-    uv_base = np.stack((u_base, v_base), axis=-1)
+    height_phys = case_["height"]
+    width_phys = case_["width"]
+    inflow = case_["vel_in"]
+    density = case_["density"]
+    viscosity = case_["viscosity"]
 
-    with open(os.path.join(case_path, "../../geometry.json")) as f:
-        geometry = json.load(f)
+    height_px = np.shape(ux)[1]
+    width_px = np.shape(ux)[2]
 
-    iters, height, width = u_base.shape
+    dy = height_phys / height_px
+    dx = width_phys / width_px
 
-    iters = 300
-    uv_base = uv_base[:iters]
+    case_nm["width"] = width_px
+    case_nm["height"] = height_px
+    case_nm["dx"] = dx
+    case_nm["dy"] = dy
+    case_nm["density"] = density
+    case_nm["viscosity"] = viscosity
 
-    # grid_spacing = case["width"] / width
-    dx = (np.abs(case["x_min"]) + case["radius"] + np.abs(case["x_max"])) / width
-    dy = (np.abs(case["y_min"]) + case["radius"] + np.abs(case["y_max"])) / height
+    C = 10
+    case_nm["time_step"] = np.max([dy, dx]) * C / inflow
 
-    print(dx)
-    print(dy)
-
-    # cylindex_x = (np.abs(case["x_min"]) + case["radius"] / 2) / grid_spacing
-    # cylindex_y = (np.abs(case["y_min"]) + case["radius"] / 2) / grid_spacing
-
-    cylinder_y = (np.abs(case["y_min"]) + case["radius"] / 2) / dy
-    cylinder_x = (np.abs(case["x_min"]) + case["radius"] / 2) / dx
-
-    for i in range(len(geometry)):
-        if geometry[i]["type"] == "cylinder":
-            geometry[i]["pos"]["x"] = cylinder_x
-            geometry[i]["pos"]["y"] = cylinder_y
-            geometry[i]["size"] = (case["radius"] * 2) / dx
-        elif geometry[i]["type"] == "inflow":
-            geometry[i]["vel"]["x"] = case["vel_in"]
+    for gi in range(len(case_nm["geometry"])):
+        if case_nm["geometry"][gi]["type"] == "inflow":
+            case_nm["geometry"][gi]["vel"]["x"] = inflow
+            break
 
     u, p, u_star, div_u_star, phi = solve_navier_stokes(
-        width,
-        height,
+        width_px,
+        height_px,
         dx,
         dy,
-        iters,
-        1 / iters,
-        case["density"],
-        case["viscosity"],
-        0,
-        geometry,
+        case_nm["iterations"],
+        case_nm["time_step"],
+        density,
+        viscosity,
+        1,
+        case_nm["geometry"],
         dynamic_time_step=True,
         implicit_laplacian=True,
         return_div_u_star=True,
         method_type="numeric"
     )
 
-    err = np.linalg.norm(np.array(u) - uv_base, axis=-1)
+    u_nm = np.transpose(u[-1], (2, 0, 1))
+    u_baseline = np.stack([ux[-1], uy[-1]], axis=0)
 
-    plot_flow_animation(uv_base, u, err, dx, dy, frame_step=10)
+    _, _, _, _, _, _, boundary = geometry_to_mtx(case_nm["geometry"], width_px, height_px)
+
+    err_vec_inf = pointwise_inf(u_baseline, u_nm) * (1 - boundary)
+    err_vec_l1 = pointwise_l1(u_baseline, u_nm) * (1 - boundary)
+    err_vec_l2 =  pointwise_rmse(u_baseline, u_nm) * (1 - boundary)
+
+    results = {}
+
+    results["case_path"] = case_path
+    results["nm_mean"] = u_nm.mean()
+    results["nm_std"] = u_nm.std()
+    results["baseline_mean"] = u_baseline.mean()
+    results["baseline_std"] = u_baseline.std()
+    results["err_l1_mean"] = err_vec_l1.mean()
+    results["err_l1_std"] = err_vec_l1.std()
+    results["err_l2_mean"] = err_vec_l2.mean()
+    results["err_l2_std"] = err_vec_l2.std()
+    results["err_inf_mean"] = err_vec_inf.mean()
+    results["err_inf_std"] = err_vec_inf.std()
+
+    return results
 
 def main():
-    eval_case(os.path.join(BENCHAMRK_PATH, "cylinder/bc/case0010"))
+    results = []
+
+    for i in range(0, 50):
+        case_path = "case" + str(i).zfill(4)
+        res = eval_case(os.path.join(BENCHAMRK_PATH, case_path))
+        results.append(res)
+
+    df = pd.DataFrame(results)
+    df.to_csv("benchmark_comparison_results.csv", index=False, sep=";")
 
 if __name__ == "__main__":
     main()

@@ -13,9 +13,9 @@ from numeric_method.numeric_method import solve_navier_stokes
 
 CASE_DIR = "../../data/generated_data_simple/test"
 # POISSON_MODEL_PATH = "../../models/poisson/2025-09-17_14_48"
-POISSON_MODEL_PATH = "../../models/poisson/2025-10-02_11_17"
+POISSON_MODEL_PATH = "../../models/poisson/2025-10-07_21_46"
 # FULL_MODEL_PATH = "../../models/full/2025-09-17_15_02"
-FULL_MODEL_PATH = "../../models/full/2025-09-29_11_53"
+FULL_MODEL_PATH = "../../models/full/2025-10-09_16_51"
 
 def run_case(case, method_type, model_path=""):
     start_time = time.time()
@@ -26,7 +26,7 @@ def run_case(case, method_type, model_path=""):
             case["dx"],
             case["dy"],
             #case["iterations"],
-            1000,
+            500,
             case["time_step"],
             case["density"],
             case["viscosity"],
@@ -94,7 +94,7 @@ def main():
         u_f, p_f, exec_time_f = run_case(case, method_type="full_model", model_path=FULL_MODEL_PATH)
 
         # if len(u_n) != case["iterations"] or len(u_p) != case["iterations"] or len(u_f) != case["iterations"]:
-        if len(u_n) != 1000 or len(u_p) != 1000 or len(u_f) != 1000:
+        if len(u_n) != 500 or len(u_p) != 500 or len(u_f) != 500:
             print("[[[[[[[[[[[[[[[ NAN - SKIPPING SAMPLE")
             continue
 

@@ -61,17 +61,16 @@ def rmse(y_true, y_pred, bound):
 
     return np.sqrt(np.mean(bound * (y_true - y_pred) ** 2))
 
-def rrmse(y_true, y_pred):
-    return np.sqrt(np.sum((y_true - y_pred) ** 2)) / np.sqrt(np.sum(y_true ** 2))
+def rrmse(y_true, y_pred, bound):
+    return (1 - bound) * (np.sqrt(np.sum((y_true - y_pred) ** 2)) / np.sqrt(np.sum(y_true ** 2)))
 
 def vec_rmse(y_true, y_pred, bound):
     bound = 1 - bound
 
     return np.sqrt(np.mean(bound * np.sum((y_true - y_pred) ** 2, axis=-1)))
 
-def vec_rrmse(y_true, y_pred):
-
-    return np.sqrt(np.sum(np.sum((y_true - y_pred) ** 2, axis=-1))) / np.sqrt(np.sum(np.sum(y_true ** 2, axis=-1)))
+def vec_rrmse(y_true, y_pred, bound):
+    return (1 - bound) * (np.sqrt(np.sum(np.sum((y_true - y_pred) ** 2, axis=-1))) / np.sqrt(np.sum(np.sum(y_true ** 2, axis=-1))))
 
 def pointwise_rmse(y_true, y_pred):
     y_true = np.array(y_true)
@@ -85,6 +84,30 @@ def pointwise_vec_rmse(y_true, y_pred):
 
     return np.mean(np.sum((y_true - y_pred) ** 2, axis=-1), axis=0) ** (1/2)
 
+def pointwise_l1(y_true, y_pred):
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+
+    return np.mean(np.abs(y_true - y_pred), axis=0)
+
+def pointwise_vec_l1(y_true, y_pred):
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+
+    return np.mean(np.sum(np.abs(y_true - y_pred), axis=-1), axis=0)
+
+def pointwise_inf(y_true, y_pred):
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+
+    return np.max(np.abs(y_true - y_pred), axis=0)
+
+def pointwise_vec_inf(y_true, y_pred):
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+
+    return np.mean(np.max(np.abs(y_true - y_pred), axis=-1), axis=0)
+
 def divergence_err(y, dy, dx, bound):
     bound = 1 - bound
 
@@ -93,19 +116,50 @@ def divergence_err(y, dy, dx, bound):
 
     return bound * (grad_x + grad_y) ** 2
 
-def compute_errors(case):
-    u_err_poisson = [vec_rrmse(case["u_numeric"][i], case["u_poisson"][i]) for i in range(len(case["u_numeric"]))]
-    p_err_poisson = [rrmse(case["p_numeric"][i], case["p_poisson"][i]) for i in range(len(case["u_numeric"]))]
+def rinf(y_true, y_pred, bound):
+    return (1 - bound) * (
+        np.max(np.abs(y_true - y_pred)) / np.max(np.abs(y_true))
+    )
 
-    u_err_full = [vec_rrmse(case["u_numeric"][i], case["u_full"][i]) for i in range(len(case["u_numeric"]))]
-    p_err_full = [rrmse(case["p_numeric"][i], case["p_full"][i]) for i in range(len(case["u_numeric"]))]
+def vec_rinf(y_true, y_pred, bound):
+    return (1 - bound) * (
+        np.max(np.max(np.abs(y_true - y_pred), axis=-1)) / np.max(np.max(np.abs(y_true), axis=-1))
+    )
 
+def r1(y_true, y_pred, bound):
+    return (1 - bound) * (np.sum(np.abs(y_true - y_pred)) / np.sum(np.abs(y_true)))
 
-    u_pointwise_poisson = pointwise_vec_rmse(case["u_numeric"], case["u_poisson"])
-    p_pointwise_poisson = pointwise_rmse(case["p_numeric"], case["p_poisson"])
+def vec_r1(y_true, y_pred, bound):
+    return (1 - bound) * (np.sum(np.sum(np.abs(y_true - y_pred), axis=-1)) / np.sum(np.sum(np.abs(y_true), axis=-1)))
 
-    u_pointwise_full = pointwise_vec_rmse(case["u_numeric"], case["u_full"])
-    p_pointwise_full = pointwise_rmse(case["p_numeric"], case["p_full"])
+def compute_errors(case, norm="2"):
+    if norm == "2":
+        func = rrmse
+        vec_func = vec_rrmse
+        pointwise_func = pointwise_rmse
+        pointwise_vec_func = pointwise_vec_rmse
+    elif norm == "1":
+        func = r1
+        vec_func = vec_r1
+        pointwise_func = pointwise_l1
+        pointwise_vec_func = pointwise_vec_l1
+    elif norm == "inf":
+        func = rinf
+        vec_func = vec_rinf
+        pointwise_func = pointwise_inf
+        pointwise_vec_func = pointwise_vec_inf
+
+    u_err_poisson = [vec_func(case["u_numeric"][i], case["u_poisson"][i], case["boundaries"][i]) for i in range(len(case["u_numeric"]))]
+    p_err_poisson = [func(case["p_numeric"][i], case["p_poisson"][i], case["boundaries"][i]) for i in range(len(case["u_numeric"]))]
+
+    u_err_full = [vec_func(case["u_numeric"][i], case["u_full"][i], case["boundaries"][i]) for i in range(len(case["u_numeric"]))]
+    p_err_full = [func(case["p_numeric"][i], case["p_full"][i], case["boundaries"][i]) for i in range(len(case["u_numeric"]))]
+
+    u_pointwise_poisson = pointwise_vec_func(case["u_numeric"], case["u_poisson"])
+    p_pointwise_poisson = pointwise_func(case["p_numeric"], case["p_poisson"])
+
+    u_pointwise_full = pointwise_vec_func(case["u_numeric"], case["u_full"])
+    p_pointwise_full = pointwise_func(case["p_numeric"], case["p_full"])
 
     divergence_err_numeric = [divergence_err(case["u_numeric"][i], case["params"][i]["dy"], case["params"][i]["dx"], case["boundaries"][i]) for i in range(len(case["u_numeric"]))]
     divergence_err_poisson = [divergence_err(case["u_poisson"][i], case["params"][i]["dy"], case["params"][i]["dx"], case["boundaries"][i]) for i in range(len(case["u_poisson"]))]
@@ -129,15 +183,15 @@ def compute_errors(case):
     return err
 
 def print_err_mean_std(err):
-    print(f"numeric divergence = {np.mean(err["divergence_numeric"])} +- {np.std(err["divergence_numeric"])}")
+    print(f"numeric divergence = {np.mean(err['divergence_numeric'])} +- {np.std(err['divergence_numeric'])}")
     print()
-    print(f"u poisson error = {np.mean(err["u_err_poisson"])} +- {np.std(err["u_err_poisson"])}")
-    print(f"p poisson error = {np.mean(err["p_err_poisson"])} +- {np.std(err["p_err_poisson"])}")
-    print(f"poisson divergence error = {np.mean(err["divergence_poisson"])} +- {np.std(err["divergence_poisson"])}")
+    print(f"u poisson error = {np.mean(err['u_err_poisson'])} +- {np.std(err['u_err_poisson'])}")
+    print(f"p poisson error = {np.mean(err['p_err_poisson'])} +- {np.std(err['p_err_poisson'])}")
+    print(f"poisson divergence error = {np.mean(err['divergence_poisson'])} +- {np.std(err['divergence_poisson'])}")
     print()
-    print(f"u full error = {np.mean(err["u_err_full"])} +- {np.std(err["u_err_full"])}")
-    print(f"p full error = {np.mean(err["p_err_full"])} +- {np.std(err["p_err_full"])}")
-    print(f"full divergence error = {np.mean(err["divergence_full"])} +- {np.std(err["divergence_full"])}")
+    print(f"u full error = {np.mean(err['u_err_full'])} +- {np.std(err['u_err_full'])}")
+    print(f"p full error = {np.mean(err['p_err_full'])} +- {np.std(err['p_err_full'])}")
+    print(f"full divergence error = {np.mean(err['divergence_full'])} +- {np.std(err['divergence_full'])}")
 
 #####################
 
@@ -214,8 +268,18 @@ def err_pointwise_plot(err, title=""):
     plt.show()
 
 def print_exec_times(t):
-    print(f"numeric: {np.mean(t["numeric"])} +- {np.std(t["numeric"])}")
-    print(f"poisson: {np.mean(t["poisson"])} +- {np.std(t["poisson"])}")
-    print(f"full: {np.mean(t["full"])} +- {np.std(t["full"])}")
+    print(f"numeric: {np.mean(t['numeric'])} +- {np.std(t['numeric'])}")
+    print(f"poisson: {np.mean(t['poisson'])} +- {np.std(t['poisson'])}")
+    print(f"full: {np.mean(t['full'])} +- {np.std(t['full'])}")
+
+def plot_velocity(ax, ux, uy, color="black", title="", scale=1):
+
+    height, width = np.shape(ux)[0], np.shape(ux)[1]
+    X, Y = np.meshgrid(np.linspace(0, width, width) + 0.5, 
+                    np.linspace(0, height, height) + 0.5)
+
+    ax.quiver(X, Y, ux, uy, color=color, alpha = 1, scale=scale, scale_units='xy')
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_title(title)
 
 #####################
