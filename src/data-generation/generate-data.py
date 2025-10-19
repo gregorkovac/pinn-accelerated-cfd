@@ -9,7 +9,7 @@ sys.path.insert(0, "..")
 
 from numeric_method.numeric_method import solve_navier_stokes
 
-DATA_PATH = "../../data/generated_data_simple"
+DATA_PATH = "../../data/generated_data_final/cylinder"
 
 def main():
     # Open cases file
