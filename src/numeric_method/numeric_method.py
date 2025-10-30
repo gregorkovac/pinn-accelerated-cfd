@@ -55,7 +55,7 @@ def compute_discrete_laplacian(n, m, dx, dy):
     A = sp.csr_matrix(A)
     return A
 
-def solve_discrete_poisson(u, dx, dy, A, p_dirichlet_mask):
+def solve_discrete_poisson(u, A):
     """
     Solves the discrete poisson equation \nabla^2 phi = u for Phi with Conjugate gradient method
 
@@ -85,16 +85,6 @@ def solve_discrete_poisson(u, dx, dy, A, p_dirichlet_mask):
 
     return phi
 
-divisor = 1
-
-debug_data = {}
-figdbg = None
-axdbg = None
-keys = []
-lines = {}
-img = None
-cbar = None
-
 def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian = None, poisson_model = None, iter = 0, geometry_mtx=None):
     """
     Performs a step of the Navier-Stokes solver
@@ -116,45 +106,6 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
     n, m, _ = u.shape
 
-    _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_mtx
-
-    # fig, ax = plt.subplots(1, 2, figsize=(16, 12))
-    # im0 = ax[0].imshow(A_poisson.toarray())
-    # im1 = ax[1].imshow(boundary_mask.ravel().reshape((64, 1)))
-
-    # plt.colorbar(im0)
-    # plt.colorbar(im1)
-
-    # plt.show()
-
-    # boundary_mask_p = p_dirichlet_mask.transpose(1, 0).astype(bool) | np.abs(p_neumann[...,0].transpose(1, 0)).astype(bool) | np.abs(p_neumann[...,1].transpose(1, 0)).astype(bool)
-    # boundary_mask_u = u_dirichlet_mask.transpose(2, 1, 0).astype(bool) | np.abs(u_neumann.transpose(2, 1, 0)).astype(bool)
-    # boundary_mask_u[0] = np.sign(boundary_mask_u[0] + boundary_mask_u[1])
-    # boundary_mask_u[1] = np.sign(boundary_mask_u[1] + boundary_mask_u[0])
-
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].imshow(boundary_mask_u[0])
-    # ax[1].imshow(boundary_mask_u[1])
-    # plt.show()
-
-    # boundary_mask[1:-1, 0] = 0
-    # boundary_mask[1:-1, -1] = 0
-
-    # plt.ioff()
-    # plt.imshow(boundary_mask)
-    # plt.show()
-
-    # boundary_mask[0, 1:-1] = 0
-    # boundary_mask[-1, 1:-1] = 0
-
-    boundary_mask_p =  boundary_mask.transpose(1, 0) * 0
-
-    boundary_mask_u = np.expand_dims(boundary_mask, axis=0)
-    boundary_mask_u = np.repeat(boundary_mask_u, 2, axis=0).transpose(0, 2, 1) * 0
-
-    # boundary_mask_u[:, 0, 1:-1] = 0
-    # boundary_mask_u[:, -1, 1:-1] = 0
-
     # Handle the Laplacian term implicitly
     if A_laplacian is not None:
 
@@ -164,18 +115,18 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         n, m, _ = u_star.shape
 
         # Compute the convective term
-        conv_u = convective(u = u.transpose(2, 1, 0),
+        conv_u = convective(u = u,
                           dx = dx,
                           dy = dy,
-                          boundary=boundary_mask_u,
-                          numpy_=True).transpose(2, 1, 0)
+                          boundary=None,
+                          numpy_=True)
 
         # Compute the pressure gradient
-        grad_p = grad(u=p.transpose(1, 0),
+        grad_p = grad(u=p,
                       dx=dx,
                       dy=dy,
-                      boundary=boundary_mask_p,
-                      numpy_=True).transpose(2, 1, 0)
+                      boundary=None,
+                      numpy_=True)
 
         # Compute right hand side for implicit Laplacian system
         b = (u - delta_t * conv_u - beta * delta_t / density * grad_p)
@@ -192,50 +143,29 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         u_star = np.zeros((n, m, 2))
         u_star[:, :, 0] = u_star_x.reshape((n, m))
         u_star[:, :, 1] = u_star_y.reshape((n, m))
-
-        # # Compute right hand side for implicit Laplacian system
-        # b = (u - delta_t * conv_u - beta * delta_t / density * grad_p)
-
-        # # Reshape
-        # b_x = b[:, :, 0].ravel()
-        # b_y = b[:, :, 1].ravel()
-
-        # A_factored = splu(A_laplacian.tocsc())
-
-        # # Solve systems
-        # B = np.vstack([b_x, b_y]).T
-        # U = A_factored.solve(B)
-
-        # # Extract u star
-        # u_star_x = U[:,0].reshape((n,m))
-        # u_star_y = U[:,1].reshape((n,m))
-
-        # # Reshape the solution
-        # u_star = np.zeros((n, m, 2))
-        # u_star[:, :, 1] = u_star_x.reshape((n, m))
-        # u_star[:, :, 0] = u_star_y.reshape((n, m))
     else:
         # Compute convective term
-        conv_u = convective(u=u.transpose(2, 1, 0),
+        conv_u = convective(u=u,
                           dx=dx,
                           dy=dy,
-                          boundary=boundary_mask_u,
-                          numpy_=True).transpose(2, 1, 0)
+                          boundary=None,
+                          numpy_=True)
+
 
         # Compute pressure gradient        
-        grad_p = grad(u=p.transpose(1, 0),
+        grad_p = grad(u=p,
                       dx=dx,
                       dy=dy,
-                      boundary=boundary_mask_p,
-                      numpy_=True).transpose(2, 1, 0)
+                      boundary=None,
+                      numpy_=True)
         
 
         # Compute laplacian term        
-        lapl_u = laplacian(u=u.transpose(2, 1, 0),
+        lapl_u = laplacian(u=u,
                            dx=dx,
                            dy=dy,
-                           boundary=boundary_mask_u,
-                           numpy_=True).transpose(2, 1, 0)
+                           boundary=None,
+                           numpy_=True)
 
         # Compute intermediate velocity
         u_star = u - delta_t * conv_u - beta * delta_t / density * grad_p + delta_t * viscosity * lapl_u
@@ -244,17 +174,15 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     u_star, _ = boundary(geometry, u = u_star)
 
     # Compute divergence of u star
-    div = divergence(u=u_star.transpose(2, 1, 0),
+    div = divergence(u=u_star,
                      dx=dx,
                      dy=dy,
-                     boundary=boundary_mask_u,
-                     numpy_=True).transpose(1, 0)
+                     boundary=None,
+                     numpy_=True)
 
 
     # Scale the divergence of u star
     div_u_star = density / delta_t * div
-
-    # div_u_star = div_u_star * boundary_mask
 
     # Solve Poisson's equation using a model
     if poisson_model is not None:
@@ -293,30 +221,17 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             phi = poisson_model(u_star_coords).view(n, m).cpu().numpy()
     else:
         # Obtain the pressure correction by numerically solving Poisson's equatio
-        phi = solve_discrete_poisson(div_u_star, dx, dy, A=A_poisson, p_dirichlet_mask=p_dirichlet_mask)
+        phi = solve_discrete_poisson(div_u_star, A=A_poisson)
 
 
     # Apply the boundary conditions to the pressure correction
-    _, phi = boundary(geometry, p = phi)
-
-    # phi -= np.mean(phi)
 
     # Compute the gradient of the pressure correction
-    grad_phi = grad(u=phi.transpose(1, 0),
+    grad_phi = grad(u=phi,
                     dx=dx,
                     dy=dy,
-                    boundary=boundary_mask_p,
-                    numpy_=True).transpose(2, 1, 0)
-    
-    
-    # fig, ax = plt.subplots(1, 3)
-    # ax[0].imshow(phi)
-    # ax[1].imshow(grad_phi[..., 0])
-    # ax[2].imshow(grad_phi[..., 1])
-    # ax[0].set_title("phi")
-    # ax[1].set_title("grad phi x")
-    # ax[2].set_title("grad phi y")
-    # plt.show()
+                    boundary=None,
+                    numpy_=True)
 
     # Compute the new velocity field
     u = u_star - delta_t / density * grad_phi
@@ -325,115 +240,6 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     p = phi + beta * p
 
     u, p = boundary(geometry=geometry, u=u, p=p)
-
-    global debug_data
-
-    # debug_data.append({"conv_u": np.sum(conv_u),
-    #                    "grad_p": np.sum(grad_p),
-    #                    "lapl_u": np.sum(lapl_u),
-    #                    "div_u_star": np.sum(div_u_star),
-    #                    "phi": np.sum(phi),
-    #                    "grad_phi": np.sum(grad_phi)})
-
-
-    div_u = divergence(u=u.transpose(2, 1, 0),
-                     dx=dx,
-                     dy=dy,
-                     boundary=boundary_mask_u,
-                     numpy_=True).transpose(1, 0)
-    
-    div_u = div_u * (1 - boundary_mask)
-
-    # if len(debug_data.keys()) == 0:
-    #     debug_data["div_u"] = []
-    #     debug_data["conv_u"] = []
-    #     debug_data["grad_p"] = []
-    #     debug_data["lapl_u"] = []
-    #     debug_data["div_u_star"] = []
-    #     debug_data["phi"] = []
-    #     debug_data["grad_phi"] = []
-
-    # debug_data["div_u"].append(np.sum(div_u ** 2))
-    # debug_data["conv_u"].append(np.sum(conv_u ** 2))
-    # debug_data["grad_p"].append(np.sum(grad_p ** 2))
-    # debug_data["lapl_u"].append(np.sum(lapl_u ** 2))
-    # debug_data["div_u_star"].append(np.sum(div_u_star ** 2))
-    # debug_data["phi"].append(np.sum(phi ** 2))
-    # debug_data["grad_phi"].append(np.sum(grad_phi ** 2))
-
-    # global figdbg
-    # global axdbg
-    # global keys
-    # global lines
-    # global img
-    # global cbar
-
-    # if figdbg is None:
-    #     plt.ion()
-    #     # figdbg, axdbg = plt.subplots(2, 4, figsize=(20, 12))
-    #     # axdbg = axdbg.flatten()
-    #     figdbg, axdbg = plt.subplots(1, 1, figsize=(12, 12))
-    #     img = axdbg.imshow(div_u)
-    #     cbar = figdbg.colorbar(img, ax=axdbg)
-    #     # ax.plot([d["conv_u"] for d in debug_data])
-
-    # #     aaaa = 0
-    # #     for key in debug_data.keys():
-    # #         if key == "div_u":
-    # #             color="red"
-    # #         else:
-    # #             color="black"
-    # #         line, = axdbg[aaaa].plot([], label=key, color=color)
-    # #         lines[key] = line
-    # #         axdbg[aaaa].set_title(key)
-    # #         # axdbg[aaaa].set_yscale("log")
-    # #         aaaa += 1
-
-    # #     # plt.legend()
-
-    # img.set_data(div_u)
-    # img.set_clim(vmin=np.min(div_u), vmax=np.max(div_u))
-
-    # # for key in debug_data.keys():
-    # #     ydata = [d for d in debug_data[key][-10:]]
-    # #     xdata = range(len(ydata))
-    # #     lines[key].set_data(xdata, ydata)
-
-    # # for aaaa in range(len(axdbg)):
-    # #     axdbg[aaaa].relim()
-    # #     axdbg[aaaa].autoscale_view()
-
-    # figdbg.canvas.draw()
-    # figdbg.canvas.flush_events()
-    # plt.pause(0.0001)
-
-        # plt.draw()
-        # plt.pause(0.001)
-                     
-    
-    # print(f"{np.mean(div_u)} +- {np.std(div_u)}")
-
-    lap_phi = laplacian(u = phi.transpose(1, 0),
-                        dx=dx,
-                        dy=dy,
-                        boundary=boundary_mask_p,
-                        numpy_=True).transpose(1, 0)
-    
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].imshow(phi)
-    # ax[1].imshow(lap_phi)
-    # plt.show()
-    
-    poisson_res = lap_phi - density / delta_t * div_u_star
-
-    dus = div_u_star.ravel()
-    dus[p_dirichlet_mask.ravel().astype(bool)] = 0
-    res = A_poisson.toarray() @ phi.ravel() - density / delta_t * dus
-    # res = res.reshape((8, 8)) * (1 - boundary_mask)
-    # plt.imshow(res)
-    # plt.show()
-    
-    # print(f"{np.sum(div_u ** 2)}            {np.sqrt(np.sum(res ** 2))}")
 
     return u, p, u_star, div_u_star, phi
 
@@ -470,66 +276,16 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
     u = np.zeros((height, width, 2))
     p = np.zeros((height, width))
 
-    # u, p = boundary(geometry, u, p)
+    u, p = boundary(geometry, u, p)
 
     _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, width, height)
 
-    boundary_mask_p =  boundary_mask.transpose(1, 0) * 0
-
     A_poisson = compute_discrete_laplacian(height, width, dx, dy)
-
-    # i = p_dirichlet_mask.ravel().astype(bool)
-    # A_poisson[i, :] = 0
-    # A_poisson[i, i] = 1
-
-    # A_poisson = laplacian(np.eye(height * width, height * width), dx=dx, dy=dy, boundary=np.zeros((height * width, height * width)), numpy_=True)
-    # A_poisson = sp.csr_matrix(A_poisson)
-    # print(A_poisson)
-
-    # test_field = np.random.rand(height, width)
-    # test_field[5:20, 10:15] = 1
-    # lap_matrix = A_poisson.dot(test_field.ravel()).reshape(height, width)
-    # lap_operator = laplacian(test_field.transpose(1, 0), dx=dx, dy=dy, boundary=boundary_mask_p, numpy_=True).transpose(1, 0)
-
-    # vmin = min(np.min(lap_matrix), np.min(lap_operator))
-    # vmax = max(np.max(lap_matrix), np.max(lap_operator))
-
-    # fig, ax = plt.subplots(1, 3, figsize=(12, 8))
-    # ax[0].imshow(test_field)
-    # ax[1].imshow(lap_matrix, vmin=vmin, vmax=vmax)
-    # ax[2].imshow(lap_operator, vmin=vmin, vmax=vmax)
-    # ax[0].set_title("Test field")
-    # ax[1].set_title("Laplacian with matrix")
-    # ax[2].set_title("Laplacian with operator")
-
-    # plt.show()
-    
-    # print(np.max(np.abs(lap_matrix - lap_operator)))
-
-    # exit(0)
-    
-    
-    # A_poisson = A_poisson.toarray()
-    # i = 1 - boundary_mask.ravel().astype(bool)
-    # A_poisson[i, :] = 0
-    # A_poisson[:, i] = 0
-    # A_poisson[i, i] = 1
-    # A_poisson = sp.csr_matrix(A_poisson)
 
 
     if implicit_laplacian:
-        A_laplacian = compute_discrete_laplacian(height, width, dx, dy)
-
-        # A_laplacian = A_laplacian.toarray()
-        # i = p_dirichlet_mask.ravel().astype(bool)
-        # A_laplacian[i, :] = 0
-        # A_laplacian[i, i] = 1
-        # A_laplacian = sp.csr_matrix(A_laplacian)
-
-        # A_laplacian = compute_A_matrix(height, width, dx, dy)
-
-        # I = sp.eye(width * height)
-        # A_laplacian = (I - time_step * viscosity * A_laplacian)
+        # A_laplacian = compute_discrete_laplacian(height, width, dx, dy)
+        A_laplacian = A_poisson
     else:
         A_laplacian = None
 
@@ -694,12 +450,6 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                 # Perform one step of the solver
                 u_new, p, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian_, model, iter=iter, geometry_mtx=geometry_mtx)
 
-                # if np.max(np.abs(u_new - u)) < 1e-5:
-                #     print("\t Velocity converged - stopping early")
-                #     break
-
-                # print(np.max(np.abs(u_new - u)))
-
                 u = u_new
 
             if np.isnan(np.min(u)) or np.isnan(np.min(p)):
@@ -720,23 +470,3 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         return results_u, results_p, results_u_star, results_div_u_star, results_phi
     else:
         return results_u, results_p
-
-
-# def main():
-#     u = np.array([[1, 2],
-#                  [3, 4]])
-    
-#     A = compute_discrete_laplacian(2, 2, dx=1, dy=0.1).toarray()
-
-#     print(u)
-
-#     print()
-
-#     print(A)
-
-#     print()
-
-#     print(u.ravel())
-
-# if __name__ == "__main__":
-#     main()
