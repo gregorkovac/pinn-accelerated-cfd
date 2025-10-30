@@ -2,6 +2,7 @@ import numpy as np
 from tqdm import tqdm
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
+from scipy.sparse.linalg import splu, factorized
 import torch
 import sys
 import os
@@ -30,68 +31,31 @@ except ImportError:
     # from derivatives import *
     from geometry import boundary
 
-def compute_A_matrix(n, m):
-    print("\t -> Creating discrete Poisson matrix...")
-
-    # Create matrix with 4 on main diagonal and -1 on diagonals
-    # above and below the main diagonal
-    D = 4 * sp.eye(m) - sp.eye(m, k=1) - sp.eye(m, k=-1)
-
-    # Create a matrix with Ds on diagonal
-    # A = sp.zeros((n*m, n*m))
-    A = sp.lil_matrix((n*m, n*m))
-
-    for i in tqdm(range(n), desc="     "):
-        A[i*m:(i+1)*m, i*m:(i+1)*m] = D
-
-    # Add negative identities above and below the
-    # main diagonal
-    A += -sp.eye(n*m, k=m) - sp.eye(n*m, k=-m)
-
-    print("\t -> Converting to a sparse matrix...")
-
-    A = sp.csr_matrix(A)
-
-    print("\t -> Done!")
-    print()
-
-    return A
-
 def compute_discrete_laplacian(n, m, dx, dy):
     print("\t -> Creating discrete Laplacian matrix...")
 
-    # Compute scaling factor
-    # h2_inv = 1.0 / (grid_spacing ** 2) 
     dx_inv = 1.0 / dx ** 2
     dy_inv = 1.0 / dy ** 2
 
-    # Compute main diagonal
-    # D = -4 * h2_inv * sp.eye(m) 
+    # Main diagonal
     D = -(2 * dx_inv + 2 * dy_inv) * sp.eye(m)
+    
+    # y-direction neighbors
+    D += dy_inv * sp.eye(m, k=1) + dy_inv * sp.eye(m, k=-1)
 
-    # Create the sub- and super-diagonal with 1/h²
-    # D += h2_inv * sp.eye(m, k=1) + h2_inv * sp.eye(m, k=-1)
-    D += dx_inv * sp.eye(m, k=1) + dx_inv * sp.eye(m, k=-1)
-
-    # Initialize laplacian
     A = sp.lil_matrix((n * m, n * m))
 
     # Fill diagonal blocks
     for i in range(n):
         A[i * m:(i + 1) * m, i * m:(i + 1) * m] = D
 
-    # Add upper and lower blocks
-    # A += h2_inv * sp.eye(n * m, k=m) + h2_inv * sp.eye(n * m, k=-m)
-    A += dy_inv * sp.eye(n * m, k=m) + dy_inv * sp.eye(n * m, k=-m)
+    # x-direction neighbors
+    A += dx_inv * sp.eye(n * m, k=m) + dx_inv * sp.eye(n * m, k=-m)
 
-    print("\t -> Converting to a sparse matrix...")
     A = sp.csr_matrix(A)
-
-    print("\t -> Done!")
-
     return A
 
-def solve_discrete_poisson(u, dx, dy, A):
+def solve_discrete_poisson(u, dx, dy, A, p_dirichlet_mask):
     """
     Solves the discrete poisson equation \nabla^2 phi = u for Phi with Conjugate gradient method
 
@@ -106,14 +70,15 @@ def solve_discrete_poisson(u, dx, dy, A):
     # Extract shape of input matrix
     n, m = u.shape
 
-    # Vectorize the input matrix and multiply by grid spacing
-    # u = -u.ravel() * grid_spacing ** 2
-    u = -u.ravel() * (dx * dy)
+    # Reshape the velocity into a vector
+    u = u.ravel()
+
+    # i = p_dirichlet_mask.ravel().astype(bool)
+    # u[i] = 0
 
     # Solve the system
-    # phi_flat = spla.spsolve(A, u)
-    # phi_flat = np.linalg.solve(A, u)
-    phi_flat = spla.cg(A, u, rtol=1e-6)[0]
+    phi_flat, info = spla.cg(A, u, rtol=1e-12, atol=1e-12)
+    # print("CG info:", info)
 
     # Reshape the solution vector into a matrix
     phi = phi_flat.reshape((n, m))
@@ -122,7 +87,15 @@ def solve_discrete_poisson(u, dx, dy, A):
 
 divisor = 1
 
-def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian = None, poisson_model = None, iter = 0):
+debug_data = {}
+figdbg = None
+axdbg = None
+keys = []
+lines = {}
+img = None
+cbar = None
+
+def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian = None, poisson_model = None, iter = 0, geometry_mtx=None):
     """
     Performs a step of the Navier-Stokes solver
 
@@ -143,11 +116,44 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
     n, m, _ = u.shape
 
-    _, _, _, _, _, _, boundary_mask = geometry_to_mtx(geometry, m, n)
-    boundary_mask =  boundary_mask.transpose(1, 0) * 0
+    _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_mtx
 
-    boundary_mask_3 = np.expand_dims(boundary_mask, axis=0)
-    boundary_mask_3 = np.repeat(boundary_mask_3, 2, axis=0)
+    # fig, ax = plt.subplots(1, 2, figsize=(16, 12))
+    # im0 = ax[0].imshow(A_poisson.toarray())
+    # im1 = ax[1].imshow(boundary_mask.ravel().reshape((64, 1)))
+
+    # plt.colorbar(im0)
+    # plt.colorbar(im1)
+
+    # plt.show()
+
+    # boundary_mask_p = p_dirichlet_mask.transpose(1, 0).astype(bool) | np.abs(p_neumann[...,0].transpose(1, 0)).astype(bool) | np.abs(p_neumann[...,1].transpose(1, 0)).astype(bool)
+    # boundary_mask_u = u_dirichlet_mask.transpose(2, 1, 0).astype(bool) | np.abs(u_neumann.transpose(2, 1, 0)).astype(bool)
+    # boundary_mask_u[0] = np.sign(boundary_mask_u[0] + boundary_mask_u[1])
+    # boundary_mask_u[1] = np.sign(boundary_mask_u[1] + boundary_mask_u[0])
+
+    # fig, ax = plt.subplots(1, 2)
+    # ax[0].imshow(boundary_mask_u[0])
+    # ax[1].imshow(boundary_mask_u[1])
+    # plt.show()
+
+    # boundary_mask[1:-1, 0] = 0
+    # boundary_mask[1:-1, -1] = 0
+
+    # plt.ioff()
+    # plt.imshow(boundary_mask)
+    # plt.show()
+
+    # boundary_mask[0, 1:-1] = 0
+    # boundary_mask[-1, 1:-1] = 0
+
+    boundary_mask_p =  boundary_mask.transpose(1, 0) * 0
+
+    boundary_mask_u = np.expand_dims(boundary_mask, axis=0)
+    boundary_mask_u = np.repeat(boundary_mask_u, 2, axis=0).transpose(0, 2, 1) * 0
+
+    # boundary_mask_u[:, 0, 1:-1] = 0
+    # boundary_mask_u[:, -1, 1:-1] = 0
 
     # Handle the Laplacian term implicitly
     if A_laplacian is not None:
@@ -157,24 +163,21 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         # Extract shape
         n, m, _ = u_star.shape
 
+        # Compute the convective term
         conv_u = convective(u = u.transpose(2, 1, 0),
                           dx = dx,
                           dy = dy,
-                          boundary=boundary_mask_3,
+                          boundary=boundary_mask_u,
                           numpy_=True).transpose(2, 1, 0)
 
-        # conv_u = v_dot_del_v(u, dx, dy)
-
+        # Compute the pressure gradient
         grad_p = grad(u=p.transpose(1, 0),
                       dx=dx,
                       dy=dy,
-                      boundary=boundary_mask,
+                      boundary=boundary_mask_p,
                       numpy_=True).transpose(2, 1, 0)
 
-        # grad_p = del_v(p, dx, dy)
-
         # Compute right hand side for implicit Laplacian system
-        # b = (u - delta_t * v_dot_del_v(u, dx, dy) - beta * delta_t / density * del_v(p, dx, dy))
         b = (u - delta_t * conv_u - beta * delta_t / density * grad_p)
 
         # Reshape
@@ -189,29 +192,50 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         u_star = np.zeros((n, m, 2))
         u_star[:, :, 0] = u_star_x.reshape((n, m))
         u_star[:, :, 1] = u_star_y.reshape((n, m))
+
+        # # Compute right hand side for implicit Laplacian system
+        # b = (u - delta_t * conv_u - beta * delta_t / density * grad_p)
+
+        # # Reshape
+        # b_x = b[:, :, 0].ravel()
+        # b_y = b[:, :, 1].ravel()
+
+        # A_factored = splu(A_laplacian.tocsc())
+
+        # # Solve systems
+        # B = np.vstack([b_x, b_y]).T
+        # U = A_factored.solve(B)
+
+        # # Extract u star
+        # u_star_x = U[:,0].reshape((n,m))
+        # u_star_y = U[:,1].reshape((n,m))
+
+        # # Reshape the solution
+        # u_star = np.zeros((n, m, 2))
+        # u_star[:, :, 1] = u_star_x.reshape((n, m))
+        # u_star[:, :, 0] = u_star_y.reshape((n, m))
     else:
+        # Compute convective term
         conv_u = convective(u=u.transpose(2, 1, 0),
                           dx=dx,
                           dy=dy,
-                          boundary=boundary_mask_3,
+                          boundary=boundary_mask_u,
                           numpy_=True).transpose(2, 1, 0)
 
-        # conv_u = v_dot_del_v(u, dx, dy)
-        
+        # Compute pressure gradient        
         grad_p = grad(u=p.transpose(1, 0),
                       dx=dx,
                       dy=dy,
-                      boundary=boundary_mask,
+                      boundary=boundary_mask_p,
                       numpy_=True).transpose(2, 1, 0)
-
-        # grad_p = del_dot_v(u, dx, dy)
         
+
+        # Compute laplacian term        
         lapl_u = laplacian(u=u.transpose(2, 1, 0),
                            dx=dx,
                            dy=dy,
-                           boundary=boundary_mask_3,
+                           boundary=boundary_mask_u,
                            numpy_=True).transpose(2, 1, 0)
-        # lapl_u = laplace(u, dx, dy)
 
         # Compute intermediate velocity
         u_star = u - delta_t * conv_u - beta * delta_t / density * grad_p + delta_t * viscosity * lapl_u
@@ -219,27 +243,30 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # Apply boundary
     u_star, _ = boundary(geometry, u = u_star)
 
+    # Compute divergence of u star
     div = divergence(u=u_star.transpose(2, 1, 0),
                      dx=dx,
                      dy=dy,
-                     boundary=boundary_mask_3,
+                     boundary=boundary_mask_u,
                      numpy_=True).transpose(1, 0)
 
-    # div = del_dot_v(u, dx, dy)
 
-    # Multiply by constant
-    # div_u_star = density / delta_t * del_dot_v(u_star, dx, dy)
+    # Scale the divergence of u star
     div_u_star = density / delta_t * div
 
+    # div_u_star = div_u_star * boundary_mask
+
+    # Solve Poisson's equation using a model
     if poisson_model is not None:
 
         with torch.no_grad():
             n, m = div_u_star.shape
-
             device = torch.device('cpu')
 
+            # Convert u star to Torch
             u_star_ = torch.from_numpy(u_star).float().to(device).permute(2, 0, 1)
 
+            # Create a coordinate grid
             grid_x, grid_y = torch.meshgrid(
                     torch.linspace(0, m * dx, m),
                     torch.linspace(0, n * dy, n),
@@ -247,44 +274,166 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                 )
             coords = torch.stack([grid_y, grid_x], dim=0)
 
+            # Obtain required boundary representations
             u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, m, n)
 
+            # Convert boundaries to Torch
             p_neumann = torch.tensor(p_neumann, dtype=torch.float32).permute(2, 0, 1)
             p_dirichlet = torch.tensor(p_dirichlet, dtype=torch.float32).unsqueeze(0)
             p_dirichlet_mask = torch.tensor(p_dirichlet_mask, dtype=torch.float32).unsqueeze(0)
 
+            # Construct the model's input tensor
             u_star_coords = torch.cat([u_star_, 
                                        coords, 
                                        p_neumann, 
                                        p_dirichlet,
                                        p_dirichlet_mask], dim=0).unsqueeze(0)
 
-            # global divisor
-
+            # Perform a forward pass and obtain the pressure correction
             phi = poisson_model(u_star_coords).view(n, m).cpu().numpy()
-
     else:
-        phi = solve_discrete_poisson(div_u_star, dx, dy, A=A_poisson)
+        # Obtain the pressure correction by numerically solving Poisson's equatio
+        phi = solve_discrete_poisson(div_u_star, dx, dy, A=A_poisson, p_dirichlet_mask=p_dirichlet_mask)
 
+
+    # Apply the boundary conditions to the pressure correction
     _, phi = boundary(geometry, p = phi)
 
+    # phi -= np.mean(phi)
+
+    # Compute the gradient of the pressure correction
     grad_phi = grad(u=phi.transpose(1, 0),
                     dx=dx,
                     dy=dy,
-                    boundary=boundary_mask,
+                    boundary=boundary_mask_p,
                     numpy_=True).transpose(2, 1, 0)
-    # grad_phi = del_v(phi, dx, dy)
+    
+    
+    # fig, ax = plt.subplots(1, 3)
+    # ax[0].imshow(phi)
+    # ax[1].imshow(grad_phi[..., 0])
+    # ax[2].imshow(grad_phi[..., 1])
+    # ax[0].set_title("phi")
+    # ax[1].set_title("grad phi x")
+    # ax[2].set_title("grad phi y")
+    # plt.show()
 
-    # Update veclocity
-    # u = u_star - delta_t / density * del_v(phi, dx, dy)
-
+    # Compute the new velocity field
     u = u_star - delta_t / density * grad_phi
 
     # Update pressure
     p = phi + beta * p
 
-    # Apply the boundary conditions
-    u, _ = boundary(geometry, u = u)
+    u, p = boundary(geometry=geometry, u=u, p=p)
+
+    global debug_data
+
+    # debug_data.append({"conv_u": np.sum(conv_u),
+    #                    "grad_p": np.sum(grad_p),
+    #                    "lapl_u": np.sum(lapl_u),
+    #                    "div_u_star": np.sum(div_u_star),
+    #                    "phi": np.sum(phi),
+    #                    "grad_phi": np.sum(grad_phi)})
+
+
+    div_u = divergence(u=u.transpose(2, 1, 0),
+                     dx=dx,
+                     dy=dy,
+                     boundary=boundary_mask_u,
+                     numpy_=True).transpose(1, 0)
+    
+    div_u = div_u * (1 - boundary_mask)
+
+    # if len(debug_data.keys()) == 0:
+    #     debug_data["div_u"] = []
+    #     debug_data["conv_u"] = []
+    #     debug_data["grad_p"] = []
+    #     debug_data["lapl_u"] = []
+    #     debug_data["div_u_star"] = []
+    #     debug_data["phi"] = []
+    #     debug_data["grad_phi"] = []
+
+    # debug_data["div_u"].append(np.sum(div_u ** 2))
+    # debug_data["conv_u"].append(np.sum(conv_u ** 2))
+    # debug_data["grad_p"].append(np.sum(grad_p ** 2))
+    # debug_data["lapl_u"].append(np.sum(lapl_u ** 2))
+    # debug_data["div_u_star"].append(np.sum(div_u_star ** 2))
+    # debug_data["phi"].append(np.sum(phi ** 2))
+    # debug_data["grad_phi"].append(np.sum(grad_phi ** 2))
+
+    # global figdbg
+    # global axdbg
+    # global keys
+    # global lines
+    # global img
+    # global cbar
+
+    # if figdbg is None:
+    #     plt.ion()
+    #     # figdbg, axdbg = plt.subplots(2, 4, figsize=(20, 12))
+    #     # axdbg = axdbg.flatten()
+    #     figdbg, axdbg = plt.subplots(1, 1, figsize=(12, 12))
+    #     img = axdbg.imshow(div_u)
+    #     cbar = figdbg.colorbar(img, ax=axdbg)
+    #     # ax.plot([d["conv_u"] for d in debug_data])
+
+    # #     aaaa = 0
+    # #     for key in debug_data.keys():
+    # #         if key == "div_u":
+    # #             color="red"
+    # #         else:
+    # #             color="black"
+    # #         line, = axdbg[aaaa].plot([], label=key, color=color)
+    # #         lines[key] = line
+    # #         axdbg[aaaa].set_title(key)
+    # #         # axdbg[aaaa].set_yscale("log")
+    # #         aaaa += 1
+
+    # #     # plt.legend()
+
+    # img.set_data(div_u)
+    # img.set_clim(vmin=np.min(div_u), vmax=np.max(div_u))
+
+    # # for key in debug_data.keys():
+    # #     ydata = [d for d in debug_data[key][-10:]]
+    # #     xdata = range(len(ydata))
+    # #     lines[key].set_data(xdata, ydata)
+
+    # # for aaaa in range(len(axdbg)):
+    # #     axdbg[aaaa].relim()
+    # #     axdbg[aaaa].autoscale_view()
+
+    # figdbg.canvas.draw()
+    # figdbg.canvas.flush_events()
+    # plt.pause(0.0001)
+
+        # plt.draw()
+        # plt.pause(0.001)
+                     
+    
+    # print(f"{np.mean(div_u)} +- {np.std(div_u)}")
+
+    lap_phi = laplacian(u = phi.transpose(1, 0),
+                        dx=dx,
+                        dy=dy,
+                        boundary=boundary_mask_p,
+                        numpy_=True).transpose(1, 0)
+    
+    # fig, ax = plt.subplots(1, 2)
+    # ax[0].imshow(phi)
+    # ax[1].imshow(lap_phi)
+    # plt.show()
+    
+    poisson_res = lap_phi - density / delta_t * div_u_star
+
+    dus = div_u_star.ravel()
+    dus[p_dirichlet_mask.ravel().astype(bool)] = 0
+    res = A_poisson.toarray() @ phi.ravel() - density / delta_t * dus
+    # res = res.reshape((8, 8)) * (1 - boundary_mask)
+    # plt.imshow(res)
+    # plt.show()
+    
+    # print(f"{np.sum(div_u ** 2)}            {np.sqrt(np.sum(res ** 2))}")
 
     return u, p, u_star, div_u_star, phi
 
@@ -321,13 +470,66 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
     u = np.zeros((height, width, 2))
     p = np.zeros((height, width))
 
-    A_poisson = compute_A_matrix(height, width).toarray()
+    # u, p = boundary(geometry, u, p)
+
+    _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, width, height)
+
+    boundary_mask_p =  boundary_mask.transpose(1, 0) * 0
+
+    A_poisson = compute_discrete_laplacian(height, width, dx, dy)
+
+    # i = p_dirichlet_mask.ravel().astype(bool)
+    # A_poisson[i, :] = 0
+    # A_poisson[i, i] = 1
+
+    # A_poisson = laplacian(np.eye(height * width, height * width), dx=dx, dy=dy, boundary=np.zeros((height * width, height * width)), numpy_=True)
+    # A_poisson = sp.csr_matrix(A_poisson)
+    # print(A_poisson)
+
+    # test_field = np.random.rand(height, width)
+    # test_field[5:20, 10:15] = 1
+    # lap_matrix = A_poisson.dot(test_field.ravel()).reshape(height, width)
+    # lap_operator = laplacian(test_field.transpose(1, 0), dx=dx, dy=dy, boundary=boundary_mask_p, numpy_=True).transpose(1, 0)
+
+    # vmin = min(np.min(lap_matrix), np.min(lap_operator))
+    # vmax = max(np.max(lap_matrix), np.max(lap_operator))
+
+    # fig, ax = plt.subplots(1, 3, figsize=(12, 8))
+    # ax[0].imshow(test_field)
+    # ax[1].imshow(lap_matrix, vmin=vmin, vmax=vmax)
+    # ax[2].imshow(lap_operator, vmin=vmin, vmax=vmax)
+    # ax[0].set_title("Test field")
+    # ax[1].set_title("Laplacian with matrix")
+    # ax[2].set_title("Laplacian with operator")
+
+    # plt.show()
+    
+    # print(np.max(np.abs(lap_matrix - lap_operator)))
+
+    # exit(0)
+    
+    
+    # A_poisson = A_poisson.toarray()
+    # i = 1 - boundary_mask.ravel().astype(bool)
+    # A_poisson[i, :] = 0
+    # A_poisson[:, i] = 0
+    # A_poisson[i, i] = 1
+    # A_poisson = sp.csr_matrix(A_poisson)
+
 
     if implicit_laplacian:
         A_laplacian = compute_discrete_laplacian(height, width, dx, dy)
 
-        I = sp.eye(width * height)
-        A_laplacian = (I - time_step * viscosity * A_laplacian)
+        # A_laplacian = A_laplacian.toarray()
+        # i = p_dirichlet_mask.ravel().astype(bool)
+        # A_laplacian[i, :] = 0
+        # A_laplacian[i, i] = 1
+        # A_laplacian = sp.csr_matrix(A_laplacian)
+
+        # A_laplacian = compute_A_matrix(height, width, dx, dy)
+
+        # I = sp.eye(width * height)
+        # A_laplacian = (I - time_step * viscosity * A_laplacian)
     else:
         A_laplacian = None
 
@@ -456,22 +658,12 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         
         coords = torch.stack([grid_y, grid_x], dim=0)
 
+        geometry_mtx = geometry_to_mtx(geometry, width, height)
+
         # Iterate
         for iter in tqdm(range(max_iter), desc="     "):
         
             if method_type == "full_model":
-                # time_step_ = torch.ones(height, width) * iter * time_step
-                # time_step_ = time_step_.unsqueeze(0)
-
-                # grid_x, grid_y = torch.meshgrid(
-                #     torch.linspace(0, width * dx, width),
-                #     torch.linspace(0, height * dy, height),
-                #     indexing="ij"
-                # )
-
-                # coords = torch.stack([grid_y, grid_x], dim=0)
-
-                # x = torch.cat([time_step_, coords], dim=0).unsqueeze(0)
 
                 x = torch.cat([coords,
                         u_dirichlet.permute(2, 0, 1),
@@ -490,23 +682,25 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                 div_u_star = np.zeros((20, 20))
                 phi = np.zeros((20, 20))
             else:
+                if dynamic_time_step and np.max(np.abs(u)) != 0:
+                    time_step = np.min([dx, dy]) * 0.01 / np.max(np.abs(u))
+
+                if A_laplacian == None:
+                    A_laplacian_ = None
+                else:
+                    I = sp.eye(width * height)
+                    A_laplacian_ = (I - time_step * viscosity * A_laplacian)
+
                 # Perform one step of the solver
-                u, p, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian, model, iter=iter)
+                u_new, p, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian_, model, iter=iter, geometry_mtx=geometry_mtx)
 
-            if dynamic_time_step:
-                time_step = dx * 0.1 / np.max(u)
+                # if np.max(np.abs(u_new - u)) < 1e-5:
+                #     print("\t Velocity converged - stopping early")
+                #     break
 
-            # cfl = u * time_step / grid_spacing
-            # cfl_percent = np.sum(cfl < 1) / (2 * width * height) * 100
-            # print(f"CFL condition holds for {np.sum(cfl < 1)} / {2 * width * height} = {cfl_percent} % points")
+                # print(np.max(np.abs(u_new - u)))
 
-            # if cfl_percent != 100:
-            #     print(f"Adjusted time step: {time_step} -> {grid_spacing * 0.1 / np.max(u)}")
-            #     time_step = grid_spacing * 0.05 / np.max(u)
-
-            # lapl = laplace(u, grid_spacing)
-            # eps = 1e-4
-            # u = u + eps * lapl
+                u = u_new
 
             if np.isnan(np.min(u)) or np.isnan(np.min(p)):
                 print("\t NaN found - stopping early")
@@ -526,3 +720,23 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         return results_u, results_p, results_u_star, results_div_u_star, results_phi
     else:
         return results_u, results_p
+
+
+# def main():
+#     u = np.array([[1, 2],
+#                  [3, 4]])
+    
+#     A = compute_discrete_laplacian(2, 2, dx=1, dy=0.1).toarray()
+
+#     print(u)
+
+#     print()
+
+#     print(A)
+
+#     print()
+
+#     print(u.ravel())
+
+# if __name__ == "__main__":
+#     main()

@@ -9,7 +9,7 @@ from geometry import get_boundary_image
 cmap = mpl.cm.Blues(np.linspace(0,1,20))
 cmap = mpl.colors.ListedColormap(cmap[10:,:-1])
 
-def plot_flow(ax, u, p, grid_spacing, boundary_image = None):
+def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
     """
     Plots one image of flow
 
@@ -29,19 +29,34 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None):
     X, Y = np.meshgrid(np.linspace(0, x_max, width) + 0.5 * grid_spacing, 
                        np.linspace(0, y_max, height) + 0.5 * grid_spacing)
     # ax.contourf(X, Y, p, cmap=cmap)
-    ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
+    # p *= (1 - boundary_image)
+
+    im = ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing])
+    
+
     ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
 
-    # ax.imshow(np.sqrt(u[:, :, 0] ** 2 + u[:, :, 1] ** 2), cmap=cmap, extent=[0, x_max + grid_spacing, 
+    # ax.imshow(np.sqrt(u[:, :, 0] ** 2 + u[:, :, 1] ** 2), extent=[0, x_max + grid_spacing, 
     #                                 0, y_max + grid_spacing])
+
+    # im = ax.imshow(np.linalg.norm(u, axis=-1), extent=[0, x_max + grid_spacing, 
+    #                                 0, y_max + grid_spacing])
+
 
     boundary_image = boundary_image[::-1, :]
     ax.imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing], alpha=0.5*boundary_image)
 
+    if cbar is None:
+        cbar = plt.colorbar(im, ax=ax)
+    else:
+        cbar.update_normal(im)
 
-def update_animation(i, ax, u, p, grid_spacing, boundary_image = None, frame_step = 10, title_note=""):
+    return cbar
+
+
+def update_animation(i, ax, u, p, grid_spacing, boundary_image = None, frame_step = 10, title_note="", cbar=None):
     """
     Plots i-th frame of animation
 
@@ -55,9 +70,9 @@ def update_animation(i, ax, u, p, grid_spacing, boundary_image = None, frame_ste
 
     i = (i * frame_step) % np.shape(u)[0]
 
-    plot_flow(ax, u[i], p[i], grid_spacing, boundary_image)
-    # ax.set_title(f"Frame {i} / {np.shape(u)[0]}{title_note}")
-    # ax.set_title(f"[{i} / {np.shape(u)[0]}{title_note}] u = {np.mean(u[i]):.2f} +- {np.std(u[i]):.2f}   p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
+    plot_flow(ax, u[i], p[i], grid_spacing, boundary_image, cbar)
+    # ax.set_title(f"Frame {i} / {np.shape(u)[0]}{title_note}   p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
+    ax.set_title(f"[{i} / {np.shape(u)[0]}{title_note}] u = {np.mean(u[i]):.2f} +- {np.std(u[i]):.2f}   p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
     # ax.set_title(f"p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
 
 def plot_flow_animation(u, p, grid_spacing, geometry = None, frame_step=10):
@@ -76,8 +91,10 @@ def plot_flow_animation(u, p, grid_spacing, geometry = None, frame_step=10):
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
 
+    cbar = plot_flow(ax, u[0], p[0], grid_spacing, boundary_image)
+
     anim = animation.FuncAnimation(
-        fig, update_animation, fargs=(ax, u, p, grid_spacing, boundary_image, frame_step),
+        fig, update_animation, fargs=(ax, u, p, grid_spacing, boundary_image, frame_step, "", cbar),
         frames=len(u) - 1, interval=10, blit=False
     )
     plt.show()

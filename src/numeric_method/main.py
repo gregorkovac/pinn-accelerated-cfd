@@ -32,16 +32,15 @@ def main(case_name = None):
         case["viscosity"],
         case["beta"],
         case["geometry"],
-        dynamic_time_step=False,
+        dynamic_time_step=True,
         implicit_laplacian=True,
         return_div_u_star=True,
         method_type="numeric", # numeric, poisson_model, full_model
         # model_path="../../models/full/2025-09-29_11_53"
-        model_path="../../models/poisson/2025-10-02_10_49"
+        model_path="../../models/poisson/2025-10-07_20_18"
     )
 
-    plot_flow_animation(u, p, case["dx" \
-    ""], case["geometry"], frame_step=5)
+    plot_flow_animation(u, p, case["dx"], case["geometry"], frame_step=10)
     # plot_poisson_animation(div_u_star, phi, case["grid_spacing"], case["geometry"], frame_step=100)
     # plot_navier_stokes_error(u, p, case["density"], case["viscosity"], case["time_step"], case["grid_spacing"], case["geometry"])
 

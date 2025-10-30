@@ -214,14 +214,23 @@ def boundary(geometry, u = None, p = None):
             # p = apply_neumann_bc(p, idx, neumann_idx)
         elif g["type"] == "inflow":
             neumann_idx = get_neumann_index(g, height, width)
+
+            # if u is not None:
+            #     for i in range(1, 62):
+            #         r = i - 62 / 2
+            #         R = 62
+            #         u[i, 0] = np.array([g["vel"]["x"], g["vel"]["y"]]) * (1 - (r / R) ** 2)
+
             u = apply_dirichlet_bc(u, idx, (g["vel"]["x"],
                                             g["vel"]["y"]))
+
             # p = apply_neumann_bc(p, idx, neumann_idx)
+            # p = apply_dirichlet_bc(p, idx, 1)
         elif g["type"] == "outflow":
             neumann_idx = get_neumann_index(g, height, width)
-
             u = apply_neumann_bc(u, idx, neumann_idx)
-            p = apply_dirichlet_bc(p, idx, 0)
+
+            # p = apply_dirichlet_bc(p, idx, 0)
         elif g["type"] == "cylinder":
             u = apply_dirichlet_bc(u, idx, (0, 0))
 
