@@ -31,17 +31,17 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
     # ax.contourf(X, Y, p, cmap=cmap)
     # p *= (1 - boundary_image)
 
-    im = ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
-                                    0, y_max + grid_spacing])
+    # im = ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
+    #                                 0, y_max + grid_spacing])
     
 
-    ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
+    # ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
 
     # ax.imshow(np.sqrt(u[:, :, 0] ** 2 + u[:, :, 1] ** 2), extent=[0, x_max + grid_spacing, 
     #                                 0, y_max + grid_spacing])
 
-    # im = ax.imshow(np.linalg.norm(u, axis=-1), extent=[0, x_max + grid_spacing, 
-    #                                 0, y_max + grid_spacing])
+    im = ax.imshow(np.linalg.norm(u, axis=-1), extent=[0, x_max + grid_spacing, 
+                                    0, y_max + grid_spacing])
 
 
     boundary_image = boundary_image[::-1, :]

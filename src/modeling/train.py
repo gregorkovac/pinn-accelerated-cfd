@@ -10,12 +10,18 @@ from datetime import datetime
 import os
 import json
 import matplotlib.pyplot as plt
+import sys
 
 from data import PoissonPINNDataset, FullPINNDataset
 from model import CNN
 from loss import PoissonLoss, NavierStokesLoss
 from visualization import plot_full, plot_poisson
 from misc import str2bool
+
+sys.path.insert(0, "..")
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from derivatives import *
 
 def main():
     # Initialize command line argument parser
@@ -82,6 +88,9 @@ def main():
                         default=False)
     parser.add_argument("--wandb-project",
                         help="The name of the Weight and Biases project")
+    parser.add_argument("--num_workers",
+                        help="The number of dataloader workers",
+                        default=0)
     
     # Parse command line arguments
     args = parser.parse_args()
@@ -104,6 +113,7 @@ def main():
     loss_weights = (float(args.weight1), float(args.weight2), float(args.weight3), float(args.weight4))
     use_wandb = args.wandb
     wandb_project = args.wandb_project
+    num_workers = int(args.num_workers)
 
     # Set the device
     device = torch.device(f"cuda:{torch.cuda.current_device()}" if torch.cuda.is_available() else "cpu")
@@ -113,6 +123,8 @@ def main():
     random.seed(0)
     np.random.seed(0)
     torch.manual_seed(0)
+    torch.cuda.manual_seed(0)
+    # torch.set_default_device("cuda")
 
     # Set up Weights and Biases
     if use_wandb:
@@ -135,11 +147,6 @@ def main():
             }
         )
 
-    # Fetch and print parameters
-    params = vars(args)
-    print("PARAMETERS")
-    print(params)
-
     if data_samples == 1:
         train_split = 1
     else:
@@ -147,7 +154,7 @@ def main():
 
     # Load data
     if model_type == "poisson":
-        train_dataset = PoissonPINNDataset(data_path, train_split, samples_per_case, start_sample=0)
+        train_dataset = PoissonPINNDataset(data_path, train_split, "cpu", samples_per_case, start_sample=0)
 
         if data_samples == 1:
             smp = 1
@@ -156,9 +163,9 @@ def main():
             smp = data_samples - train_split
             start_sample = train_split
 
-        val_dataset = PoissonPINNDataset(data_path, smp, samples_per_case, start_sample=start_sample)
+        val_dataset = PoissonPINNDataset(data_path, smp, "cpu", samples_per_case, start_sample=start_sample)
     elif model_type == "full":
-        train_dataset = FullPINNDataset(data_path, train_split, samples_per_case, start_sample=0)
+        train_dataset = FullPINNDataset(data_path, train_split, "cpu", samples_per_case, start_sample=0)
 
         if data_samples == 1:
             smp = 0
@@ -167,19 +174,55 @@ def main():
             smp = data_samples - train_split
             start_sample = train_split
             
-        val_dataset = FullPINNDataset(data_path, smp, samples_per_case, start_sample=start_sample)
+        val_dataset = FullPINNDataset(data_path, smp, "cpu", samples_per_case, start_sample=start_sample)
+
+    x_mean = train_dataset.x.mean(dim=(0, 2, 3), keepdim=True)
+    x_std = train_dataset.x.std(dim=(0, 2, 3), keepdim=True)
+    x_std[x_std < 1e-8] = 1.0
+
+    x_mean[:, 1] = 0
+    x_mean[:, 2] = 0
+    x_mean[:, 3] = 0
+    x_mean[:, 4] = 0
+    x_mean[:, 5] = 0
+    x_mean[:, 8] = 0
+    x_mean[:, 9] = 0
+
+    x_std[:, 1] = 1
+    x_std[:, 2] = 1
+    x_std[:, 3] = 1
+    x_std[:, 4] = 1
+    x_std[:, 5] = 1
+    x_std[:, 8] = 1
+    x_std[:, 9] = 1
+
+    train_dataset.x = (train_dataset.x - x_mean) / x_std
+    val_dataset.x = (val_dataset.x - x_mean) / x_std
+
+    # Fetch and print parameters
+    params = vars(args)
+    params["x_mean"] = [float(x_) for x_ in x_mean.detach().numpy().flatten()]
+    params["x_std"] = [float(x_) for x_ in x_std.detach().numpy().flatten()]
+    print("PARAMETERS")
+    print(params)
 
     # Get input data dimensions
     input_channels, input_height, input_width, output_channels = train_dataset.get_dims()
 
+    pin_memory = num_workers > 0
+
     # Initialize data loader
     train_dataloader = DataLoader(train_dataset,
                                 batch_size=batch_size,
-                                shuffle=False)
+                                shuffle=True,
+                                num_workers=num_workers,
+                                pin_memory=pin_memory)
     
     val_dataloader = DataLoader(val_dataset,
                                 batch_size=batch_size,
-                                shuffle=False)
+                                shuffle=True,
+                                num_workers=num_workers,
+                                pin_memory=pin_memory)
 
     # Initialize model
     model = CNN(input_channels=input_channels,
@@ -203,11 +246,13 @@ def main():
     else:
         criterion = NavierStokesLoss()
 
+    criterion = criterion.to(device)
+
     # Define the optimizer
     if optimizer_ == "lbfgs":
         optimizer = torch.optim.LBFGS(model.parameters(), 
                                       lr=lr, 
-                                      max_iter=20, 
+                                      max_iter=10, 
                                       history_size=100, 
                                       line_search_fn='strong_wolfe')
     elif optimizer_ == "adam":
@@ -240,7 +285,6 @@ def main():
     prev_loss = 0
 
     # Training loop
-    # TODO: FIX THIS
     for epoch in range(epochs):
         running_loss = [0, 0, 0, 0, 0]
         val_running_loss = [0, 0, 0, 0, 0]
@@ -253,30 +297,36 @@ def main():
         # Iterate through data loader
         for data in train_dataloader:
             # Extract data
-            x, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask = data
+            x, delta_x, delta_y, _, _, _, _, _ = data
 
-            x = x.to(device).clone().requires_grad_(True)
+            x = x.to(device).detach()#.clone()#.requires_grad_(True)
+            delta_x = delta_x.to(device).detach()
+            delta_y = delta_y.to(device).detach()
 
             batch_loss = [0, 0, 0, 0, 0]
 
             def closure():
                 optimizer.zero_grad()
 
-                outputs = model(x)
-                
-                l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights)
-                l[0].backward()
+                with torch.enable_grad():
+                    outputs = model(x)
+
+                    x_norm = x * x_std.to(device) + x_mean.to(device)
+                    
+                    l = criterion(x_norm, outputs, delta_x, delta_y, loss_weights)
+                    l[0].backward()
 
                 for i in range(len(l)):
                     batch_loss[i] = l[i].item()
 
                 return l[0]
             
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
             optimizer.step(closure)
 
             for i in range(len(running_loss)):
                 running_loss[i] += batch_loss[i] * x.size(0)
-
 
         loss = np.array(running_loss) / len(train_dataloader.dataset)
 
@@ -284,30 +334,34 @@ def main():
             print("NaN LOSS - STOPPING EARLY")
             break
 
-        # with torch.no_grad():
-        for data in val_dataloader:
-            x, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask = data
-            x = x.to(device).clone().requires_grad_(True)
+        with torch.no_grad():
+            for data in val_dataloader:
+                x, delta_x, delta_y, _, _, _, _, _ = data
+                x = x.to(device).detach()#.clone() #.requires_grad_(True)
+                delta_x = delta_x.to(device).detach()
+                delta_y = delta_y.to(device).detach()
 
-            outputs = model(x)
+                outputs = model(x)
 
-            l = criterion(x, outputs, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights)
+                x_norm = x * x_std.to(device) + x_mean.to(device)
 
-            for i in range(len(val_running_loss)):
-                val_running_loss[i] += l[i].item() * x.size(0)
+                l = criterion(x_norm, outputs, delta_x, delta_y, loss_weights)
 
-        val_loss = np.array(val_running_loss) / len(val_dataloader.dataset)
+                for i in range(len(val_running_loss)):
+                    val_running_loss[i] += l[i].item() * x.size(0)
 
-        val_loss_unweighted = val_loss[1] + val_loss[2] + val_loss[3] + val_loss[4]
+            val_loss = np.array(val_running_loss) / len(val_dataloader.dataset)
 
-        if val_loss_unweighted <= best_loss:
-            best_loss = val_loss_unweighted
-            best_model_dict = model.state_dict()
+            val_loss_unweighted = val_loss[1] + val_loss[2] + val_loss[3] + val_loss[4]
 
-            torch.save(best_model_dict, os.path.join(model_path, "model.pt"))
+            if val_loss_unweighted <= best_loss:
+                best_loss = val_loss_unweighted
+                best_model_dict = model.state_dict()
 
-            with open(os.path.join(model_path, "params.json"), "w") as f:
-                json.dump(params, f)
+                torch.save(best_model_dict, os.path.join(model_path, "model.pt"))
+
+                with open(os.path.join(model_path, "params.json"), "w") as f:
+                    json.dump(params, f)
 
         if use_scheduler:
             scheduler.step()
@@ -339,31 +393,35 @@ def main():
                        "val_loss4": val_loss[4],
                        "log_val_loss": np.log(val_loss_unweighted)})
             
-        #with torch.no_grad():
-        x_, delta_x_, delta_y_, _, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(0, len(train_dataset) - 1)]
-        x_ = x_.clone().detach().requires_grad_(True)
-        out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
+        with torch.no_grad():
+            x_, delta_x_, delta_y_, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(0, len(train_dataset) - 1)]
+            x_ = x_.cpu().clone().detach().to(device)
+            out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
 
-        if model_type == "full":
-            out = out.detach().cpu().squeeze().numpy()
-            cbar = plot_full(ax[:4], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
-        else:
-            phi = train_dataset.get_phi(min(10, len(train_dataset) - 1))
-            cbar = plot_poisson(ax[:4], out, phi, boundary_mask, cbar=cbar, in_=x_, delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)
+            if model_type == "full":
+                out = out.detach().cpu().squeeze().numpy()
+                cbar = plot_full(ax[:4], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
+            else:
+                out = out.detach().cpu().squeeze().numpy()
+                phi = train_dataset.get_phi(min(10, len(train_dataset) - 1))
+                x_ = (x_ * x_std.to(device) + x_mean.to(device)).squeeze()
+                cbar = plot_poisson(ax[:4], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)
 
-        x_, delta_x_, delta_y_, _, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(31, len(train_dataset) - 1)]
-        x_ = x_.clone().detach().requires_grad_(True)
-        out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
+            x_, delta_x_, delta_y_, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(31, len(train_dataset) - 1)]
+            x_ = x_.cpu().clone().detach().to(device)
+            out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
 
-        if model_type == "full":
-            out = out.detach().cpu().squeeze().numpy()
-            cbar = plot_full(ax[4:], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
-        else:
-            phi = train_dataset.get_phi(min(60, len(train_dataset) - 1))
-            cbar = plot_poisson(ax[4:], out, phi, boundary_mask, cbar=cbar, in_=x_, delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)
+            if model_type == "full":
+                out = out.detach().cpu().squeeze().numpy()
+                cbar = plot_full(ax[4:], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
+            else:
+                out = out.detach().cpu().squeeze().numpy()
+                phi = train_dataset.get_phi(min(60, len(train_dataset) - 1))
+                x_ = (x_ * x_std.to(device) + x_mean.to(device)).squeeze()
+                cbar = plot_poisson(ax[4:], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)
 
-        plt.draw()
-        plt.pause(0.001)
+            plt.draw()
+            plt.pause(0.001)
             
     if use_wandb:
         wandb.finish()

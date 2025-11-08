@@ -11,11 +11,14 @@ sys.path.insert(0, "..")
 
 from numeric_method.numeric_method import solve_navier_stokes
 
-DATA_PATH = "../../data/generated_data_final/cylinder"
-NUM_CASES = 1
+DATA_PATH = "../../data/generated_data_final/pipe"
+NUM_CASES = 25
 
 def main():
     case_path = "../../data/cases/pipe.json"
+
+    if not os.path.exists(os.path.join(DATA_PATH, "perpetual_flow_pics")):
+        os.makedirs(os.path.join(DATA_PATH, "perpetual_flow_pics"))
     
     print(case_path)
 
@@ -29,26 +32,17 @@ def main():
         density = float(10 ** np.random.uniform(np.log10(1e-2), np.log10(10)))
         inflow = float(10 ** np.random.uniform(np.log10(1e-1), np.log10(5)))
 
-        L = 254 * 0.01
+        L = 126 * 0.01
         Re = np.random.uniform(0.1, 100)
 
         viscosity = float((density * inflow * L) / Re)
-
-
-        # density = 1
-        # viscosity = 0.1
-        # inflow = 1
-        # cylinder_r = 4
+        viscosity = viscosity / density
 
         g = copy.deepcopy(case_["geometry"])
 
         for i in range(len(g)):
             if g[i]["type"] == "inflow":
                 g[i]["vel"]["x"] = inflow
-            elif g[i]["type"] == "cylinder":
-                g[i]["pos"]["x"] = cylinder_x
-                g[i]["pos"]["y"] = cylinder_y
-                g[i]["size"] = cylinder_r
 
 
         delta_t = case_["dx"] / 100
@@ -97,6 +91,11 @@ def main():
                                 "phi": phi,
                                 "params": params,
                                 "u_norm": u_norm})
+
+        plt.imshow(u_norm, cmap="viridis")
+        plt.axis("off")
+        plt.tight_layout()
+        plt.savefig(os.path.join(DATA_PATH, "perpetual_flow_pics", f"{str(i)}.png"))
 
 
         

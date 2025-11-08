@@ -1,4 +1,5 @@
 from tqdm import tqdm
+# import numpy as np
 import numpy as np
 import json
 from matplotlib import rc
@@ -32,12 +33,12 @@ def main(case_name = None):
         case["viscosity"],
         case["beta"],
         case["geometry"],
-        dynamic_time_step=True,
+        dynamic_time_step=False,
         implicit_laplacian=True,
         return_div_u_star=True,
-        method_type="numeric", # numeric, poisson_model, full_model
-        # model_path="../../models/full/2025-09-29_11_53"
-        model_path="../../models/poisson/2025-10-07_20_18"
+        method_type="poisson_model", # numeric, poisson_model, full_model
+        # model_path="../../models/full/2025-11-03_19_42"
+        model_path="../../models/poisson/2025-11-07_22_14"
     )
 
     plot_flow_animation(u, p, case["dx"], case["geometry"], frame_step=10)

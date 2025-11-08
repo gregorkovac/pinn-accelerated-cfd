@@ -9,7 +9,7 @@ def compute_grads(x, y):
         grad_outs = torch.zeros_like(y)
         grad_outs[:, i, :, :] = 1.0
         
-        grad = torch.autograd.grad(y, x, grad_outputs=grad_outs, create_graph=True)[0]
+        grad = torch.autograd.grad(y, x, grad_outputs=grad_outs, create_graph=False)[0]
 
         grads.append(grad)
 

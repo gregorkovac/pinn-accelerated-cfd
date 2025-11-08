@@ -1,3 +1,4 @@
+# import numpy as np
 import numpy as np
 
 # def apply_dirichlet_bc(u, idx, val, mask=(1, 1)):
@@ -210,7 +211,7 @@ def boundary(geometry, u = None, p = None):
         if g["type"] == "wall":
             neumann_idx = get_neumann_index(g, height, width)
             normal = get_normal(g)
-            u = apply_dirichlet_bc(u, idx, (0, 0), mask=(1 - np.abs(normal)))
+            u = apply_dirichlet_bc(u, idx, (0, 0))# mask=(1 - np.abs(normal)))
             # p = apply_neumann_bc(p, idx, neumann_idx)
         elif g["type"] == "inflow":
             neumann_idx = get_neumann_index(g, height, width)

@@ -12,10 +12,13 @@ sys.path.insert(0, "..")
 from numeric_method.numeric_method import solve_navier_stokes
 
 DATA_PATH = "../../data/generated_data_final/cylinder"
-NUM_CASES = 1
+NUM_CASES = 25
 
 def main():
     case_path = "../../data/cases/cylinder.json"
+
+    if not os.path.exists(os.path.join(DATA_PATH, "perpetual_flow_pics")):
+        os.makedirs(os.path.join(DATA_PATH, "perpetual_flow_pics"))
     
     print(case_path)
 
@@ -25,28 +28,29 @@ def main():
     simulated_cases = []
 
     for i in range(NUM_CASES):
+        print(f"[ {i} ]")
     # for cylinder_x in range(6, 15, 2):
     #     for cylinder_y in range(6, 15, 2):
 
-        cylinder_x = int(np.random.randint(10, 250))
-        cylinder_y = int(np.random.randint(10, 250))
-        cylinder_r = int(np.random.randint(8, 64))
+        cylinder_x = int(np.random.randint(10, 110))
+        cylinder_y = int(np.random.randint(10, 110))
+        cylinder_r = int(np.random.randint(8, 32))
         cylinder_r = int(np.min([
             cylinder_r,
             cylinder_x - 2,
             cylinder_y - 2,
-            (256 - cylinder_x) - 2,
-            (256 - cylinder_y) - 2]
+            (128 - cylinder_x) - 2,
+            (128 - cylinder_y) - 2]
         ))
 
         density = float(10 ** np.random.uniform(np.log10(1e-2), np.log10(10)))
         inflow = float(10 ** np.random.uniform(np.log10(1e-1), np.log10(5)))
 
-        L = 254 * 0.01
+        L = 126 * 0.01
         Re = np.random.uniform(0.1, 100)
 
         viscosity = float((density * inflow * L) / Re)
-
+        viscosity = viscosity / density
 
         # density = 1
         # viscosity = 0.1
@@ -55,13 +59,13 @@ def main():
 
         g = copy.deepcopy(case_["geometry"])
 
-        for i in range(len(g)):
-            if g[i]["type"] == "inflow":
-                g[i]["vel"]["x"] = inflow
-            elif g[i]["type"] == "cylinder":
-                g[i]["pos"]["x"] = cylinder_x
-                g[i]["pos"]["y"] = cylinder_y
-                g[i]["size"] = cylinder_r
+        for j in range(len(g)):
+            if g[j]["type"] == "inflow":
+                g[j]["vel"]["x"] = inflow
+            elif g[j]["type"] == "cylinder":
+                g[j]["pos"]["x"] = cylinder_x
+                g[j]["pos"]["y"] = cylinder_y
+                g[j]["size"] = cylinder_r
 
 
         delta_t = case_["dx"] / 100
@@ -111,8 +115,12 @@ def main():
                                 "params": params,
                                 "u_norm": u_norm})
 
+        plt.imshow(u_norm, cmap="viridis")
+        plt.axis("off")
+        plt.tight_layout()
+        plt.savefig(os.path.join(DATA_PATH, "perpetual_flow_pics", f"{str(i)}.png"))
 
-        
+
     shuffled = np.random.permutation(simulated_cases)
     train_size = int(len(simulated_cases) * 0.6)
 

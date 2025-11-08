@@ -31,6 +31,10 @@ plt.rcParams.update({
 BENCHAMRK_PATH = "../../data/CFDBench/tube/bc"
 
 def eval_case(case_path):
+    print("---------------------------")
+    print(case_path)
+    print("---------------------------")
+
     ux = np.load(os.path.join(case_path, "u.npy")) 
     uy = np.load(os.path.join(case_path, "v.npy"))
     with open(os.path.join(case_path, "case.json"), "r") as f:
@@ -56,41 +60,51 @@ def eval_case(case_path):
     case_nm["dx"] = dx
     case_nm["dy"] = dy
     case_nm["density"] = density
-    case_nm["viscosity"] = viscosity
+    case_nm["viscosity"] = viscosity / density
 
-    C = 10
-    case_nm["time_step"] = np.max([dy, dx]) * C / inflow
+    err_vec_inf = np.inf
+    err_vec_l2 = np.inf
+    err_vec_l1 = np.inf
 
-    for gi in range(len(case_nm["geometry"])):
-        if case_nm["geometry"][gi]["type"] == "inflow":
-            case_nm["geometry"][gi]["vel"]["x"] = inflow
-            break
+    # for C in [0.001, 0.1, 1, 10]:
+    for C in [0.001]:
+        case_nm["time_step"] = C #np.max([dy, dx]) * C / inflow
 
-    u, p, u_star, div_u_star, phi = solve_navier_stokes(
-        width_px,
-        height_px,
-        dx,
-        dy,
-        case_nm["iterations"],
-        case_nm["time_step"],
-        density,
-        viscosity,
-        1,
-        case_nm["geometry"],
-        dynamic_time_step=True,
-        implicit_laplacian=True,
-        return_div_u_star=True,
-        method_type="numeric"
-    )
+        for gi in range(len(case_nm["geometry"])):
+            if case_nm["geometry"][gi]["type"] == "inflow":
+                case_nm["geometry"][gi]["vel"]["x"] = inflow
+                break
 
-    u_nm = np.transpose(u[-1], (2, 0, 1))
-    u_baseline = np.stack([ux[-1], uy[-1]], axis=0)
+        u, p, u_star, div_u_star, phi = solve_navier_stokes(
+            width_px,
+            height_px,
+            dx,
+            dy,
+            case_nm["iterations"],
+            case_nm["time_step"],
+            density,
+            viscosity,
+            0,
+            case_nm["geometry"],
+            dynamic_time_step=True,
+            implicit_laplacian=True,
+            return_div_u_star=True,
+            method_type="numeric"
+        )
 
-    _, _, _, _, _, _, boundary = geometry_to_mtx(case_nm["geometry"], width_px, height_px)
+        u_nm = np.transpose(u[-1], (2, 0, 1))
+        u_baseline = np.stack([ux[-1], uy[-1]], axis=0)
 
-    err_vec_inf = pointwise_inf(u_baseline, u_nm) * (1 - boundary)
-    err_vec_l1 = pointwise_l1(u_baseline, u_nm) * (1 - boundary)
-    err_vec_l2 =  pointwise_rmse(u_baseline, u_nm) * (1 - boundary)
+        _, _, _, _, _, _, boundary = geometry_to_mtx(case_nm["geometry"], width_px, height_px)
+
+        e_vec_inf = pointwise_inf(u_baseline, u_nm) * (1 - boundary)
+        e_vec_l1 = pointwise_l1(u_baseline, u_nm) * (1 - boundary)
+        e_vec_l2 =  pointwise_rmse(u_baseline, u_nm) * (1 - boundary)
+
+        if np.mean(e_vec_inf) < np.mean(err_vec_inf):
+            err_vec_inf = e_vec_inf
+            err_vec_l1 = e_vec_l1
+            err_vec_l2 = e_vec_l2
 
     results = {}
 
