@@ -1,18 +1,19 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 import os
 import numpy as np
 import json
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import random
 
 def load_case(data_path, idx, samples_per_case=-1):
     case_path = os.path.join(data_path, f"{idx}")
 
-    u_star = np.load(os.path.join(case_path, "u_star.npy"))
-    div_u_star = np.load(os.path.join(case_path, "div_u_star.npy"))
-    phi = np.load(os.path.join(case_path, "phi.npy"))
+    u_star = np.load(os.path.join(case_path, "u_star.npy"))[:100]
+    div_u_star = np.load(os.path.join(case_path, "div_u_star.npy"))[:100]
+    phi = np.load(os.path.join(case_path, "phi.npy"))[:100]
 
     with open(os.path.join(case_path, "params.json")) as f:
         params = json.load(f)
@@ -72,12 +73,14 @@ def geometry_to_mtx(geometry, width, height):
             boundary_mask[y:(y+h), x:(x+w)] = 1
 
             u_dirichlet[y:(y+h), x:(x+w)] = np.array([xn, yn])
+            u_dirichlet_mask[y:(y+h), x:(x+w)] = 1
 
             # p_neumann[y:(y+h), x:(x+w)] = np.array([xn != 0, yn != 0], dtype=int)
         elif g["type"] == "wall":
             boundary_mask[y:(y+h), x:(x+w)] = 1
 
             u_dirichlet[y:(y+h), x:(x+w)] = np.array([0, 0])
+            u_dirichlet_mask[y:(y+h), x:(x+w)] = 1
 
             # p_neumann[y:(y+h), x:(x+w)] = np.array([xn != 0, yn != 0], dtype=int)
         elif g["type"] == "outflow":
@@ -154,8 +157,8 @@ class PINNDataset(Dataset):
 
                 # Create a coordinate grid
                 grid_y, grid_x = torch.meshgrid(
-                        torch.linspace(0, self.height * dy, self.height),
-                        torch.linspace(0, self.width * dx, self.width),
+                        torch.linspace(0, self.height, self.height),
+                        torch.linspace(0, self.width, self.width),
                         indexing="ij"
                 )
                 self.coords = torch.stack([grid_x, grid_y], dim=0).to(device)
@@ -222,7 +225,7 @@ class PINNDataset(Dataset):
     
     def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
         return NotImplementedError
-    
+
 class PoissonPINNDataset(PINNDataset):
     def __init__(self, data_path, N, device, samples_per_case=-1, start_sample=0):
         super().__init__(data_path, N, device, samples_per_case, start_sample)
@@ -234,6 +237,7 @@ class PoissonPINNDataset(PINNDataset):
 
         self.x = []
         for idx in range(N * samples_per_case):
+
             shp = self.p_dirichlet[idx].unsqueeze(0).shape
             ones = torch.ones(shp).to(device)
 
@@ -259,6 +263,15 @@ class PoissonPINNDataset(PINNDataset):
                            self.rho[idx] * ones, # 10
                            self.delta_t[idx] * ones, # 11
                         ], dim=0))
+
+            # plt.ioff()
+            # fig, ax = plt.subplots(3, 4)
+            # ax = ax.flatten()
+            # for j in range(0, 12):
+            #     im = ax[j].imshow(self.x[-1][j].cpu().detach().numpy())
+            #     plt.colorbar(im)
+
+            # plt.show()
 
         self.x = torch.stack(self.x, dim=0).to(device)
 
@@ -337,3 +350,19 @@ class FullPINNDataset(PINNDataset):
 
         return torch.cat([u, p], dim=1).to(u.device)
 
+class CaseBatchSampler(Sampler):
+    def __init__(self, dataset_len, samples_per_case):
+        self.dataset_len = dataset_len
+        self.samples_per_case = samples_per_case
+        self.num_cases = dataset_len // samples_per_case
+
+    def __iter__(self):
+        case_order = list(range(self.num_cases))
+        random.shuffle(case_order)
+        for case_idx in case_order:
+            start = case_idx * self.samples_per_case
+            end = start + self.samples_per_case
+            yield list(range(start, end))
+
+    def __len__(self):
+        return self.num_cases

@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 
 # from derivatives import *
 
-# import sys
-# import os
-# sys.path.insert(0, "..")
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import sys
+import os
+sys.path.insert(0, "..")
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from derivatives import *
 
@@ -21,15 +21,8 @@ class PoissonLoss(nn.Module):
 
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
         delta_y = delta_y.to(output.device).view(-1, 1, 1)
-        # rho = rho.to(output.device).view(-1, 1, 1)
-        # delta_t = delta_t.to(output.device).view(-1, 1, 1)
-        # rho = x[:, 8:9, 0, 0].view(-1, 1, 1, 1)
-        # delta_t = x[:, 9:10, 0, 0].view(-1, 1, 1, 1)
-        # boundary_mask = boundary_mask.to(output.device)
 
-        # boundary_mask = x[:, 10]
-
-        phi = output
+        phi = output[:, 0:1]
         # div_u_star = x[:, 0]
         boundary_mask = x[:, 5]
         u_star = x[:, 6:8]
@@ -39,132 +32,34 @@ class PoissonLoss(nn.Module):
         rho = x[:, 10:11]
         delta_t = x[:, 11:12]
 
-        # boundary_mask = boundary_mask
-        # boundary_mask_u = boundary_mask.unsqueeze(1).repeat(1, 2, 1, 1)
+        div_u_star = divergence(u_star,
+                                float(delta_x[0].item()),
+                                float(delta_y[0].item()),
+                                boundary_mask)
 
-        div_u_star = divergence(u_star[:, 0], u_star[:, 1], delta_x, delta_y, boundary_mask)
-
-        # print(f"Before scale = {div_u_star[0].mean()}")
-
-        div_u_star = div_u_star * rho / delta_t
-
-        # print(f"After scale = {div_u_star[0].mean()}")
-        # print(f"Model input = {x[0, 0].mean()}")
-        # print("\n\n")
-
-        # plt.ioff()
-        # fig, ax = plt.subplots(1, 3)
-        # im0 = ax[0].imshow(div_u_star[0, 0].cpu().numpy()[10:60, :30])
-        # im1 = ax[1].imshow(x[0, 0].cpu().numpy()[10:60, :30])
-        # im2 = ax[2].imshow(((div_u_star[0, 0] - x[0, 0]) ** 2).cpu().numpy()[10:60, :30])
-        # plt.colorbar(im0)
-        # plt.colorbar(im1)
-        # plt.colorbar(im2)
-        # ax[0].set_title("Torch")
-        # ax[1].set_title("NumPy")
-        # ax[2].set_title("Diff")
-        # plt.show()
-
-        # exit(0)
+        div_u_star = div_u_star * rho / delta_t     
 
         # Compute the laplacian of pressure
-        laplacian_phi = laplacian(phi, delta_x, delta_y, boundary_mask)
+        laplacian_phi = laplacian(phi, float(delta_x[0].item()), float(delta_y[0].item()), boundary_mask)
 
-        # grad_phi = grad(u = phi,
-        #                 dx = delta_x,
-        #                 dy = delta_y)
+        loss_pde = (laplacian_phi - div_u_star) ** 2 #/ ((div_u_star ** 2).mean() + 1e-8)
 
-        loss_pde = (laplacian_phi - div_u_star) ** 2 #/ (div_u_star ** 2).max()
+        # loss_pde /= ((div_u_star ** 2).mean().detach() + 1e-6)
 
+        loss_pde *= (1 - boundary_mask)
 
-        # loss_pde *= (1 - boundary_mask)
-
-        loss_pde = torch.sqrt(torch.mean(loss_pde))
+        loss_pde = torch.mean(loss_pde)
 
 
+        loss_nonneg = torch.mean(torch.relu(-output) ** 2)
 
-        # plt.ioff()
-        # fig, ax = plt.subplots(1, 2)
-        # vmin = min(laplacian_phi[0].min(), div_u_star[0, 0].min())
-        # vmax = max(laplacian_phi[0].max(), div_u_star[0, 0].max())
-        # ax[0].imshow(laplacian_phi.cpu().detach().numpy()[0], vmin=vmin, vmax=vmax)
-        # ax[1].imshow(div_u_star.cpu().detach().numpy()[0, 0], vmin=vmin, vmax=vmax)
-        # plt.show()
-
-        # loss_pde *= (1 - boundary_mask)
-
-        # loss_pde = loss_pde[..., boundary_mask==0]
-
-        # loss_nonneg = torch.mean(torch.relu(-output))
-        # loss_nonneg = torch.mean(output[output < 0] ** 2)
-        loss_nonneg = torch.tensor(0, device=output.device)
-
-        # loss_bc_dirichlet = torch.mean(p_dirichlet_mask * (phi - p_dirichlet) ** 2)
-        # loss_bc = torch.mean((p_neumann[:, 0] * grad_phi[:, 0]) ** 2 + (p_neumann[:, 1] * grad_phi[:, 1]) ** 2)
         loss_bc = torch.tensor(0, device=output.device)
 
-        # loss_bc = loss_bc_dirichlet + loss_bc_neumann
-
-        # loss_bc = torch.tensor(0, device=output.device)
-
-        # u = u_star - (delta_t / rho) * grad_phi
-        # div_u = divergence(u = u,
-        #                   dx = delta_x,
-        #                   dy = delta_y)
-
-        # loss_nonneg = torch.tensor(0)
-        # loss_div = torch.tensor(0, device=output.device)
-        # loss_div = torch.mean(grad_phi[:, 0] ** 2 + grad_phi[:, 1] ** 2)
-        # loss_div = torch.mean(div_u ** 2)
         loss_div = torch.tensor(0, device=output.device)
 
         loss = loss_weights[0] * loss_pde + loss_weights[1] * loss_bc + loss_weights[2] * loss_nonneg + loss_weights[3] * loss_div
 
         return loss, loss_pde, loss_bc, loss_nonneg, loss_div
-
-        # grad_phi = grad(u = phi,
-        #                 dx=delta_x,
-        #                 dy=delta_y,
-        #                 boundary=boundary_mask * 0)
-
-
-        # u = torch.cat([u_y, u_x], dim=1) - (delta_t / rho) * grad_phi
-
-        # div_u = divergence(u = u,
-        #                     dx = delta_x, 
-        #                     dy = delta_y,
-        #                     boundary = boundary_mask_u * 0)
-
-        # # div_u = div_u * (1 - boundary_mask)
-
-        # # div_u = div_u[..., boundary_mask==0]
-
-        # loss_div = torch.mean(div_u ** 2)
-
-        # loss_nonneg = torch.mean(torch.relu(-output)**2)
-
-        # dp_dy = grad_phi[:, 0]
-        # dp_dx = grad_phi[:, 1]
-
-        # mask_dy = x[:, 4].abs()
-        # mask_dx = x[:, 5].abs()
-
-        # # plt.ioff()
-        # # fig, ax = plt.subplots(1, 2)
-        # # im0 = ax[0].imshow(mask_dy.cpu().detach().numpy()[0, :10, 10:20])
-        # # im1 = ax[1].imshow(mask_dx.cpu().detach().numpy()[0, :10, 10:20])
-        # # plt.colorbar(im0)
-        # # plt.colorbar(im1)
-        # # plt.show()
-
-        # loss_bc_p = torch.mean((mask_dy * dp_dy) ** 2 + (mask_dx * dp_dx) ** 2)
-
-        # loss_bc = loss_bc_p
-        # # loss_bc = torch.tensor(0)
-        
-        # loss = loss_weights[0] * loss_pde + loss_weights[1] * loss_bc + loss_weights[2] * loss_nonneg + loss_weights[3] * loss_div
-
-        # return loss, loss_pde, loss_bc, loss_nonneg, loss_div
 
 init_losses = {}
 

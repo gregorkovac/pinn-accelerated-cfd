@@ -12,7 +12,7 @@ import json
 import matplotlib.pyplot as plt
 import sys
 
-from data import PoissonPINNDataset, FullPINNDataset
+from data import PoissonPINNDataset, FullPINNDataset, CaseBatchSampler
 from model import CNN
 from loss import PoissonLoss, NavierStokesLoss
 from visualization import plot_full, plot_poisson
@@ -91,6 +91,26 @@ def main():
     parser.add_argument("--num_workers",
                         help="The number of dataloader workers",
                         default=0)
+    parser.add_argument("--activation",
+                        help="Activation function of the model",
+                        choices=["relu", "tanh"],
+                        default="relu")
+    parser.add_argument("--architecture",
+                        help="The architecture of the model. Either a standard CNN or an encoder-decoder",
+                        choices=["cnn", "encdec"],
+                        default="cnn")
+    parser.add_argument("--pooling",
+                        help="Pooling type for the encoder-decoder model",
+                        choices=["avg", "max", "stride"],
+                        default="none")         
+    parser.add_argument("--upsampling",
+                        help="Upsampling type of the encoder-decoder model",
+                        choices=["upsample", "convtranspose"],
+                        default="none")
+    parser.add_argument("--norm",
+                        help="Normalization type in the model",
+                        choices=["none", "batch", "group"],
+                        default="none")
     
     # Parse command line arguments
     args = parser.parse_args()
@@ -114,6 +134,11 @@ def main():
     use_wandb = args.wandb
     wandb_project = args.wandb_project
     num_workers = int(args.num_workers)
+    activation = args.activation
+    architecture = args.architecture
+    pooling = args.pooling
+    upsampling = args.upsampling
+    norm = args.norm
 
     # Set the device
     device = torch.device(f"cuda:{torch.cuda.current_device()}" if torch.cuda.is_available() else "cpu")
@@ -180,21 +205,31 @@ def main():
     x_std = train_dataset.x.std(dim=(0, 2, 3), keepdim=True)
     x_std[x_std < 1e-8] = 1.0
 
-    x_mean[:, 1] = 0
-    x_mean[:, 2] = 0
-    x_mean[:, 3] = 0
-    x_mean[:, 4] = 0
-    x_mean[:, 5] = 0
-    x_mean[:, 8] = 0
-    x_mean[:, 9] = 0
 
-    x_std[:, 1] = 1
-    x_std[:, 2] = 1
-    x_std[:, 3] = 1
-    x_std[:, 4] = 1
-    x_std[:, 5] = 1
-    x_std[:, 8] = 1
-    x_std[:, 9] = 1
+    # TODO: Normalization logic should probably be moved to the dataset
+    dont_normalize = [3, 4, 5, 8, 9, 10, 11]
+    x_mean[:, dont_normalize] = 0
+    x_std[:, dont_normalize] = 1
+
+    # x_mean[:, 1] = 0
+    # x_mean[:, 2] = 0
+    # x_mean[:, 3] = 0
+    # x_mean[:, 4] = 0
+    # x_mean[:, 5] = 0
+    # x_mean[:, 8] = 0
+    # x_mean[:, 9] = 0
+    # x_mean[:, 10] = 0
+    # x_mean[:, 11] = 0
+
+    # x_std[:, 1] = 1
+    # x_std[:, 2] = 1
+    # x_std[:, 3] = 1
+    # x_std[:, 4] = 1
+    # x_std[:, 5] = 1
+    # x_std[:, 8] = 1
+    # x_std[:, 9] = 1
+    # x_std[:, 10] = 1
+    # x_std[:, 11] = 1
 
     train_dataset.x = (train_dataset.x - x_mean) / x_std
     val_dataset.x = (val_dataset.x - x_mean) / x_std
@@ -211,16 +246,29 @@ def main():
 
     pin_memory = num_workers > 0
 
+    if samples_per_case > batch_size:
+        sampler_batch_size = batch_size
+    else:
+        sampler_batch_size = samples_per_case
+
+    batch_sampler = CaseBatchSampler(len(train_dataset), sampler_batch_size)
+
     # Initialize data loader
+    # train_dataloader = DataLoader(train_dataset,
+    #                             batch_size=batch_size,
+    #                             shuffle=True,
+    #                             num_workers=num_workers,
+    #                             pin_memory=pin_memory)
+    
     train_dataloader = DataLoader(train_dataset,
-                                batch_size=batch_size,
-                                shuffle=True,
+                                batch_sampler=batch_sampler,
                                 num_workers=num_workers,
                                 pin_memory=pin_memory)
     
+
     val_dataloader = DataLoader(val_dataset,
                                 batch_size=batch_size,
-                                shuffle=True,
+                                shuffle=False,
                                 num_workers=num_workers,
                                 pin_memory=pin_memory)
 
@@ -232,7 +280,12 @@ def main():
                 input_width=input_width,
                 input_height=input_height,
                 enforceBC=train_dataset.enforceBC,
-                use_skip=True)
+                use_skip=True,
+                activation=activation,
+                architecture=architecture,
+                pooling=pooling,
+                upsampling=upsampling,
+                norm=norm)
     
     # Move model to device if possible
     if torch.cuda.device_count() > 1:
@@ -321,7 +374,7 @@ def main():
 
                 return l[0]
             
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
             optimizer.step(closure)
 

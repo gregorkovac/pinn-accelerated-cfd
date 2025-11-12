@@ -32,10 +32,21 @@ def compute_spatial_derivatives(u, dx, dy):
 
     return du_dy, du_dx, d2u_dy2, d2u_dx2
 
-def laplacian(v, dx, dy, boundary):
+def laplacian(u, dx, dy, boundary):
     # v_pad = F.pad(v, (1,1,1,1), mode='constant', value=0)
-    v_pad = F.pad(v, (1,1,1,1), mode='replicate')
-    lap = (v_pad[:,2:,1:-1] - 2*v + v_pad[:,:-2,1:-1]) / dy**2 +(v_pad[:,1:-1,2:] - 2*v + v_pad[:,1:-1,:-2]) / dx**2
+
+    # du_dy, du_dx = torch.gradient(u, spacing=(dy, dx), dim=(1, 2), edge_order=1)
+
+    # div_u = divergence(u=du_dy,
+    #                    v=du_dx,
+    #                    dx=dx,
+    #                    dy=dy,
+    #                    boundary=None)
+
+    # return div_u
+
+    u_pad = F.pad(u, (1,1,1,1), mode='constant', value=0)
+    lap = (u_pad[:,2:,1:-1] - 2*u + u_pad[:,:-2,1:-1]) / dy**2 +(u_pad[:,1:-1,2:] - 2*u + u_pad[:,1:-1,:-2]) / dx**2
     
     return lap
 
@@ -75,31 +86,31 @@ def laplacian(v, dx, dy, boundary):
 
 #     return d2u_dx2 + d2u_dy2
 
-def laplacian_2d(v, dx, dy):
-    dx = dx.view(-1, 1, 1, 1)
-    dy = dy.view(-1, 1, 1, 1)
+# def laplacian_2d(v, dx, dy):
+#     dx = dx.view(-1, 1, 1, 1)
+#     dy = dy.view(-1, 1, 1, 1)
 
-    # v_pad = F.pad(v, (1, 1, 1, 1), mode='constant', value=0)
-    v_pad = F.pad(v, (1, 1, 1, 1), mode='replicate')
+#     v_pad = F.pad(v, (1, 1, 1, 1), mode='constant', value=0)
+#     # v_pad = F.pad(v, (1, 1, 1, 1), mode='replicate')
 
-    lap = ((v_pad[:, :, 2:, 1:-1] - 2 * v + v_pad[:, :, :-2, 1:-1]) / dy**2 +
-           (v_pad[:, :, 1:-1, 2:] - 2 * v + v_pad[:, :, 1:-1, :-2]) / dx**2)
+#     lap = ((v_pad[:, :, 2:, 1:-1] - 2 * v + v_pad[:, :, :-2, 1:-1]) / dy**2 +
+#            (v_pad[:, :, 1:-1, 2:] - 2 * v + v_pad[:, :, 1:-1, :-2]) / dx**2)
     
-    return lap
+#     return lap
 
 def divergence(u, v, dx, dy, boundary, numpy_=False):
-    dy = float(dy[0].item())
-    dx = float(dx[0].item())
-    
-    du_dy, du_dx = torch.gradient(u, spacing=(dy, dx), dim=(1, 2), edge_order=2)
-    dv_dy, dv_dx = torch.gradient(v, spacing=(dy, dx), dim=(1, 2), edge_order=2)
 
-    # du_dx = derivative(u, dx, boundary, numpy_)
+    if numpy_:
+        print(u.shape)
+        # TODO: Change the axes later
+        du_dy, du_dx = np.gradient(u, dy, dx, axis=(1, 2), edge_order=1)
+        dv_dy, dv_dx = np.gradient(v, dy, dx, axis=(1, 2), edge_order=1)
+    else:
+        # dy = float(dy[0].item())
+        # dx = float(dx[0].item())
 
-    # if numpy_:
-    #     dv_dy = derivative(v.transpose(0, 2, 1), dy, boundary.transpose(0, 2, 1), numpy_).transpose(0, 2, 1)
-    # else:
-    #     dv_dy = derivative(v.transpose(1, 2), dy, boundary.transpose(1, 2), numpy_).transpose(1, 2)
+        du_dy, du_dx = torch.gradient(u, spacing=(dy, dx), dim=(1, 2), edge_order=1)
+        dv_dy, dv_dx = torch.gradient(v, spacing=(dy, dx), dim=(1, 2), edge_order=1)
 
     return du_dx + dv_dy
 

@@ -12,6 +12,7 @@ from derivatives import *
 
 cmap = mpl.cm.Blues(np.linspace(0,1,20))
 cmap = mpl.colors.ListedColormap(cmap[10:,:-1])
+# cmap = "viridis"
 
 def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=None):
 
@@ -119,8 +120,8 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     X, Y = np.meshgrid(np.linspace(0, width, width) + 0.5, 
                        np.linspace(0, height, height) + 0.5)
     
-    im2 = ax[2].quiver(X[::8, ::8], Y[::8, ::8], u[0, ::8, ::8], u[1, ::8, ::8], color="black", alpha = 1)
-    im2 = ax[2].quiver(X[::8, ::8], Y[::8, ::8], u_star[0, ::8, ::8], u_star[1, ::8, ::8], color="red", alpha = 1)
+    im2 = ax[2].quiver(X[::4, ::4], Y[::4, ::4], u[0, ::4, ::4], u[1, ::4, ::4], color="black", alpha = 1)
+    im2 = ax[2].quiver(X[::4, ::4], Y[::4, ::4], u_star[0, ::4, ::4], u_star[1, ::4, ::4], color="red", alpha = 1)
 
     im3 = ax[3].imshow(div_u)
     # div_u_star = divergence(u_star.transpose((1, 2, 0)), dx.item(), dy.item(), numpy_=True)
