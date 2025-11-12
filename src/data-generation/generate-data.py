@@ -11,7 +11,7 @@ sys.path.insert(0, "..")
 
 from numeric_method.numeric_method import solve_navier_stokes
 
-DATA_PATH = "../../data/generated_data"
+DATA_PATH = "../../../data"
 NUM_CASES = 100
 CYLINDER_SPLIT = 20
 DAM_SPLIT = 60
@@ -94,7 +94,8 @@ def main():
                 "size": cylinder_r
             })
 
-        delta_t = case_["dx"] / 100
+        # delta_t = case_["dx"] / 100
+        # delta_t = case_["time_step"]
 
         u, p, u_star, div_u_star, phi = solve_navier_stokes(
             case_["width"],
@@ -102,7 +103,7 @@ def main():
             case_["dx"],
             case_["dy"],
             case_["iterations"],
-            delta_t,
+            case_["time_step"],
             density,
             viscosity,
             case_["beta"],

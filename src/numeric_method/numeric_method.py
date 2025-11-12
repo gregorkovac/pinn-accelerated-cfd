@@ -82,7 +82,8 @@ def solve_discrete_poisson(u, A):
     # u[i] = 0
 
     # Solve the system
-    phi_flat, info = spla.cg(A, u)
+    # phi_flat, info = spla.cg(A, u)
+    phi_flat = spla.spsolve(A, u)
     # print("CG info:", info)
 
     # Reshape the solution vector into a matrix
@@ -179,6 +180,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         # Compute intermediate velocity
         u_star = u - delta_t * conv_u - beta * delta_t / density * grad_p + delta_t * viscosity * lapl_u
 
+
     # Apply boundary
     u_star, _ = boundary(geometry, u = u_star)
 
@@ -189,9 +191,10 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                      boundary=None,
                      numpy_=True)
 
+    # div_before = div.mean()
 
     # Scale the divergence of u star
-    div_u_star = density / delta_t * div
+    div_u_star = (density / delta_t) * div
 
     # Solve Poisson's equation using a model
     if poisson_model is not None:
@@ -205,7 +208,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             div_u_star_ = torch.from_numpy(div_u_star).float().to(device).unsqueeze(0)
 
             # Create a coordinate grid
-            grid_x, grid_y = torch.meshgrid(
+            grid_y, grid_x = torch.meshgrid(
                     torch.linspace(0, n * dy, n),
                     torch.linspace(0, m * dx, m),
                     indexing="ij"
@@ -245,6 +248,14 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                                        delta_t_
                                     ], dim=0).unsqueeze(0)
 
+            # fig, ax = plt.subplots(3, 4)
+            # ax = ax.flatten()
+            # for j in range(0, 12):
+            #     im = ax[j].imshow(u_star_coords[-1][j].cpu().detach().numpy())
+            #     plt.colorbar(im)
+
+            # plt.show()
+
             u_star_coords = (u_star_coords - x_mean) / x_std
 
             # Perform a forward pass and obtain the pressure correction
@@ -265,6 +276,8 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
     # Compute the new velocity field
     u = u_star - delta_t / density * grad_phi
+
+    # print(div.mean())
 
     # Update pressure
     p = phi + beta * p
@@ -344,7 +357,13 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                         input_width=width,
                         input_height=height,
                         enforceBC=dataset.enforceBC,
-                        use_skip=True)
+                        use_skip=True,
+                        activation=params["activation"],
+                        architecture=params["architecture"],
+                        pooling=params["pooling"],
+                        upsampling=params["upsampling"],
+                        norm=params["norm"],
+                    )
 
             device = torch.device('cpu')
             
@@ -376,6 +395,8 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         input_tensor = None
         i_indices = None
         j_indices = None
+        x_mean = None
+        x_std = None
 
     # Initialize lists for results
     results_u = []
@@ -474,9 +495,9 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
             # Perform one step of the solver
             u_new, p_new, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian, model, iter=iter, geometry_mtx=geometry_mtx, x_mean=x_mean, x_std=x_std)
 
-            if np.max(np.abs(u - u_new)) < 1e-5 and np.max(np.abs(p - p_new)) < 1e-5:
-                print(f"\t Converged after {iter} iterations.")
-                break
+            # if np.max(np.abs(u - u_new)) < 1e-5 and np.max(np.abs(p - p_new)) < 1e-5:
+            #     print(f"\t Converged after {iter} iterations.")
+            #     break
 
             u = u_new
             p = p_new

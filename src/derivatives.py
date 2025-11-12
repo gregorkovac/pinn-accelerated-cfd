@@ -101,16 +101,16 @@ import torch
 #     else:
 #         return torch.stack([du_dy, du_dx], dim=1)
 
-def grad(u, dx, dy, boundary=None, numpy_=False):
-    if numpy_:
-        grad_u = np.gradient(u, dy, dx, axis=(0, 1))
-        return np.stack((grad_u[1], grad_u[0]), axis=-1)
+# def grad(u, dx, dy, boundary=None, numpy_=False):
+#     if numpy_:
+#         grad_u = np.gradient(u, dy, dx, axis=(0, 1), edge_order=2)
+#         return np.stack((grad_u[1], grad_u[0]), axis=-1)
     
-    spacing = (dy, dx) if isinstance(dy, (int, float)) else (dy[0].item(), dx[0].item())
+#     spacing = (dy, dx) #if isinstance(dy, (int, float)) else (dy[0].item(), dx[0].item())
 
-    du_dy, du_dx = torch.gradient(u, spacing=spacing, dim=(-2, -1))
+#     du_dy, du_dx = torch.gradient(u, spacing=spacing, dim=(-1, -2), edge_order=2)
 
-    return torch.stack((du_dx, du_dy), dim=1)
+#     return torch.stack((du_dx, du_dy), dim=1)
 
 
 def unpack_grad(grad_u, numpy_=False):
@@ -127,6 +127,31 @@ def unpack_grad(grad_u, numpy_=False):
 
     return duy_dy, dux_dy, duy_dx, dux_dx
 
+# def unpack_grad(grad_u, numpy_=False):
+#     if numpy_:
+#         du_dx, du_dy = grad_u[..., 0], grad_u[..., 1]
+#         dux_dy, duy_dy = du_dy[..., 0], du_dy[..., 1]
+#         dux_dx, duy_dx = du_dx[..., 0], du_dx[..., 1]
+#     else:
+#         du_dx, du_dy = grad_u[:, 0], grad_u[:, 1]
+#         dux_dy, duy_dy = du_dy[:, 0], du_dy[:, 1]
+#         dux_dx, duy_dx = du_dx[:, 0], du_dx[:, 1]
+
+#     return duy_dy, dux_dy, duy_dx, dux_dx
+
+
+def grad(u, dx, dy, boundary=None, numpy_=False):
+    if numpy_:
+        du_dx = (np.roll(u, -1, axis=1) - np.roll(u, 1, axis=1)) / (2 * dx)
+        du_dy = (np.roll(u, -1, axis=0) - np.roll(u, 1, axis=0)) / (2 * dy)
+        return np.stack((du_dx, du_dy), axis=-1)
+    else:
+        u_padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
+        du_dx = (torch.roll(u, -1, dims=-1) - torch.roll(u, 1, dims=-1)) / (2 * dx)
+        du_dy = (torch.roll(u, -1, dims=-2) - torch.roll(u, 1, dims=-2)) / (2 * dy)
+        
+        return torch.stack((du_dx, du_dy), dim=1)
+
 def divergence(u, dx, dy, boundary = None, numpy_=False):
     grad_u = grad(u=u,
                   dx=dx,
@@ -139,6 +164,16 @@ def divergence(u, dx, dy, boundary = None, numpy_=False):
     div = dux_dx + duy_dy
 
     return div
+
+# def divergence(u, dx, dy, boundary=None, numpy_=False):
+#     if numpy_:
+#         dux_dx = (np.roll(u[..., 0], -1, axis=1) - np.roll(u[..., 0], 1, axis=1)) / (2 * dx)
+#         duy_dy = (np.roll(u[..., 1], -1, axis=0) - np.roll(u[..., 1], 1, axis=0)) / (2 * dy)
+#         return dux_dx + duy_dy
+#     else:
+#         dux_dx = (torch.roll(u[..., 0], -1, dims=2) - torch.roll(u[..., 0], 1, dims=2)) / (2 * dx)
+#         duy_dy = (torch.roll(u[..., 1], -1, dims=1) - torch.roll(u[..., 1], 1, dims=1)) / (2 * dy)
+#         return dux_dx + duy_dy
 
 def convective(u, dx, dy, boundary = None, numpy_=False):
     grad_u = grad(u=u,
@@ -164,33 +199,46 @@ def convective(u, dx, dy, boundary = None, numpy_=False):
 
     return conv
 
-def laplacian(u, dx, dy, boundary = None, numpy_=False):
-
+def laplacian(u, dx, dy, boundary=None, numpy_=False):
     if numpy_:
-        u_padded = np.pad(u, [(0, 0)] * (u.ndim - 2) + [(1, 1), (1, 1)], mode="edge")
+        d2u_dx2 = (np.roll(u, -1, axis=1) - 2 * u + np.roll(u, 1, axis=1)) / (dx ** 2)
+        d2u_dy2 = (np.roll(u, -1, axis=0) - 2 * u + np.roll(u, 1, axis=0)) / (dy ** 2)
+
+        return d2u_dx2 + d2u_dy2
     else:
         u_padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
+        d2u_dx2 = (torch.roll(u_padded, -1, dims=-1) - 2 * u_padded + torch.roll(u_padded, 1, dims=-1)) / (dx ** 2)
+        d2u_dy2 = (torch.roll(u_padded, -1, dims=-2) - 2 * u_padded + torch.roll(u_padded, 1, dims=-2)) / (dy ** 2)
+        
+        return (d2u_dx2 + d2u_dy2)[..., 1:-1, 1:-1]
 
-        dx = dx[0].item()
-        dy = dy[0].item()
+# def laplacian(u, dx, dy, boundary = None, numpy_=False):
 
-    d2u_dx2 = (u_padded[..., 1:-1, 2:] - 2 * u_padded[..., 1:-1, 1:-1] + u_padded[..., 1:-1, :-2]) / dx**2
-    d2u_dy2 = (u_padded[..., 2:, 1:-1] - 2 * u_padded[..., 1:-1, 1:-1] + u_padded[..., :-2, 1:-1]) / dy**2
+#     # if numpy_:
+#     #     u_padded = np.pad(u, [(0, 0)] * (u.ndim - 2) + [(1, 1), (1, 1)], mode="edge")
+#     # else:
+#     #     u_padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
 
-    lapl = d2u_dx2 + d2u_dy2
-    return lapl
+#     #     # dx = dx[0].item()
+#     #     # dy = dy[0].item()
+
+#     # d2u_dx2 = (u_padded[..., 1:-1, 2:] - 2 * u_padded[..., 1:-1, 1:-1] + u_padded[..., 1:-1, :-2]) / dx**2
+#     # d2u_dy2 = (u_padded[..., 2:, 1:-1] - 2 * u_padded[..., 1:-1, 1:-1] + u_padded[..., :-2, 1:-1]) / dy**2
+
+#     # lapl = d2u_dx2 + d2u_dy2
+#     # return lapl
 
 
-    # grad_u = grad(u=u,
-    #               dx=dx,
-    #               dy=dy,
-    #               boundary=boundary,
-    #               numpy_=numpy_)
+#     grad_u = grad(u=u,
+#                   dx=dx,
+#                   dy=dy,
+#                   boundary=boundary,
+#                   numpy_=numpy_)
 
-    # lapl = divergence(u=grad_u,
-    #                   dx=dx,
-    #                   dy=dy,
-    #                   boundary=boundary,
-    #                   numpy_=numpy_)
+#     lapl = divergence(u=grad_u,
+#                       dx=dx,
+#                       dy=dy,
+#                       boundary=boundary,
+#                       numpy_=numpy_)
 
-    # return lapl
+#     return lapl
