@@ -149,6 +149,8 @@ def main():
     np.random.seed(0)
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
+    # torch.use_deterministic_algorithms(True)
+    # torch.backends.cudnn.benchmark = False
     # torch.set_default_device("cuda")
 
     # Set up Weights and Biases
@@ -207,9 +209,12 @@ def main():
 
 
     # TODO: Normalization logic should probably be moved to the dataset
-    dont_normalize = [3, 4, 5, 8, 9, 10, 11]
+    dont_normalize = [3, 4, 5, 8, 9]
     x_mean[:, dont_normalize] = 0
     x_std[:, dont_normalize] = 1
+
+    # x_mean[...] = 0
+    # x_std[...] = 1
 
     # x_mean[:, 1] = 0
     # x_mean[:, 2] = 0
@@ -251,19 +256,19 @@ def main():
     else:
         sampler_batch_size = samples_per_case
 
-    batch_sampler = CaseBatchSampler(len(train_dataset), sampler_batch_size)
 
     # Initialize data loader
-    # train_dataloader = DataLoader(train_dataset,
-    #                             batch_size=batch_size,
-    #                             shuffle=True,
-    #                             num_workers=num_workers,
-    #                             pin_memory=pin_memory)
-    
     train_dataloader = DataLoader(train_dataset,
-                                batch_sampler=batch_sampler,
+                                batch_size=batch_size,
+                                shuffle=True,
                                 num_workers=num_workers,
                                 pin_memory=pin_memory)
+    
+    # batch_sampler = CaseBatchSampler(len(train_dataset), sampler_batch_size)
+    # train_dataloader = DataLoader(train_dataset,
+    #                             batch_sampler=batch_sampler,
+    #                             num_workers=num_workers,
+    #                             pin_memory=pin_memory)
     
 
     val_dataloader = DataLoader(val_dataset,
@@ -309,7 +314,7 @@ def main():
                                       history_size=100, 
                                       line_search_fn='strong_wolfe')
     elif optimizer_ == "adam":
-        optimizer = torch.optim.AdamW(model.parameters(), 
+        optimizer = torch.optim.Adam(model.parameters(), 
                                       lr=lr)
 
     if use_scheduler:
@@ -352,11 +357,25 @@ def main():
             # Extract data
             x, delta_x, delta_y, _, _, _, _, _ = data
 
-            x = x.to(device).detach()#.clone()#.requires_grad_(True)
-            delta_x = delta_x.to(device).detach()
-            delta_y = delta_y.to(device).detach()
+            x = x.to(device) #.detach()#.clone()#.requires_grad_(True)
+            delta_x = delta_x.to(device) #.detach()
+            delta_y = delta_y.to(device) #.detach()
 
             batch_loss = [0, 0, 0, 0, 0]
+
+            # outputs = model(x)
+
+            # x_norm = x * x_std.to(device) + x_mean.to(device)
+
+            # l = criterion(x, outputs, delta_x, delta_y, loss_weights,)
+
+            # optimizer.zero_grad()
+            # l[0].backward()
+            # optimizer.step()
+
+            # for i in range(len(l)):
+            #     batch_loss[i] = l[i].item()
+
 
             def closure():
                 optimizer.zero_grad()
@@ -366,7 +385,7 @@ def main():
 
                     x_norm = x * x_std.to(device) + x_mean.to(device)
                     
-                    l = criterion(x_norm, outputs, delta_x, delta_y, loss_weights)
+                    l = criterion(x_norm, outputs, delta_x, delta_y, loss_weights,)
                     l[0].backward()
 
                 for i in range(len(l)):
@@ -390,9 +409,9 @@ def main():
         with torch.no_grad():
             for data in val_dataloader:
                 x, delta_x, delta_y, _, _, _, _, _ = data
-                x = x.to(device).detach()#.clone() #.requires_grad_(True)
-                delta_x = delta_x.to(device).detach()
-                delta_y = delta_y.to(device).detach()
+                x = x.to(device) #.detach()#.clone() #.requires_grad_(True)
+                delta_x = delta_x.to(device) #.detach()
+                delta_y = delta_y.to(device) #.detach()
 
                 outputs = model(x)
 
@@ -430,6 +449,10 @@ def main():
         # if best_loss < val_loss_unweighted and np.abs(best_loss - val_loss_unweighted) > 0.01:
         #     print("OVERFITTING DETECTED - STOPPING TRAINING")
         #     break
+
+        # for name, param in model.named_parameters():
+        #     if param.grad is not None:
+        #         print(name, param.grad.abs().mean().item())
 
         prev_loss = loss[0]
 

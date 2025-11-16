@@ -11,9 +11,9 @@ import random
 def load_case(data_path, idx, samples_per_case=-1):
     case_path = os.path.join(data_path, f"{idx}")
 
-    u_star = np.load(os.path.join(case_path, "u_star.npy"))[:100]
-    div_u_star = np.load(os.path.join(case_path, "div_u_star.npy"))[:100]
-    phi = np.load(os.path.join(case_path, "phi.npy"))[:100]
+    u_star = np.load(os.path.join(case_path, "u_star.npy"))
+    div_u_star = np.load(os.path.join(case_path, "div_u_star.npy"))
+    phi = np.load(os.path.join(case_path, "phi.npy"))
 
     with open(os.path.join(case_path, "params.json")) as f:
         params = json.load(f)
@@ -157,9 +157,9 @@ class PINNDataset(Dataset):
 
                 # Create a coordinate grid
                 grid_y, grid_x = torch.meshgrid(
-                        torch.linspace(0, self.height, self.height),
-                        torch.linspace(0, self.width, self.width),
-                        indexing="ij"
+                        torch.linspace(0, 1, self.height),
+                        torch.linspace(0, 1, self.width),
+                        indexing="xy"
                 )
                 self.coords = torch.stack([grid_x, grid_y], dim=0).to(device)
 
@@ -253,7 +253,7 @@ class PoissonPINNDataset(PINNDataset):
             #         ], dim=0))
 
             self.x.append(torch.cat([
-                           self.div_u_star[idx].unsqueeze(0), # 0
+                           0 * self.div_u_star[idx].unsqueeze(0), #* (1 - self.boundary_mask[idx].unsqueeze(0)), # 0
                            self.coords, # 1, 2
                            self.p_dirichlet[idx].unsqueeze(0), # 3,
                            self.p_dirichlet_mask[idx].unsqueeze(0), # 4

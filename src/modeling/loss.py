@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 
 # from derivatives import compute_grads, divergence, laplacian, laplacian_2d, compute_spatial_derivatives, derivative
 
@@ -23,8 +24,8 @@ class PoissonLoss(nn.Module):
         delta_y = delta_y.to(output.device).view(-1, 1, 1)
 
         phi = output[:, 0:1]
-        # div_u_star = x[:, 0]
-        boundary_mask = x[:, 5]
+        # div_u_star_orig = x[:, 0]
+        boundary_mask = x[:, 5:6]
         u_star = x[:, 6:8]
         p_neumann = x[:, 8:10]
         p_dirichlet = x[:, 3:4]
@@ -32,28 +33,94 @@ class PoissonLoss(nn.Module):
         rho = x[:, 10:11]
         delta_t = x[:, 11:12]
 
+        # eroded_mask = -F.max_pool2d(-boundary_mask, kernel_size=3, stride=1, padding=3 // 2)
+
+        # eroded_mask = (eroded_mask > 0.5).float()
+        # boundary_mask = eroded_mask
+
+        # plt.ioff()
+        # fig, ax = plt.subplots(1, 2)
+        # ax[0].imshow(boundary_mask[0].cpu().detach().numpy())
+        # ax[1].imshow(eroded_mask[0].cpu().detach().numpy())
+        # plt.show()
+
+        # u_star_np = u_star.cpu().detach().numpy()
+        # u_star_np = u_star_np.transpose(0, 2, 3, 1)
+        # u_star_np = u_star_np[0]
+        # div_u_star_orig = divergence(u_star_np,
+        #                         float(delta_x[0].item()),
+        #                         float(delta_y[0].item()),
+        #                         boundary_mask,
+        #                         numpy_=True)
+
         div_u_star = divergence(u_star,
                                 float(delta_x[0].item()),
                                 float(delta_y[0].item()),
                                 boundary_mask)
+        
+        # plt.ioff()
+        # fig, ax = plt.subplots(1, 2)
+        # im0 = ax[0].imshow(div_u_star_orig)
+        # im1 = ax[1].imshow(div_u_star[0].cpu().detach().numpy())
+        # ax[0].set_title("numpy")
+        # ax[1].set_title("torch")
+        # plt.colorbar(im0)
+        # plt.colorbar(im1)
+        # plt.show()
+
+        div_u_star = div_u_star.unsqueeze(1)
 
         div_u_star = div_u_star * rho / delta_t     
+
+        # div_u_star_orig = div_u_star_orig.unsqueeze(1)
 
         # Compute the laplacian of pressure
         laplacian_phi = laplacian(phi, float(delta_x[0].item()), float(delta_y[0].item()), boundary_mask)
 
+        # plt.ioff()
+        # plt.imshow(div_u_star[0, 0].cpu().detach().numpy())
+        # plt.show()
+
+        # div_u_star *= (1 - boundary_mask)
+
         loss_pde = (laplacian_phi - div_u_star) ** 2 #/ ((div_u_star ** 2).mean() + 1e-8)
+
+        # loss_pde = loss_pde * (1 - p_dirichlet_mask)
+
+        # plt.ioff()
+        # plt.imshow((boundary_mask[0].float() - p_dirichlet_mask[0, 0].float()).cpu().detach().numpy())
+        # plt.show()
 
         # loss_pde /= ((div_u_star ** 2).mean().detach() + 1e-6)
 
-        loss_pde *= (1 - boundary_mask)
+        # boundary_mask[:, :, 1:-1, 0] = 0
+        # boundary_mask[:, :, 1:-1, -1] = 0
+
+        # loss_pde *= (1 - boundary_mask)
+        # loss_pde *= (1 - (boundary_mask[0].float() - p_dirichlet_mask[0, 0].float()))
+        # loss_pde[loss_pde == 0] = 1e-8
 
         loss_pde = torch.mean(loss_pde)
 
+        # loss_pde = torch.mean(loss_pde)
+        # loss_pde = torch.sqrt(torch.mean(loss_pde))
+        # loss_pde = torch.mean(torch.log(loss_pde))
 
-        loss_nonneg = torch.mean(torch.relu(-output) ** 2)
+
+        # loss_nonneg = torch.mean(torch.relu(-output) ** 2)
+        loss_nonneg = torch.tensor(0, device=output.device)
 
         loss_bc = torch.tensor(0, device=output.device)
+        # loss_bc = torch.mean(loss_pde_b)
+
+        # grad_phi = grad(phi,
+        #                 float(delta_x[0].item()),
+        #                 float(delta_y[0].item()),
+        #                 boundary_mask)
+
+        # loss_bc = torch.mean((grad_phi[:, 0] * p_neumann[:, 1]) ** 2) + torch.mean((grad_phi[:, 1] * p_neumann[:, 0]) ** 2)
+
+        # loss_bc = torch.mean((phi[p_dirichlet_mask] - p_dirichlet[p_dirichlet_mask]) ** 2)
 
         loss_div = torch.tensor(0, device=output.device)
 

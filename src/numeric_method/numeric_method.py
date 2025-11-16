@@ -196,6 +196,8 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # Scale the divergence of u star
     div_u_star = (density / delta_t) * div
 
+    # _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, n, m)
+
     # Solve Poisson's equation using a model
     if poisson_model is not None:
 
@@ -209,9 +211,9 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
             # Create a coordinate grid
             grid_y, grid_x = torch.meshgrid(
-                    torch.linspace(0, n * dy, n),
-                    torch.linspace(0, m * dx, m),
-                    indexing="ij"
+                    torch.linspace(0, 1, n),
+                    torch.linspace(0, 1, m),
+                    indexing="xy"
                 )
             coords = torch.stack([grid_x, grid_y], dim=0)
 
@@ -237,7 +239,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             #                            delta_t_,
             #                            boundary_mask_
             #                         ], dim=0).unsqueeze(0)
-            u_star_coords = torch.cat([div_u_star_, 
+            u_star_coords = torch.cat([0 * div_u_star_, # TODO: THIS IS ZERO
                                        coords, 
                                        p_dirichlet,
                                        p_dirichlet_mask,
@@ -277,7 +279,14 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # Compute the new velocity field
     u = u_star - delta_t / density * grad_phi
 
-    # print(div.mean())
+    div = divergence(u, dx=dx, dy=dy, boundary=None, numpy_=True)
+
+    div = div ** 2
+
+    _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, n, m)
+    div *= (1 - boundary_mask)
+
+    print(f"{div.mean():.5f} +- {div.std():.5f}")
 
     # Update pressure
     p = phi + beta * p
@@ -325,6 +334,21 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
 
     A_poisson = compute_discrete_laplacian(height, width, dx, dy)
 
+    # randu = np.random.rand(height, width)
+
+    # randu[5:12, 3:30] = 1
+    # randu[33:45, 45:55] = 0
+
+    # lap_mtx = A_poisson @ randu.ravel()
+    # lap_op = laplacian(randu, dx, dy, None, numpy_=True)
+
+    # plt.ioff()
+    # fig, ax = plt.subplots(figsize=(16, 9), nrows=1, ncols=4)
+    # ax[0].imshow(randu)
+    # ax[1].imshow(lap_mtx.reshape((height, width)))
+    # ax[2].imshow(lap_op)
+    # ax[3].imshow((lap_mtx.reshape((height, width)) - lap_op) ** 2)
+    # plt.show()
 
     if implicit_laplacian:
         # A_laplacian = compute_discrete_laplacian(height, width, dx, dy)

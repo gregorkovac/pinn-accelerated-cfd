@@ -142,14 +142,27 @@ def unpack_grad(grad_u, numpy_=False):
 
 def grad(u, dx, dy, boundary=None, numpy_=False):
     if numpy_:
-        du_dx = (np.roll(u, -1, axis=1) - np.roll(u, 1, axis=1)) / (2 * dx)
-        du_dy = (np.roll(u, -1, axis=0) - np.roll(u, 1, axis=0)) / (2 * dy)
+        pad_width = [(1,1), (1,1)] + [(0,0)] * (u.ndim - 2)
+        u_padded = np.pad(u, pad_width, mode="edge")
+        # u_padded = u
+
+        du_dx = (np.roll(u_padded, -1, axis=1) - np.roll(u_padded, 1, axis=1)) / (2 * dx)
+        du_dy = (np.roll(u_padded, -1, axis=0) - np.roll(u_padded, 1, axis=0)) / (2 * dy)
+
+        du_dx = du_dx[1:-1, 1:-1]
+        du_dy = du_dy[1:-1, 1:-1]
+
         return np.stack((du_dx, du_dy), axis=-1)
     else:
+        # u_padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="constant", value=0)
         u_padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
-        du_dx = (torch.roll(u, -1, dims=-1) - torch.roll(u, 1, dims=-1)) / (2 * dx)
-        du_dy = (torch.roll(u, -1, dims=-2) - torch.roll(u, 1, dims=-2)) / (2 * dy)
-        
+        # u_padded = u
+        du_dx = (torch.roll(u_padded, -1, dims=-1) - torch.roll(u_padded, 1, dims=-1)) / (2 * dx)
+        du_dy = (torch.roll(u_padded, -1, dims=-2) - torch.roll(u_padded, 1, dims=-2)) / (2 * dy)
+
+        du_dx = du_dx[..., 1:-1, 1:-1]
+        du_dy = du_dy[..., 1:-1, 1:-1]
+
         return torch.stack((du_dx, du_dy), dim=1)
 
 def divergence(u, dx, dy, boundary = None, numpy_=False):
@@ -201,16 +214,29 @@ def convective(u, dx, dy, boundary = None, numpy_=False):
 
 def laplacian(u, dx, dy, boundary=None, numpy_=False):
     if numpy_:
-        d2u_dx2 = (np.roll(u, -1, axis=1) - 2 * u + np.roll(u, 1, axis=1)) / (dx ** 2)
-        d2u_dy2 = (np.roll(u, -1, axis=0) - 2 * u + np.roll(u, 1, axis=0)) / (dy ** 2)
+        # u_padded = np.pad(u, (1, 1, 1, 1), mode="edge")
+        pad_width = [(1,1), (1,1)] + [(0,0)] * (u.ndim - 2)
+        # u_padded = np.pad(u, pad_width, mode="edge")
+        u_padded = np.pad(u, pad_width, mode="constant")
+        # u_padded = u
 
-        return d2u_dx2 + d2u_dy2
+        d2u_dx2 = (np.roll(u_padded, -1, axis=1) - 2 * u_padded + np.roll(u_padded, 1, axis=1)) / (dx ** 2)
+        d2u_dy2 = (np.roll(u_padded, -1, axis=0) - 2 * u_padded + np.roll(u_padded, 1, axis=0)) / (dy ** 2)
+
+        res = (d2u_dx2 + d2u_dy2)[1:-1, 1:-1]
+
+        return res
     else:
-        u_padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
+        u_padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="constant", value=0)
+        # u_padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
+        # u_padded = u
+
         d2u_dx2 = (torch.roll(u_padded, -1, dims=-1) - 2 * u_padded + torch.roll(u_padded, 1, dims=-1)) / (dx ** 2)
         d2u_dy2 = (torch.roll(u_padded, -1, dims=-2) - 2 * u_padded + torch.roll(u_padded, 1, dims=-2)) / (dy ** 2)
         
-        return (d2u_dx2 + d2u_dy2)[..., 1:-1, 1:-1]
+        res = (d2u_dx2 + d2u_dy2)[..., 1:-1, 1:-1]
+        
+        return res
 
 # def laplacian(u, dx, dy, boundary = None, numpy_=False):
 

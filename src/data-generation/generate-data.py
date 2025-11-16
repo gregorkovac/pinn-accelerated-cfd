@@ -11,10 +11,10 @@ sys.path.insert(0, "..")
 
 from numeric_method.numeric_method import solve_navier_stokes
 
-DATA_PATH = "../../../data"
+DATA_PATH = "../../../data_simple"
 NUM_CASES = 100
-CYLINDER_SPLIT = 20
-DAM_SPLIT = 60
+CYLINDER_SPLIT = 0
+DAM_SPLIT = 50
 
 def main():
     case_path = "../../data/cases/pipe.json"
@@ -33,14 +33,18 @@ def main():
         w = case_["width"]
         h = case_["height"]
 
-        density = float(10 ** np.random.uniform(np.log10(1e-2), np.log10(10)))
-        inflow = float(10 ** np.random.uniform(np.log10(1e-1), np.log10(5)))
+        # density = float(10 ** np.random.uniform(np.log10(1e-2), np.log10(10)))
+        # inflow = float(10 ** np.random.uniform(np.log10(1e-1), np.log10(5)))
 
-        L = (h - 2) * 0.01
-        Re = np.random.uniform(0.1, 20)
+        # L = (h - 2) * 0.01
+        # Re = np.random.uniform(0.1, 20)
 
-        viscosity = float((density * inflow * L) / Re)
-        viscosity = viscosity / density
+        # viscosity = float((density * inflow * L) / Re)
+        # viscosity = viscosity / density
+
+        density = 1
+        viscosity = 0.01
+        inflow = 1
 
         g = copy.deepcopy(case_["geometry"])
 

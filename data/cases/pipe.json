@@ -1,25 +1,41 @@
 {
-    "width": 20,
-    "height": 20,
-    "grid_spacing": 0.1,
+    "width": 64,
+    "height": 64,
+    "dx": 0.01,
+    "dy": 0.01,
     "iterations": 300,
-    "time_step": 0.01,
+    "time_step": 0.0001,
     "density": 1,
     "viscosity": 0.1,
     "beta": 0,
     "geometry": [
         {
-            "type": "inflow",
+            "type": "outflow",
             "pos": {
-                "x": 0,
-                "y": 0
+                "x": -1,
+                "y": 1
             },
             "size": {
                 "width": 1,
-                "height": 20
+                "height": 62
+            },
+            "dir": {
+                "x": -1,
+                "y": 0
+            }
+        },
+        {
+            "type": "inflow",
+            "pos": {
+                "x": 0,
+                "y": 1
+            },
+            "size": {
+                "width": 1,
+                "height": 62
             },
             "vel": {
-                "x": 1,
+                "x": 1.0,
                 "y": 0
             }
         },
@@ -30,7 +46,7 @@
                 "y": 0
             },
             "size": {
-                "width": 20,
+                "width": -1,
                 "height": 1
             },
             "dir": {
@@ -42,30 +58,15 @@
             "type": "wall",
             "pos": {
                 "x": 0,
-                "y": 19
+                "y": -1
             },
             "size": {
-                "width": 20,
+                "width": -1,
                 "height": 1
             },
             "dir": {
                 "x": 0,
                 "y": -1
-            }
-        },
-        {
-            "type": "outflow",
-            "pos": {
-                "x": 19,
-                "y": 0
-            },
-            "size": {
-                "width": 1,
-                "height": 20
-            },
-            "dir": {
-                "x": -1,
-                "y": 0
             }
         }
     ]

@@ -38,7 +38,7 @@ def main(case_name = None):
         return_div_u_star=True,
         method_type="poisson_model", # numeric, poisson_model, full_model
         # model_path="../../models/full/2025-11-03_19_42"
-        model_path="../../models/poisson/2025-11-12_20_17"
+        model_path="../../models/poisson/2025-11-16_14_11"
     )
 
     plot_flow_animation(u, p, case["dx"], case["geometry"], frame_step=2)

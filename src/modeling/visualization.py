@@ -81,12 +81,17 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
 
     u_star = in_[6:8].detach().numpy()
 
+    rho = rho.detach().numpy()
+    delta_t = delta_t.detach().numpy()
+
     # x = x.detach().squeeze().numpy()
     # y = y.detach().squeeze().numpy()
 
-    x_ = x * (1 - boundary.cpu().detach().numpy())
-    y_ = y * (1 - boundary.cpu().detach().numpy())
-    u = u * (1 - boundary.cpu().detach().numpy())
+    # x_ = x * (1 - boundary.cpu().detach().numpy())
+    # y_ = y * (1 - boundary.cpu().detach().numpy())
+    # u = u * (1 - boundary.cpu().detach().numpy())
+    x_ = x
+    y_ = y
     # u_star = u_star * (1 - boundary.cpu().detach().numpy())
 
     # x_ = x
@@ -98,11 +103,15 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     # div_u = div_u * (1 - boundary.detach().numpy())
     # div_u = div_u ** 2
 
+    laplacian_phi = laplacian(x, dx, dy, boundary=boundary, numpy_=True)
 
-    grad_ux = np.gradient(u[1], dy, dx, edge_order=2)
-    grad_uy = np.gradient(u[0], dy, dx, edge_order=2)
-    div_u = grad_ux[1] + grad_uy[0]
-    div_u = div_u * (1 - boundary.detach().numpy())
+    div_u = divergence(u_star.transpose((1, 2, 0)), dx, dy, boundary=boundary, numpy_=True)
+    div_u = div_u * rho / delta_t
+
+    # grad_ux = np.gradient(u[1], dy, dx, edge_order=2)
+    # grad_uy = np.gradient(u[0], dy, dx, edge_order=2)
+    # div_u = grad_ux[1] + grad_uy[0]
+    # div_u = div_u * (1 - boundary.detach().numpy())
 
     # laplacian_phi = laplacian(u = x,
     #                             dx = dx.item(),
@@ -120,8 +129,10 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     X, Y = np.meshgrid(np.linspace(0, width, width) + 0.5, 
                        np.linspace(0, height, height) + 0.5)
     
-    im2 = ax[2].quiver(X[::4, ::4], Y[::4, ::4], u[0, ::4, ::4], u[1, ::4, ::4], color="black", alpha = 1)
-    im2 = ax[2].quiver(X[::4, ::4], Y[::4, ::4], u_star[0, ::4, ::4], u_star[1, ::4, ::4], color="red", alpha = 1)
+    # im2 = ax[2].quiver(X[::4, ::4], Y[::4, ::4], u[0, ::4, ::4], u[1, ::4, ::4], color="black", alpha = 1)
+    # im2 = ax[2].quiver(X[::4, ::4], Y[::4, ::4], u_star[0, ::4, ::4], u_star[1, ::4, ::4], color="red", alpha = 1)
+
+    im2 = ax[2].imshow(laplacian_phi)
 
     im3 = ax[3].imshow(div_u)
     # div_u_star = divergence(u_star.transpose((1, 2, 0)), dx.item(), dy.item(), numpy_=True)
