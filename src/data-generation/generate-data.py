@@ -11,10 +11,12 @@ sys.path.insert(0, "..")
 
 from numeric_method.numeric_method import solve_navier_stokes
 
-DATA_PATH = "../../../data_simple"
+DATA_PATH = "../../../data_simple_test"
 NUM_CASES = 100
-CYLINDER_SPLIT = 0
-DAM_SPLIT = 50
+# CYLINDER_SPLIT = 0
+# DAM_SPLIT = 50
+
+TEST_SET = True
 
 def main():
     case_path = "../../data/cases/pipe.json"
@@ -52,51 +54,49 @@ def main():
             if g[j]["type"] == "inflow":
                 g[j]["vel"]["x"] = inflow
 
-        if i >= DAM_SPLIT:
-            dam_x = int(np.random.randint(0, w - 2))
-            dam_y = int(np.random.randint(0, h - 2))
-            dam_width = int(np.random.randint(4, int(w / 2)))
-            dam_height = int(np.random.randint(4, int(h / 2)))
+        dam_x = int(np.random.randint(0, w - 2))
+        dam_y = int(np.random.randint(0, h - 2))
+        dam_width = int(np.random.randint(4, int(w / 2)))
+        dam_height = int(np.random.randint(4, int(h / 2)))
 
-            dam_width = int(np.min([dam_width, (w - dam_x) - 1]))
-            dam_height = int(np.min([dam_height, (h - dam_y) - 1]))
+        dam_width = int(np.min([dam_width, (w - dam_x) - 1]))
+        dam_height = int(np.min([dam_height, (h - dam_y) - 1]))
 
-            g.append({
-                "type": "wall",
-                "pos": {
-                    "x": dam_x,
-                    "y": dam_y,
-                },
-                "size": {
-                    "width": dam_width,
-                    "height": dam_height
-                },
-                "dir": {
-                    "x": 0,
-                    "y": 1
-                }
-            })
+        g.append({
+            "type": "wall",
+            "pos": {
+                "x": dam_x,
+                "y": dam_y,
+            },
+            "size": {
+                "width": dam_width,
+                "height": dam_height
+            },
+            "dir": {
+                "x": 0,
+                "y": 1
+            }
+        })
 
-        elif i >= CYLINDER_SPLIT:
-            cylinder_x = int(np.random.randint(int(w / 10), w - int(w / 10)))
-            cylinder_y = int(np.random.randint(int(h / 10), h - int(h / 10)))
-            cylinder_r = int(np.random.randint(int(h / 10) - 2, int(h / 4)))
-            cylinder_r = int(np.min([
-                cylinder_r,
-                cylinder_x - 2,
-                cylinder_y - 2,
-                (w - cylinder_x) - 2,
-                (h - cylinder_y) - 2]
-            ))
+        cylinder_x = int(np.random.randint(int(w / 10), w - int(w / 10)))
+        cylinder_y = int(np.random.randint(int(h / 10), h - int(h / 10)))
+        cylinder_r = int(np.random.randint(int(h / 10) - 2, int(h / 4)))
+        cylinder_r = int(np.min([
+            cylinder_r,
+            cylinder_x - 2,
+            cylinder_y - 2,
+            (w - cylinder_x) - 2,
+            (h - cylinder_y) - 2]
+        ))
 
-            g.append({
-                "type": "cylinder",
-                "pos": {
-                    "x": cylinder_x,
-                    "y": cylinder_y
-                },
-                "size": cylinder_r
-            })
+        g.append({
+            "type": "cylinder",
+            "pos": {
+                "x": cylinder_x,
+                "y": cylinder_y
+            },
+            "size": cylinder_r
+        })
 
         # delta_t = case_["dx"] / 100
         # delta_t = case_["time_step"]

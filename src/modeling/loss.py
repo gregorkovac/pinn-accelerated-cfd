@@ -134,7 +134,7 @@ class NavierStokesLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, delta_y, t, delta_t, rho, mu, coords, boundary_mask, loss_weights, epoch=1):
+    def forward(self, x, output, delta_x, delta_y, loss_weights):
         # Reformat constants
         delta_x = delta_x.to(output.device).view(-1, 1, 1)
         delta_y = delta_y.to(output.device).view(-1, 1, 1)
@@ -142,13 +142,16 @@ class NavierStokesLoss(nn.Module):
         # mu = mu.to(output.device).view(-1, 1, 1, 1)
         rho = x[:, 12:13, 0, 0].view(-1, 1, 1, 1)
         mu = x[:, 13:14, 0, 0].view(-1, 1, 1, 1)
-        delta_t = delta_t.to(output.device).view(-1, 1, 1)
+        # delta_t = delta_t.to(output.device).view(-1, 1, 1)
         boundary_mask = x[:, 14]
 
-        uy = output[:, 0]
         ux = output[:, 1]
+        uy = output[:, 0]
         p = output[:, 2]
-        
+
+        delta_x = float(delta_x[0].item())
+        delta_y = float(delta_y[0].item())
+
         # boundary_mask *= 0
         boundary_mask_u = boundary_mask.unsqueeze(1).repeat(1, 2, 1, 1)
 
@@ -203,14 +206,14 @@ class NavierStokesLoss(nn.Module):
                            boundary = boundary_mask_u * 0)
 
         loss_div = div_u ** 2
-        loss_div = loss_div * (1 - boundary_mask)
+        # loss_div = loss_div * (1 - boundary_mask)
         loss_div = torch.mean(loss_div)
 
         res_mom = (u_dot_del_u + (1 / rho) * grad_p - mu * laplacian_u) ** 2
-        res_mom = res_mom * (1 - boundary_mask_u)
+        # res_mom = res_mom * (1 - boundary_mask_u)
         # loss_mom = torch.mean(loss_mom[:, 0]) + torch.mean(loss_mom[:, 1])
-        loss_mom = torch.mean(res_mom[:, 0]) ** (1 / 2)
-        loss_nonneg_p = torch.mean(res_mom[:, 1]) ** (1 / 2)
+        loss_mom = torch.mean(res_mom[:, 0]) #** (1 / 2)
+        loss_nonneg_p = torch.mean(res_mom[:, 1]) #** (1 / 2)
         # loss_mom = torch.mean(loss_mom)
 
         mask_dy = 1 - x[:, 6]

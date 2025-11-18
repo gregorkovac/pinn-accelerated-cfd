@@ -69,20 +69,29 @@ def vec_rmse(y_true, y_pred, bound):
 
     return np.sqrt(np.mean(bound * np.sum((y_true - y_pred) ** 2, axis=-1)))
 
+# def vec_rrmse(y_true, y_pred, bound):
+#     err = (np.sqrt(np.sum(np.sum((y_true - y_pred) ** 2, axis=-1))) / np.sqrt(np.sum(np.sum(y_true ** 2, axis=-1))))
+
+
+#     # return (1 - bound) * (np.sqrt(np.sum(np.sum((y_true - y_pred) ** 2, axis=-1))) / np.sqrt(np.sum(np.sum(y_true ** 2, axis=-1))))
+
 def vec_rrmse(y_true, y_pred, bound):
-    return (1 - bound) * (np.sqrt(np.sum(np.sum((y_true - y_pred) ** 2, axis=-1))) / np.sqrt(np.sum(np.sum(y_true ** 2, axis=-1))))
+    y_true = y_true[bound != 1]
+    y_pred = y_pred[bound != 1]
+
+    return np.linalg.norm(y_true - y_pred) / np.linalg.norm(y_true)
 
 def pointwise_rmse(y_true, y_pred):
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
 
-    return np.mean((y_true - y_pred) ** 2, axis=0) ** (1/2)
+    return np.mean((y_true - y_pred) ** 2, axis=0)
 
 def pointwise_vec_rmse(y_true, y_pred):
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
 
-    return np.mean(np.sum((y_true - y_pred) ** 2, axis=-1), axis=0) ** (1/2)
+    return np.mean(np.sum((y_true - y_pred) ** 2, axis=-1), axis=0)
 
 def pointwise_l1(y_true, y_pred):
     y_true = np.array(y_true)
@@ -117,20 +126,27 @@ def divergence_err(y, dy, dx, bound):
     return bound * (grad_x + grad_y) ** 2
 
 def rinf(y_true, y_pred, bound):
-    return (1 - bound) * (
-        np.max(np.abs(y_true - y_pred)) / np.max(np.abs(y_true))
-    )
+    y_true = y_true[bound != 1]
+    y_pred = y_pred[bound != 1]
+
+    return np.max(np.abs(y_true - y_pred)) / np.max(np.abs(y_true))
 
 def vec_rinf(y_true, y_pred, bound):
-    return (1 - bound) * (
-        np.max(np.max(np.abs(y_true - y_pred), axis=-1)) / np.max(np.max(np.abs(y_true), axis=-1))
-    )
+    y_true = y_true[bound != 1]
+    y_pred = y_pred[bound != 1]
+
+    return np.max(np.max(np.abs(y_true - y_pred), axis=-1)) / np.max(np.max(np.abs(y_true), axis=-1))
 
 def r1(y_true, y_pred, bound):
-    return (1 - bound) * (np.sum(np.abs(y_true - y_pred)) / np.sum(np.abs(y_true)))
+    y_true = y_true[bound != 1]
+    y_pred = y_pred[bound != 1]
+
+    return np.sum(np.abs(y_true - y_pred)) / np.sum(np.abs(y_true))
 
 def vec_r1(y_true, y_pred, bound):
-    return (1 - bound) * (np.sum(np.sum(np.abs(y_true - y_pred), axis=-1)) / np.sum(np.sum(np.abs(y_true), axis=-1)))
+    y_true = y_true[bound != 1]
+    y_pred = y_pred[bound != 1]
+    return np.sum(np.sum(np.abs(y_true - y_pred), axis=-1)) / np.sum(np.sum(np.abs(y_true), axis=-1))
 
 def compute_errors(case, norm="2"):
     if norm == "2":
@@ -246,16 +262,21 @@ def err_pointwise_plot(err, title=""):
     p_min = np.min([p_poisson.min(), p_full.min()])
     p_max = np.max([p_poisson.max(), p_full.max()])
 
-    im0 = ax[0].imshow(u_poisson, vmin=u_min, vmax=u_max)
+    # u_min = u_poisson.min()
+    # u_max = u_poisson.max()
+    # p_min = p_poisson.min()
+    # p_max = p_poisson.max()
+
+    im0 = ax[0].imshow(u_poisson)
     ax[0].set_title("Velocity errors (Poisson model)")
 
-    im1 = ax[1].imshow(p_poisson, vmin=p_min, vmax=p_max)
+    im1 = ax[1].imshow(p_poisson)
     ax[1].set_title("Pressure errors (Poisson model)")
 
-    im2 = ax[2].imshow(u_full, vmin=u_min, vmax=u_max)
+    im2 = ax[2].imshow(u_full)
     ax[2].set_title("Velocity errors (Full model)")
 
-    im3 = ax[3].imshow(p_full, vmin=p_min, vmax=p_max)
+    im3 = ax[3].imshow(p_full)
     ax[3].set_title("Pressure errors (Full model)")
 
     fig.colorbar(im0, fraction=0.046, pad=0.04)

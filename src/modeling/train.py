@@ -14,6 +14,7 @@ import sys
 
 from data import PoissonPINNDataset, FullPINNDataset, CaseBatchSampler
 from model import CNN
+from model_encdec import EncDecCNN
 from loss import PoissonLoss, NavierStokesLoss
 from visualization import plot_full, plot_poisson
 from misc import str2bool
@@ -209,7 +210,10 @@ def main():
 
 
     # TODO: Normalization logic should probably be moved to the dataset
-    dont_normalize = [3, 4, 5, 8, 9]
+    if model_type == "poisson":
+        dont_normalize = [3, 4, 5, 8, 9]
+    else:
+        dont_normalize = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14]
     x_mean[:, dont_normalize] = 0
     x_std[:, dont_normalize] = 1
 
@@ -277,20 +281,35 @@ def main():
                                 num_workers=num_workers,
                                 pin_memory=pin_memory)
 
-    # Initialize model
-    model = CNN(input_channels=input_channels,
-                output_channels=output_channels,
-                num_layers=num_layers,
-                hidden_channels=hidden_dim,
-                input_width=input_width,
-                input_height=input_height,
-                enforceBC=train_dataset.enforceBC,
-                use_skip=True,
-                activation=activation,
-                architecture=architecture,
-                pooling=pooling,
-                upsampling=upsampling,
-                norm=norm)
+    if architecture == "cnn":
+        # Initialize model
+        model = CNN(input_channels=input_channels,
+                    output_channels=output_channels,
+                    num_layers=num_layers,
+                    hidden_channels=hidden_dim,
+                    input_width=input_width,
+                    input_height=input_height,
+                    enforceBC=train_dataset.enforceBC,
+                    use_skip=True,
+                    activation=activation,
+                    architecture=architecture,
+                    pooling=pooling,
+                    upsampling=upsampling,
+                    norm=norm)
+    else:
+        model = EncDecCNN(input_channels=input_channels,
+                    output_channels=output_channels,
+                    num_layers=num_layers,
+                    hidden_channels=hidden_dim,
+                    input_width=input_width,
+                    input_height=input_height,
+                    enforceBC=train_dataset.enforceBC,
+                    use_skip=True,
+                    activation=activation,
+                    architecture=architecture,
+                    pooling=pooling,
+                    upsampling=upsampling,
+                    norm=norm)
     
     # Move model to device if possible
     if torch.cuda.device_count() > 1:
@@ -439,6 +458,7 @@ def main():
             scheduler.step()
 
         print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL TRAIN LOSS = {loss[0]:.10f}   TRAIN LOSS PARTS = [{loss[1]:.5f}, {loss[2]:.5f}, {loss[3]:.5f}, {loss[4]:.5f}]   |   TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.5f}, {val_loss[2]:.5f}, {val_loss[3]:.5f}, {val_loss[4]:.5f}]")
+        print()
         # print(f"                                TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.10f}, {val_loss[2]:.10f}, {val_loss[3]:.10f}, {val_loss[4]:.10f}]")
         # print(f"EPOCHS [{epoch + 1}/{epochs}]   TRAIN LOSS = {loss[0]:.10f}   VAL LOSS = {val_loss[0]:.10f}")
 

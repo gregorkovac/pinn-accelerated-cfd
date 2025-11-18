@@ -23,6 +23,7 @@ sys.path.insert(0, "..")
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from modeling.model import CNN
+from modeling.model_encdec import EncDecCNN
 from modeling.data import geometry_to_mtx, PoissonPINNDataset, FullPINNDataset
 
 from derivatives import *
@@ -286,7 +287,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, n, m)
     div *= (1 - boundary_mask)
 
-    print(f"{div.mean():.5f} +- {div.std():.5f}")
+    # print(f"{div.mean():.5f} +- {div.std():.5f}")
 
     # Update pressure
     p = phi + beta * p
@@ -374,20 +375,36 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                 
             input_channels, _, _, output_channels = dataset.get_dims()
 
-            model = CNN(input_channels=input_channels,
-                        output_channels=output_channels,
-                        num_layers=int(params["num_layers"]),
-                        hidden_channels=int(params["hidden_dim"]),
-                        input_width=width,
-                        input_height=height,
-                        enforceBC=dataset.enforceBC,
-                        use_skip=True,
-                        activation=params["activation"],
-                        architecture=params["architecture"],
-                        pooling=params["pooling"],
-                        upsampling=params["upsampling"],
-                        norm=params["norm"],
-                    )
+            if method_type == "poisson_model":
+                model = CNN(input_channels=input_channels,
+                            output_channels=output_channels,
+                            num_layers=int(params["num_layers"]),
+                            hidden_channels=int(params["hidden_dim"]),
+                            input_width=width,
+                            input_height=height,
+                            enforceBC=dataset.enforceBC,
+                            use_skip=True,
+                            activation=params["activation"],
+                            architecture=params["architecture"],
+                            pooling=params["pooling"],
+                            upsampling=params["upsampling"],
+                            norm=params["norm"],
+                        )
+            else:
+                model = EncDecCNN(input_channels=input_channels,
+                                output_channels=output_channels,
+                                num_layers=int(params["num_layers"]),
+                                hidden_channels=int(params["hidden_dim"]),
+                                input_width=width,
+                                input_height=height,
+                                enforceBC=dataset.enforceBC,
+                                use_skip=True,
+                                activation=params["activation"],
+                                architecture=params["architecture"],
+                                pooling=params["pooling"],
+                                upsampling=params["upsampling"],
+                                norm=params["norm"],
+                            )
 
             device = torch.device('cpu')
             
@@ -441,13 +458,12 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         p_dirichlet_mask = torch.tensor(p_dirichlet_mask, dtype=torch.float32)
         p_neumann = torch.tensor(p_neumann, dtype=torch.float32)
 
-        grid_x, grid_y = torch.meshgrid(
-                torch.linspace(0, width * dx, width),
-                torch.linspace(0, height * dy, height),
-                indexing="ij"
-            )
-        
-        coords = torch.stack([grid_y, grid_x], dim=0)
+        grid_y, grid_x = torch.meshgrid(
+                    torch.linspace(0, 1, height),
+                    torch.linspace(0, 1, width),
+                    indexing="xy"
+                )
+        coords = torch.stack([grid_x, grid_y], dim=0)
 
         rho = torch.ones((1, height, width)) * density
         mu = torch.ones((1, height, width)) * viscosity
@@ -465,11 +481,13 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                        boundary_mask_
                     ], dim=0).unsqueeze(0)
         
+        x = (x - x_mean) / x_std
+        
         out = model(x)#.squeeze(0).detach().numpy()
 
         out = dataset.enforceBC(x, out).squeeze(0).detach().numpy()
 
-        u_y, u_x, p = out[0], out[1], out[2]
+        u_x, u_y, p = out[0], out[1], out[2]
         u = np.stack((u_x, u_y), axis=-1)
 
         u_star = np.zeros((20, 20))

@@ -13,3 +13,4 @@ models/full/*
 data/*
 misc
 **/wandb
+analysis/results/*

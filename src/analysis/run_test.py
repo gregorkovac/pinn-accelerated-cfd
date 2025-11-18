@@ -11,11 +11,9 @@ sys.path.insert(0, "..")
 
 from numeric_method.numeric_method import solve_navier_stokes
 
-CASE_DIR = "../../data/generated_data_simple/test"
-# POISSON_MODEL_PATH = "../../models/poisson/2025-09-17_14_48"
-POISSON_MODEL_PATH = "../../models/poisson/2025-10-07_21_46"
-# FULL_MODEL_PATH = "../../models/full/2025-09-17_15_02"
-FULL_MODEL_PATH = "../../models/full/2025-10-09_16_51"
+CASE_DIR = "../../../data_simple_test"
+POISSON_MODEL_PATH = "../../models/poisson/2025-11-16_14_11"
+FULL_MODEL_PATH = "../../models/full/2025-11-17_09_50"
 
 def run_case(case, method_type, model_path=""):
     start_time = time.time()
@@ -25,8 +23,8 @@ def run_case(case, method_type, model_path=""):
             case["height"],
             case["dx"],
             case["dy"],
-            #case["iterations"],
-            500,
+            case["iterations"],
+            # 500,
             case["time_step"],
             case["density"],
             case["viscosity"],
@@ -74,6 +72,9 @@ def main():
     os.makedirs(geometry_dir, exist_ok=True)
 
     for case_name in os.listdir(CASE_DIR):
+
+        if "flow" in case_name:
+            continue
         
         with open(os.path.join(CASE_DIR, case_name, "params.json")) as f:
             case = json.load(f)
@@ -93,8 +94,7 @@ def main():
         print("FULL")
         u_f, p_f, exec_time_f = run_case(case, method_type="full_model", model_path=FULL_MODEL_PATH)
 
-        # if len(u_n) != case["iterations"] or len(u_p) != case["iterations"] or len(u_f) != case["iterations"]:
-        if len(u_n) != 500 or len(u_p) != 500 or len(u_f) != 500:
+        if len(u_n) != case["iterations"] or len(u_p) != case["iterations"] or len(u_f) != case["iterations"]:
             print("[[[[[[[[[[[[[[[ NAN - SKIPPING SAMPLE")
             continue
 
@@ -118,6 +118,8 @@ def main():
     df = pd.DataFrame(data = {"numeric": exec_time_numeric,
                                 "poisson": exec_time_poisson,
                                 "full": exec_time_full})
+    # df = pd.DataFrame(data = {"numeric": exec_time_numeric,
+    #                             "poisson": exec_time_poisson})
     df.to_csv(os.path.join(results_dir, "execution_times.csv"), sep=";", index=False)
 
     df = pd.DataFrame(case_params)

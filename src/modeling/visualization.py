@@ -46,8 +46,9 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=Non
     cbar0 = plt.colorbar(im0, ax=ax[0])
 
 
-    ax[1].imshow(p[::-1, :][::8, ::8], cmap=cmap, extent=[0, x_max + grid_spacing, 0, y_max + grid_spacing])
-    ax[1].quiver(X[::8, ::8], Y[::8, ::8], u[1,::8,::8], u[0,::8,::8], color="white",) #alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
+    ax[1].imshow(p[::-1, :][::4, ::4], cmap=cmap, extent=[0,
+                                                           x_max + grid_spacing, 0, y_max + grid_spacing])
+    ax[1].quiver(X[::4, ::4], Y[::4, ::4], u[0,::4,::4], u[1,::4,::4], color="white",) #alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
 
     ax[2].imshow(u[0, ::-1])
     ax[3].imshow(u[1, ::-1])
