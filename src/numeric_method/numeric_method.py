@@ -92,7 +92,7 @@ def solve_discrete_poisson(u, A):
 
     return phi
 
-def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian = None, poisson_model = None, iter = 0, geometry_mtx=None, x_mean=None, x_std=None):
+def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian = None, poisson_model = None, iter = 0, geometry_mtx=None, x_mean=None, x_std=None, poisson_alternation=-1):
     """
     Performs a step of the Navier-Stokes solver
 
@@ -113,6 +113,8 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
     n, m, _ = u.shape
 
+    u_bc, p_bc = boundary(geometry=geometry, u=u, p=p)
+
     # Handle the Laplacian term implicitly
     if A_laplacian is not None:
 
@@ -122,14 +124,14 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         n, m, _ = u_star.shape
 
         # Compute the convective term
-        conv_u = convective(u = u,
+        conv_u = convective(u = u_bc,
                           dx = dx,
                           dy = dy,
                           boundary=None,
                           numpy_=True)
 
         # Compute the pressure gradient
-        grad_p = grad(u=p,
+        grad_p = grad(u=p_bc,
                       dx=dx,
                       dy=dy,
                       boundary=None,
@@ -156,7 +158,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         u_star[:, :, 1] = u_star_y.reshape((n, m))
     else:
         # Compute convective term
-        conv_u = convective(u=u,
+        conv_u = convective(u=u_bc,
                           dx=dx,
                           dy=dy,
                           boundary=None,
@@ -164,7 +166,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
 
         # Compute pressure gradient        
-        grad_p = grad(u=p,
+        grad_p = grad(u=p_bc,
                       dx=dx,
                       dy=dy,
                       boundary=None,
@@ -172,7 +174,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
         
 
         # Compute laplacian term        
-        lapl_u = laplacian(u=u,
+        lapl_u = laplacian(u=u_bc,
                            dx=dx,
                            dy=dy,
                            boundary=None,
@@ -183,10 +185,10 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
 
     # Apply boundary
-    u_star, _ = boundary(geometry, u = u_star)
+    u_star_bc, _ = boundary(geometry, u = u_star)
 
     # Compute divergence of u star
-    div = divergence(u=u_star,
+    div = divergence(u=u_star_bc,
                      dx=dx,
                      dy=dy,
                      boundary=None,
@@ -200,7 +202,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, n, m)
 
     # Solve Poisson's equation using a model
-    if poisson_model is not None:
+    if poisson_model is not None and (poisson_alternation == -1 or iter % poisson_alternation != 0): #and iter % 5 != 0:
 
         with torch.no_grad():
             n, m = div_u_star.shape
@@ -212,8 +214,8 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
             # Create a coordinate grid
             grid_y, grid_x = torch.meshgrid(
-                    torch.linspace(0, 1, n),
                     torch.linspace(0, 1, m),
+                    torch.linspace(0, 1, n),
                     indexing="xy"
                 )
             coords = torch.stack([grid_x, grid_y], dim=0)
@@ -228,6 +230,8 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
             rho = torch.ones((1, n, m)) * density
             delta_t_ = torch.ones((1, n, m)) * delta_t
+            dx_ = torch.ones((1, n, m)) * dx
+            dy_ = torch.ones((1, n, m)) * dy
             boundary_mask_ = torch.tensor(boundary_mask, dtype=torch.float32).unsqueeze(0)
 
             # Construct the model's input tensor
@@ -240,6 +244,8 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             #                            delta_t_,
             #                            boundary_mask_
             #                         ], dim=0).unsqueeze(0)
+                                    
+
             u_star_coords = torch.cat([0 * div_u_star_, # TODO: THIS IS ZERO
                                        coords, 
                                        p_dirichlet,
@@ -248,7 +254,9 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                                        u_star_,
                                        p_neumann, 
                                        rho,
-                                       delta_t_
+                                       delta_t_,
+                                       dx_,
+                                       dy_
                                     ], dim=0).unsqueeze(0)
 
             # fig, ax = plt.subplots(3, 4)
@@ -258,6 +266,8 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             #     plt.colorbar(im)
 
             # plt.show()
+
+            # print(u_star_.max())
 
             u_star_coords = (u_star_coords - x_mean) / x_std
 
@@ -269,9 +279,10 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
 
     # Apply the boundary conditions to the pressure correction
+    _, phi_bc = boundary(geometry, p = phi)
 
     # Compute the gradient of the pressure correction
-    grad_phi = grad(u=phi,
+    grad_phi = grad(u=phi_bc,
                     dx=dx,
                     dy=dy,
                     boundary=None,
@@ -280,23 +291,23 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # Compute the new velocity field
     u = u_star - delta_t / density * grad_phi
 
-    div = divergence(u, dx=dx, dy=dy, boundary=None, numpy_=True)
+    # div = divergence(u, dx=dx, dy=dy, boundary=None, numpy_=True)
 
-    div = div ** 2
+    # div = div ** 2
 
-    _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, n, m)
-    div *= (1 - boundary_mask)
+    # _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, n, m)
+    # div *= (1 - boundary_mask)
 
     # print(f"{div.mean():.5f} +- {div.std():.5f}")
 
     # Update pressure
     p = phi + beta * p
 
-    u, p = boundary(geometry=geometry, u=u, p=p)
+    # u, p = boundary(geometry=geometry, u=u, p=p)
 
     return u, p, u_star, div_u_star, phi
 
-def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, viscosity, beta, geometry, dynamic_time_step = False, implicit_laplacian = False, return_div_u_star = False, method_type = "numeric", model_path = None):
+def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, viscosity, beta, geometry, dynamic_time_step = False, implicit_laplacian = False, return_div_u_star = False, method_type = "numeric", model_path = None, poisson_alternation=-1):
     """
     Numerically solves the Navier-Stokes equations for a given case
 
@@ -325,11 +336,15 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         print("Model folder path not specified")
         exit(1)
 
+    # Shrink the domain by one point on each side to allow for padding with boundary values
+    height = height - 2
+    width = width - 2
+
     # Initialize velocity and pressure
     u = np.zeros((height, width, 2))
     p = np.zeros((height, width))
 
-    u, p = boundary(geometry, u, p)
+    # u, p = boundary(geometry, u, p)
 
     _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, width, height)
 
@@ -375,7 +390,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                 
             input_channels, _, _, output_channels = dataset.get_dims()
 
-            if method_type == "poisson_model":
+            if params["architecture"] == "cnn": #or method_type == "poisson_model": # TODO: Remove this last case
                 model = CNN(input_channels=input_channels,
                             output_channels=output_channels,
                             num_layers=int(params["num_layers"]),
@@ -390,7 +405,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                             upsampling=params["upsampling"],
                             norm=params["norm"],
                         )
-            else:
+            elif params["architecture"] == "encdec":
                 model = EncDecCNN(input_channels=input_channels,
                                 output_channels=output_channels,
                                 num_layers=int(params["num_layers"]),
@@ -459,16 +474,29 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         p_neumann = torch.tensor(p_neumann, dtype=torch.float32)
 
         grid_y, grid_x = torch.meshgrid(
-                    torch.linspace(0, 1, height),
                     torch.linspace(0, 1, width),
+                    torch.linspace(0, 1, height),
                     indexing="xy"
                 )
         coords = torch.stack([grid_x, grid_y], dim=0)
 
         rho = torch.ones((1, height, width)) * density
         mu = torch.ones((1, height, width)) * viscosity
+        dx_ = torch.ones((1, height, width)) * dx
+        dy_ = torch.ones((1, height, width)) * dy
         boundary_mask_ = torch.tensor(boundary_mask, dtype=torch.float32).unsqueeze(0)
         
+        # print(coords.shape)
+        # print(u_dirichlet.permute(2, 0, 1).shape)
+        # print(u_dirichlet_mask.permute(2, 0, 1).shape)
+        # print(u_neumann.permute(2, 0, 1).shape)
+        # print(p_dirichlet.unsqueeze(0).shape)
+        # print(p_dirichlet_mask.unsqueeze(0).shape)
+        # print(p_neumann.permute(2, 0, 1).shape)
+        # print(rho.shape)
+        # print(mu.shape)
+        # print(boundary_mask_.shape)
+
         x = torch.cat([coords,
                        u_dirichlet.permute(2, 0, 1),
                        u_dirichlet_mask.permute(2, 0, 1),
@@ -478,11 +506,13 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                        p_neumann.permute(2, 0, 1),
                        rho,
                        mu,
-                       boundary_mask_
+                       boundary_mask_,
+                       dx_,
+                       dy_
                     ], dim=0).unsqueeze(0)
         
         x = (x - x_mean) / x_std
-        
+
         out = model(x)#.squeeze(0).detach().numpy()
 
         out = dataset.enforceBC(x, out).squeeze(0).detach().numpy()
@@ -535,7 +565,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
             #     A_laplacian_ = (I - time_step * viscosity * A_laplacian)
 
             # Perform one step of the solver
-            u_new, p_new, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian, model, iter=iter, geometry_mtx=geometry_mtx, x_mean=x_mean, x_std=x_std)
+            u_new, p_new, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian, model, iter=iter, geometry_mtx=geometry_mtx, x_mean=x_mean, x_std=x_std, poisson_alternation=poisson_alternation)
 
             # if np.max(np.abs(u - u_new)) < 1e-5 and np.max(np.abs(p - p_new)) < 1e-5:
             #     print(f"\t Converged after {iter} iterations.")

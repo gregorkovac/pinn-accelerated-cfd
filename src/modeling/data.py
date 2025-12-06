@@ -229,7 +229,7 @@ class PINNDataset(Dataset):
 class PoissonPINNDataset(PINNDataset):
     def __init__(self, data_path, N, device, samples_per_case=-1, start_sample=0):
         super().__init__(data_path, N, device, samples_per_case, start_sample)
-        self.input_channels = 12
+        self.input_channels = 14
         self.output_channels = 1
 
         if N == 0:
@@ -262,6 +262,8 @@ class PoissonPINNDataset(PINNDataset):
                            self.p_neumann[idx].permute(2, 0, 1), # 8, 9
                            self.rho[idx] * ones, # 10
                            self.delta_t[idx] * ones, # 11
+                           self.delta_x[idx] * ones, # 12
+                           self.delta_y[idx] * ones, # 13
                         ], dim=0))
 
             # plt.ioff()
@@ -293,7 +295,7 @@ class PoissonPINNDataset(PINNDataset):
 class FullPINNDataset(PINNDataset):
     def __init__(self, data_path, N, device, samples_per_case=-1, start_sample=0):
         super().__init__(data_path, N, device, samples_per_case, start_sample)
-        self.input_channels = 15
+        self.input_channels = 17
         self.output_channels = 3
 
         if N == 0:
@@ -314,7 +316,9 @@ class FullPINNDataset(PINNDataset):
                        self.p_neumann[idx].permute(2, 0, 1), # 10, 11
                        self.rho[idx] * ones, # 12
                        self.mu[idx] * ones, # 13
-                       self.boundary_mask[idx].unsqueeze(0) # 14
+                       self.boundary_mask[idx].unsqueeze(0), # 14
+                       self.delta_x[idx] * ones, # 15
+                       self.delta_y[idx] * ones # 16
                     ], dim=0) )
 
         self.x = torch.stack(self.x, dim=0).to(device)

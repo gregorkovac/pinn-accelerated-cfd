@@ -18,10 +18,10 @@ class PoissonLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, delta_y, loss_weights):
+    def forward(self, x, output, loss_weights):
 
-        delta_x = delta_x.to(output.device).view(-1, 1, 1)
-        delta_y = delta_y.to(output.device).view(-1, 1, 1)
+        # delta_x = delta_x.to(output.device).view(-1, 1, 1)
+        # delta_y = delta_y.to(output.device).view(-1, 1, 1)
 
         phi = output[:, 0:1]
         # div_u_star_orig = x[:, 0]
@@ -32,6 +32,8 @@ class PoissonLoss(nn.Module):
         p_dirichlet_mask = x[:, 4:5]
         rho = x[:, 10:11]
         delta_t = x[:, 11:12]
+        delta_x = x[:, 12:13, 0, 0].view(-1, 1, 1)
+        delta_y = x[:, 13:14, 0, 0].view(-1, 1, 1)
 
         # eroded_mask = -F.max_pool2d(-boundary_mask, kernel_size=3, stride=1, padding=3 // 2)
 
@@ -134,10 +136,10 @@ class NavierStokesLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, output, delta_x, delta_y, loss_weights):
+    def forward(self, x, output, loss_weights):
         # Reformat constants
-        delta_x = delta_x.to(output.device).view(-1, 1, 1)
-        delta_y = delta_y.to(output.device).view(-1, 1, 1)
+        # delta_x = delta_x.to(output.device).view(-1, 1, 1)
+        # delta_y = delta_y.to(output.device).view(-1, 1, 1)
         # rho = rho.to(output.device).view(-1, 1, 1, 1)
         # mu = mu.to(output.device).view(-1, 1, 1, 1)
         rho = x[:, 12:13, 0, 0].view(-1, 1, 1, 1)
@@ -145,12 +147,15 @@ class NavierStokesLoss(nn.Module):
         # delta_t = delta_t.to(output.device).view(-1, 1, 1)
         boundary_mask = x[:, 14]
 
-        ux = output[:, 1]
+        delta_x = x[0, 15:16, 0, 0] #.view(-1, 1, 1, 1)
+        delta_y = x[0, 16:17, 0, 0] #.view(-1, 1, 1, 1)
+
         uy = output[:, 0]
+        ux = output[:, 1]
         p = output[:, 2]
 
-        delta_x = float(delta_x[0].item())
-        delta_y = float(delta_y[0].item())
+        delta_x = float(delta_x.item())
+        delta_y = float(delta_y.item())
 
         # boundary_mask *= 0
         boundary_mask_u = boundary_mask.unsqueeze(1).repeat(1, 2, 1, 1)

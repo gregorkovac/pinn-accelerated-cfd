@@ -6,14 +6,17 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 import copy
+import matplotlib.pyplot as plt
 
 sys.path.insert(0, "..")
 
 from numeric_method.numeric_method import solve_navier_stokes
 
 CASE_DIR = "../../../data_simple_test"
-POISSON_MODEL_PATH = "../../models/poisson/2025-11-16_14_11"
-FULL_MODEL_PATH = "../../models/full/2025-11-17_09_50"
+# CASE_DIR = "../../../data_final_small_test_inflow"
+# CASE_DIR = "../../../data_final_small_test_params"
+POISSON_MODEL_PATH = "../../models/poisson/2025-11-20_13_03"
+FULL_MODEL_PATH = "../../models/full/2025-11-20_17_16"
 
 def run_case(case, method_type, model_path=""):
     start_time = time.time()
@@ -83,6 +86,7 @@ def main():
         # os.makedirs(case_dir, exist_ok=True)
 
         print("-----------------")
+        print(case_name)
         print(case)
 
         print("NUMERIC")
@@ -93,6 +97,7 @@ def main():
 
         print("FULL")
         u_f, p_f, exec_time_f = run_case(case, method_type="full_model", model_path=FULL_MODEL_PATH)
+
 
         if len(u_n) != case["iterations"] or len(u_p) != case["iterations"] or len(u_f) != case["iterations"]:
             print("[[[[[[[[[[[[[[[ NAN - SKIPPING SAMPLE")

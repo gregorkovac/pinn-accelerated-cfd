@@ -142,12 +142,12 @@ def unpack_grad(grad_u, numpy_=False):
 
 def grad(u, dx, dy, boundary=None, numpy_=False):
     if numpy_:
-        pad_width = [(1,1), (1,1)] + [(0,0)] * (u.ndim - 2)
-        u_padded = np.pad(u, pad_width, mode="edge")
+        # pad_width = [(1,1), (1,1)] + [(0,0)] * (u.ndim - 2)
+        # u_padded = np.pad(u, pad_width, mode="edge")
         # u_padded = u
 
-        du_dx = (np.roll(u_padded, -1, axis=1) - np.roll(u_padded, 1, axis=1)) / (2 * dx)
-        du_dy = (np.roll(u_padded, -1, axis=0) - np.roll(u_padded, 1, axis=0)) / (2 * dy)
+        du_dx = (np.roll(u, -1, axis=1) - np.roll(u, 1, axis=1)) / (2 * dx)
+        du_dy = (np.roll(u, -1, axis=0) - np.roll(u, 1, axis=0)) / (2 * dy)
 
         du_dx = du_dx[1:-1, 1:-1]
         du_dy = du_dy[1:-1, 1:-1]
@@ -197,12 +197,13 @@ def convective(u, dx, dy, boundary = None, numpy_=False):
 
     if numpy_:
         du_dy, du_dx = grad_u[..., 0], grad_u[..., 1]
-        u_y, u_x = u[..., 0], u[..., 1]
+        # u_y, u_x = u[1:-1, 1:-1, 0], u[1:-1, 1:-1, 1]
+        u_y, u_x = u[1:-1, 1:-1, 0], u[1:-1, 1:-1, 1]
         u_y = u_y[..., np.newaxis]
         u_x = u_x[..., np.newaxis]
     else:
-        du_dy, du_dx = grad_u[:, 0], grad_u[:, 1]
-        u_y, u_x = u[:, 0], u[:, 1]
+        du_dx, du_dy = grad_u[:, 0], grad_u[:, 1]
+        u_x, u_y = u[:, 0], u[:, 1]
         u_y = u_y.unsqueeze(1)
         u_x = u_x.unsqueeze(1)
 
@@ -215,13 +216,13 @@ def convective(u, dx, dy, boundary = None, numpy_=False):
 def laplacian(u, dx, dy, boundary=None, numpy_=False):
     if numpy_:
         # u_padded = np.pad(u, (1, 1, 1, 1), mode="edge")
-        pad_width = [(1,1), (1,1)] + [(0,0)] * (u.ndim - 2)
+        # pad_width = [(1,1), (1,1)] + [(0,0)] * (u.ndim - 2)
         # u_padded = np.pad(u, pad_width, mode="edge")
-        u_padded = np.pad(u, pad_width, mode="constant")
+        # u_padded = np.pad(u, pad_width, mode="constant")
         # u_padded = u
 
-        d2u_dx2 = (np.roll(u_padded, -1, axis=1) - 2 * u_padded + np.roll(u_padded, 1, axis=1)) / (dx ** 2)
-        d2u_dy2 = (np.roll(u_padded, -1, axis=0) - 2 * u_padded + np.roll(u_padded, 1, axis=0)) / (dy ** 2)
+        d2u_dx2 = (np.roll(u, -1, axis=1) - 2 * u + np.roll(u, 1, axis=1)) / (dx ** 2)
+        d2u_dy2 = (np.roll(u, -1, axis=0) - 2 * u + np.roll(u, 1, axis=0)) / (dy ** 2)
 
         res = (d2u_dx2 + d2u_dy2)[1:-1, 1:-1]
 

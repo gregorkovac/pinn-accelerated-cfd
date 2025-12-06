@@ -3,7 +3,7 @@
     "height": 64,
     "dx": 0.01,
     "dy": 0.01,
-    "iterations": 300,
+    "iterations": 600,
     "time_step": 0.0001,
     "density": 1,
     "viscosity": 0.1,

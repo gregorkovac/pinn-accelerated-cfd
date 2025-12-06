@@ -192,14 +192,16 @@ def boundary(geometry, u = None, p = None):
         u (numpy.ndarray) - velocity vector field of shape (n, m, 2) with applied boundary conditions
         p (numpy.ndarray) - pressure scalar field of shape (n, m) with applied boundary conditions
     """
-        
-    # Get width and height
+
+    
+    # Get width and height and perform padding
     if u is not None:
+        u = np.pad(u, pad_width=((1, 1), (1, 1), (0, 0)), mode='constant', constant_values=0)
         height, width = np.shape(u)[0], np.shape(u)[1]
-    elif p is not None:
+
+    if p is not None:
+        p = np.pad(p, pad_width=1, mode='constant', constant_values=0)
         height, width = np.shape(p)[0], np.shape(p)[1]
-    else:
-        raise RuntimeError("u or p is needed to compute boundary")
 
     # Iterate over geometries
     for g in geometry:
@@ -212,7 +214,7 @@ def boundary(geometry, u = None, p = None):
             neumann_idx = get_neumann_index(g, height, width)
             normal = get_normal(g)
             u = apply_dirichlet_bc(u, idx, (0, 0))# mask=(1 - np.abs(normal)))
-            # p = apply_neumann_bc(p, idx, neumann_idx)
+            p = apply_neumann_bc(p, idx, neumann_idx)
         elif g["type"] == "inflow":
             neumann_idx = get_neumann_index(g, height, width)
 
@@ -225,13 +227,12 @@ def boundary(geometry, u = None, p = None):
             u = apply_dirichlet_bc(u, idx, (g["vel"]["x"],
                                             g["vel"]["y"]))
 
-            # p = apply_neumann_bc(p, idx, neumann_idx)
+            p = apply_neumann_bc(p, idx, neumann_idx)
             # p = apply_dirichlet_bc(p, idx, 1)
         elif g["type"] == "outflow":
             neumann_idx = get_neumann_index(g, height, width)
             u = apply_neumann_bc(u, idx, neumann_idx)
-
-            # p = apply_dirichlet_bc(p, idx, 0)
+            p = apply_dirichlet_bc(p, idx, 0)
         elif g["type"] == "cylinder":
             u = apply_dirichlet_bc(u, idx, (0, 0))
 
@@ -250,10 +251,12 @@ def get_boundary_image(geometry, width, height):
         im (numpy.ndarray) - binary image of shape (height, width)
     """
 
-    im = np.zeros((height, width))
+    im = np.zeros((height + 2, width + 2))
 
     for g in geometry:
-        idx = get_index(g, height, width)
+        idx = get_index(g, height + 2, width + 2)
         im[idx] = 1
+
+    im = im[1:-1, 1:-1]
 
     return im

@@ -311,6 +311,9 @@ def main():
                     upsampling=upsampling,
                     norm=norm)
     
+    # state_dict = torch.load(os.path.join("../../models/poisson/2025-11-18_13_28", "model.pt"), map_location=device)
+    # model.load_state_dict(state_dict, strict=True)
+
     # Move model to device if possible
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs!")
@@ -404,7 +407,7 @@ def main():
 
                     x_norm = x * x_std.to(device) + x_mean.to(device)
                     
-                    l = criterion(x_norm, outputs, delta_x, delta_y, loss_weights,)
+                    l = criterion(x_norm, outputs, loss_weights)
                     l[0].backward()
 
                 for i in range(len(l)):
@@ -436,7 +439,7 @@ def main():
 
                 x_norm = x * x_std.to(device) + x_mean.to(device)
 
-                l = criterion(x_norm, outputs, delta_x, delta_y, loss_weights)
+                l = criterion(x_norm, outputs, loss_weights)
 
                 for i in range(len(val_running_loss)):
                     val_running_loss[i] += l[i].item() * x.size(0)

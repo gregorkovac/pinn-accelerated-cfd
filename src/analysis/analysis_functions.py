@@ -198,6 +198,32 @@ def compute_errors(case, norm="2"):
 
     return err
 
+def compute_errors_for_case(results, case_num, norm="2"):
+    if norm == "2":
+        pointwise_func = pointwise_rmse
+        pointwise_vec_func = pointwise_vec_rmse
+    elif norm == "1":
+        pointwise_func = pointwise_l1
+        pointwise_vec_func = pointwise_vec_l1
+    elif norm == "inf":
+        pointwise_func = pointwise_inf
+        pointwise_vec_func = pointwise_vec_inf
+
+    u_pointwise_poisson = pointwise_vec_func(results["u_numeric"][case_num][np.newaxis, ...], results["u_poisson"][case_num][np.newaxis, ...])
+    p_pointwise_poisson = pointwise_func(results["p_numeric"][case_num][np.newaxis, ...], results["p_poisson"][case_num][np.newaxis, ...])
+
+    u_pointwise_full = pointwise_vec_func(results["u_numeric"][case_num][np.newaxis, ...], results["u_full"][case_num][np.newaxis, ...])
+    p_pointwise_full = pointwise_func(results["p_numeric"][case_num][np.newaxis, ...], results["p_full"][case_num][np.newaxis, ...])
+
+    err = {}
+
+    err["u_pointwise_poisson"] = u_pointwise_poisson
+    err["p_pointwise_poisson"] = p_pointwise_poisson
+    err["u_pointwise_full"] = u_pointwise_full
+    err["p_pointwise_full"] = p_pointwise_full
+
+    return err
+
 def print_err_mean_std(err):
     print(f"numeric divergence = {np.mean(err['divergence_numeric'])} +- {np.std(err['divergence_numeric'])}")
     print()

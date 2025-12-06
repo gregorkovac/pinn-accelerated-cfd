@@ -27,7 +27,7 @@ def main(case_name = None):
         case["height"],
         case["dx"],
         case["dy"],
-        case["iterations"] * 2,
+        case["iterations"],
         case["time_step"],
         case["density"],
         case["viscosity"],
@@ -36,12 +36,14 @@ def main(case_name = None):
         dynamic_time_step=False,
         implicit_laplacian=True,
         return_div_u_star=True,
-        method_type="poisson_model", # numeric, poisson_model, full_model
+        method_type="numeric", # numeric, poisson_model, full_model
         # model_path="../../models/full/2025-11-17_11_06"
-        model_path="../../models/poisson/2025-11-16_14_11"
+        model_path="../../models/poisson/2025-11-20_12_15",
+        # model_path="../../models/poisson/2025-11-18_13_46"
+        poisson_alternation=-1
     )
 
-    plot_flow_animation(u, p, case["dx"], case["geometry"], frame_step=2)
+    plot_flow_animation(u, p, case["dx"], case["geometry"], frame_step=10)
     # plot_poisson_animation(div_u_star, phi, case["grid_spacing"], case["geometry"], frame_step=100)
     # plot_navier_stokes_error(u, p, case["density"], case["viscosity"], case["time_step"], case["grid_spacing"], case["geometry"])
 

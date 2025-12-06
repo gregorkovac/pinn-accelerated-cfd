@@ -25,6 +25,8 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
     x_max = (width - 1) * grid_spacing
     y_max = (height - 1) * grid_spacing
 
+    u[boundary_image == 1, :] = 0
+
     ax.clear()
     X, Y = np.meshgrid(np.linspace(0, x_max, width) + 0.5 * grid_spacing, 
                        np.linspace(0, y_max, height) + 0.5 * grid_spacing)
@@ -37,9 +39,10 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
 
 
     im = ax.imshow(np.sqrt(u[:, :, 0] ** 2 + u[:, :, 1] ** 2)[::-1, ::], extent=[0, x_max + grid_spacing, 
-                                    0, y_max + grid_spacing])
+                                    0, y_max + grid_spacing], vmin = 0, vmax = 2)
 
-    ax.quiver(X[::4, ::4], Y[::4, ::4], u[::4,::4,0], u[::4,::4,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
+    ax.quiver(X[::4, ::4], Y[::4, ::4], u[::4,::4,0], u[::4,::4,1], color="white", scale=40, scale_units="xy", angles="xy")
+    # ax.quiver(X[::4, ::4], Y[::4, ::4], u[::4,::4,0], u[::4,::4,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
     # im = ax.imshow(np.linalg.norm(u, axis=-1), extent=[0, x_max + grid_spacing, 
     #                                 0, y_max + grid_spacing])
 
