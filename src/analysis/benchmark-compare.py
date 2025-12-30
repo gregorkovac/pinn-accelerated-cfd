@@ -18,120 +18,145 @@ from numeric_method.numeric_method import solve_navier_stokes
 from modeling.data import geometry_to_mtx
 
 plt.rcParams.update({
-    "text.usetex": True,
-    "font.family": "serif",
-    "font.serif": ["Computer Modern Roman"],
-    "axes.labelsize": 12,
-    "font.size": 12,
-    "legend.fontsize": 10,
-    "xtick.labelsize": 10,
-    "ytick.labelsize": 10,
+   "text.usetex": True,
+   "font.family": "serif",
+   "font.serif": ["Computer Modern Roman"],
+   "axes.labelsize": 12,
+   "font.size": 12,
+   "legend.fontsize": 10,
+   "xtick.labelsize": 10,
+   "ytick.labelsize": 10,
 })
 
-BENCHAMRK_PATH = "../../data/CFDBench/tube/bc"
+BENCHAMRK_PATH = "../../../../masters-thesis/data/CFDBench/cylinder/bc"
 
 def eval_case(case_path):
-    print("---------------------------")
-    print(case_path)
-    print("---------------------------")
+   print("---------------------------")
+   print(case_path)
+   print("---------------------------")
 
-    ux = np.load(os.path.join(case_path, "u.npy")) 
-    uy = np.load(os.path.join(case_path, "v.npy"))
-    with open(os.path.join(case_path, "case.json"), "r") as f:
-        case_ = json.load(f)
+   ux = np.load(os.path.join(case_path, "u.npy"))
+   uy = np.load(os.path.join(case_path, "v.npy"))
+   with open(os.path.join(case_path, "case.json"), "r") as f:
+       case_ = json.load(f)
 
-    with open("../../data/cases/pipe.json", "r") as f:
-        case_nm = json.load(f)
+   with open("../../../../masters-thesis/data/cases/pipe.json", "r") as f:
+       case_nm = json.load(f)
 
-    height_phys = case_["height"]
-    width_phys = case_["width"]
-    inflow = case_["vel_in"]
-    density = case_["density"]
-    viscosity = case_["viscosity"]
+   radius_phys = case_["radius"]
+   height_phys = abs(case_["y_min"]) + 2 * radius_phys + abs(case_["y_max"])
+   width_phys = abs(case_["x_min"]) + 2 * radius_phys + abs(case_["x_max"])
 
-    height_px = np.shape(ux)[1]
-    width_px = np.shape(ux)[2]
+   # height_phys = case_["height"]
+   # width_phys = case_["width"]
+   inflow = case_["vel_in"]
+   density = case_["density"]
+   viscosity = case_["viscosity"]
 
-    dy = height_phys / height_px
-    dx = width_phys / width_px
+   height_px = np.shape(ux)[1]
+   width_px = np.shape(ux)[2]
 
-    case_nm["width"] = width_px
-    case_nm["height"] = height_px
-    case_nm["dx"] = dx
-    case_nm["dy"] = dy
-    case_nm["density"] = density
-    case_nm["viscosity"] = viscosity / density
+   dy = height_phys / height_px
+   dx = width_phys / width_px
 
-    err_vec_inf = np.inf
-    err_vec_l2 = np.inf
-    err_vec_l1 = np.inf
+   x_phys = abs(case_["x_min"]) + radius_phys
+   y_phys = abs(case_["y_min"]) + radius_phys
 
-    # for C in [0.001, 0.1, 1, 10]:
-    for C in [0.001]:
-        case_nm["time_step"] = C #np.max([dy, dx]) * C / inflow
+   radius = int(radius_phys / min(dx, dy))
+   x = int(x_phys / dx)
+   y = int(y_phys / dy)
+   case_nm["geometry"].append({"type": "cylinder",
+                               "pos": {
+                                   "x": x,
+                                   "y": y
+                               },
+                               "size": radius})
 
-        for gi in range(len(case_nm["geometry"])):
-            if case_nm["geometry"][gi]["type"] == "inflow":
-                case_nm["geometry"][gi]["vel"]["x"] = inflow
-                break
+   case_nm["width"] = width_px
+   case_nm["height"] = height_px
+   case_nm["dx"] = dx
+   case_nm["dy"] = dy
+   case_nm["density"] = density
+   case_nm["viscosity"] = viscosity / density
 
-        u, p, u_star, div_u_star, phi = solve_navier_stokes(
-            width_px,
-            height_px,
-            dx,
-            dy,
-            case_nm["iterations"],
-            case_nm["time_step"],
-            density,
-            viscosity,
-            0,
-            case_nm["geometry"],
-            dynamic_time_step=True,
-            implicit_laplacian=True,
-            return_div_u_star=True,
-            method_type="numeric"
-        )
+   err_vec_inf = np.inf
+   err_vec_l2 = np.inf
+   err_vec_l1 = np.inf
 
-        u_nm = np.transpose(u[-1], (2, 0, 1))
-        u_baseline = np.stack([ux[-1], uy[-1]], axis=0)
+   # for C in [0.001, 0.1, 1, 10]:
+   for C in [0.001]:
+       case_nm["time_step"] = C #np.max([dy, dx]) * C / inflow
 
-        _, _, _, _, _, _, boundary = geometry_to_mtx(case_nm["geometry"], width_px, height_px)
+       for gi in range(len(case_nm["geometry"])):
+           if case_nm["geometry"][gi]["type"] == "inflow":
+               case_nm["geometry"][gi]["vel"]["x"] = inflow
+               break
 
-        e_vec_inf = pointwise_inf(u_baseline, u_nm) * (1 - boundary)
-        e_vec_l1 = pointwise_l1(u_baseline, u_nm) * (1 - boundary)
-        e_vec_l2 =  pointwise_rmse(u_baseline, u_nm) * (1 - boundary)
+       u, p, u_star, div_u_star, phi = solve_navier_stokes(
+           width_px,
+           height_px,
+           dx,
+           dy,
+           # case_nm["iterations"],
+           300,
+           case_nm["time_step"],
+           case_nm["density"],
+           case_nm["viscosity"],
+           0,
+           case_nm["geometry"],
+           dynamic_time_step=True,
+           implicit_laplacian=True,
+           return_div_u_star=True,
+           method_type="numeric"
+       )
 
-        if np.mean(e_vec_inf) < np.mean(err_vec_inf):
-            err_vec_inf = e_vec_inf
-            err_vec_l1 = e_vec_l1
-            err_vec_l2 = e_vec_l2
+       # u = [u[i][:, :64, :] for i in range(len(u))]
 
-    results = {}
+       u_nm = np.transpose(u[-1], (2, 0, 1))
 
-    results["case_path"] = case_path
-    results["nm_mean"] = u_nm.mean()
-    results["nm_std"] = u_nm.std()
-    results["baseline_mean"] = u_baseline.mean()
-    results["baseline_std"] = u_baseline.std()
-    results["err_l1_mean"] = err_vec_l1.mean()
-    results["err_l1_std"] = err_vec_l1.std()
-    results["err_l2_mean"] = err_vec_l2.mean()
-    results["err_l2_std"] = err_vec_l2.std()
-    results["err_inf_mean"] = err_vec_inf.mean()
-    results["err_inf_std"] = err_vec_inf.std()
+       u_nm[1] = u_nm[0] # TODO: Why do the do this in the cylinder case??
 
-    return results
+       u_baseline = np.stack([ux[-1], uy[-1]], axis=0)
+
+       _, _, _, _, _, _, boundary = geometry_to_mtx(case_nm["geometry"], width_px, height_px)
+
+       e_vec_inf = pointwise_inf(u_baseline, u_nm)[boundary != 1]
+       e_vec_l1 = pointwise_l1(u_baseline, u_nm)[boundary != 1]
+       e_vec_l2 =  pointwise_rmse(u_baseline, u_nm)[boundary != 1]
+
+       if np.mean(e_vec_inf) < np.mean(err_vec_inf):
+           err_vec_inf = e_vec_inf
+           err_vec_l1 = e_vec_l1
+           err_vec_l2 = e_vec_l2
+
+   results = {}
+
+   results["case_path"] = case_path
+   results["nm_mean"] = u_nm.mean()
+   results["nm_std"] = u_nm.std()
+   results["baseline_mean"] = u_baseline.mean()
+   results["baseline_std"] = u_baseline.std()
+   results["err_l1_mean"] = err_vec_l1.mean()
+   results["err_l1_std"] = err_vec_l1.std()
+   results["err_l2_mean"] = err_vec_l2.mean()
+   results["err_l2_std"] = err_vec_l2.std()
+   results["err_inf_mean"] = err_vec_inf.mean()
+   results["err_inf_std"] = err_vec_inf.std()
+
+   print(f"{case_path}: L1 error mean = {err_vec_l1.mean()}")
+
+   return results
 
 def main():
-    results = []
+   results = []
 
-    for i in range(0, 50):
-        case_path = "case" + str(i).zfill(4)
-        res = eval_case(os.path.join(BENCHAMRK_PATH, case_path))
-        results.append(res)
+   for i in range(0, 50):
+       case_path = "case" + str(i).zfill(4)
+       res = eval_case(os.path.join(BENCHAMRK_PATH, case_path))
+       results.append(res)
 
-    df = pd.DataFrame(results)
-    df.to_csv("benchmark_comparison_results.csv", index=False, sep=";")
+   df = pd.DataFrame(results)
+   df.to_csv("benchmark_comparison_results.csv", index=False, sep=";")
 
 if __name__ == "__main__":
-    main()
+   main()

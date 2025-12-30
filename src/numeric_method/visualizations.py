@@ -30,31 +30,29 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
     ax.clear()
     X, Y = np.meshgrid(np.linspace(0, x_max, width) + 0.5 * grid_spacing, 
                        np.linspace(0, y_max, height) + 0.5 * grid_spacing)
-    # ax.contourf(X, Y, p, cmap=cmap)
-    # p *= (1 - boundary_image)
+    
+    p *= (1 - boundary_image)
 
-    # im = ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
-    #                                 0, y_max + grid_spacing])
+    im = ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
+                                    0, y_max + grid_spacing])
     
 
+    # Velocity image (NEW)
+    # im = ax.imshow(np.sqrt(u[:, :, 0] ** 2 + u[:, :, 1] ** 2)[::-1, ::], extent=[0, x_max + grid_spacing, 
+    #                                 0, y_max + grid_spacing], vmin = 0, vmax = 10)
 
-    im = ax.imshow(np.sqrt(u[:, :, 0] ** 2 + u[:, :, 1] ** 2)[::-1, ::], extent=[0, x_max + grid_spacing, 
-                                    0, y_max + grid_spacing], vmin = 0, vmax = 2)
+    # Velocity quivers (NEW)
+    # ax.quiver(X[::1, ::1], Y[::1, ::1], u[::1,::1,0], u[::1,::1,1], color="black", scale=100, scale_units="xy", angles="xy")
 
-    ax.quiver(X[::4, ::4], Y[::4, ::4], u[::4,::4,0], u[::4,::4,1], color="white", scale=40, scale_units="xy", angles="xy")
-    # ax.quiver(X[::4, ::4], Y[::4, ::4], u[::4,::4,0], u[::4,::4,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
-    # im = ax.imshow(np.linalg.norm(u, axis=-1), extent=[0, x_max + grid_spacing, 
-    #                                 0, y_max + grid_spacing])
+    # Velocity quivers (OLD)
+    # ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
+    ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white")
 
+    # Boundary image overlay (OLD)
+    boundary_image = boundary_image[::-1, :]
+    ax.imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
+                                    0, y_max + grid_spacing], alpha=0.5*boundary_image)
 
-    # boundary_image = boundary_image[::-1, :]
-    # ax.imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
-    #                                 0, y_max + grid_spacing], alpha=0.5*boundary_image)
-
-    # U = -np.sin(u[..., 1])
-    # V = np.cos(u[..., 0])
-    # speed = np.sqrt(U**2 + V**2)
-    # plt.streamplot(X, Y, u[..., 0], u[..., 1], color=speed, linewidth=1)
 
     if cbar is None:
         cbar = plt.colorbar(im, ax=ax)

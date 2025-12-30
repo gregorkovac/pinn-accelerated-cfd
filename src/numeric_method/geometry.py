@@ -1,38 +1,7 @@
 # import numpy as np
 import numpy as np
+import matplotlib.pyplot as plt
 
-# def apply_dirichlet_bc(u, idx, val, mask=(1, 1)):
-#     """
-#     Applies a Dirichlet boundary condition to a scalar or vector field
-
-#     Args:
-#         u (numpy.ndarray) - scalar or vector field of shape (n, m) or (n, m, 2)
-#         idx (tuple) - index of where to apply the boundary condition
-#         val (float) - boundary condition value
-
-#     Returns:
-#         (numpy.ndarray) - u with applied boundary condition
-#     """
-
-#     if u is None:
-#         return None
-
-#     if u.ndim == 2 or len(np.shape(idx)) == 2:
-#         u[idx] = val
-#         return u
-
-#     # print(np.shape(u))
-#     # print(idx)
-#     # print(idx + (0,))
-#     # exit(0)
-
-#     if mask[0] == 1:
-#         u[idx[0], idx[1], 0] = val[0]
-
-#     if mask[1] == 1:
-#         u[idx[0], idx[1], 0] = val[1]
-
-#     return u
 
 def apply_dirichlet_bc(u, idx, val, mask=(1, 1)):
     if u is None:
@@ -70,6 +39,18 @@ def apply_neumann_bc(u, idx, neumann_idx):
 
     if u is None:
         return None
+    
+    if isinstance(idx, np.ndarray) and idx.dtype == bool:
+        i_b, j_b = np.where(idx)
+        i_in = neumann_idx[i_b, j_b, 0]
+        j_in = neumann_idx[i_b, j_b, 1]
+
+        if u.ndim == 2:
+            u[i_b, j_b] = u[i_in, j_in]
+        else:
+            u[i_b, j_b, :] = u[i_in, j_in, :]
+
+        return u
     
     u[idx] = u[neumann_idx]
 
@@ -135,13 +116,35 @@ def get_neumann_index(g, height = None, width = None):
 
         yy, xx = np.meshgrid(np.arange(height), np.arange(width), indexing="ij")
 
-        mask = (xx - x)**2 + (yy - y)**2 <= r**2
+        dist = np.sqrt((xx - x)**2 + (yy - y)**2)
 
-        shifted_mask = (xx - x)**2 + (yy - y)**2 <= (r + 1)**2
+        boundary_mask = np.logical_and(dist <= r + 0.5, dist >= r - 0.5)
 
-        neumann_mask = np.logical_and(shifted_mask, ~mask)
+        i_b, j_b = np.where(boundary_mask)
 
-        return np.where(neumann_mask)
+        nx = (j_b - x) / dist[i_b, j_b]
+        ny = (i_b - y) / dist[i_b, j_b]
+
+        i_in = np.round(i_b - ny).astype(int)
+        j_in = np.round(j_b - nx).astype(int)
+
+        nidx = np.stack((yy, xx), axis=-1)
+
+        nidx[boundary_mask, :] = np.stack((i_in, j_in), axis=1)
+
+        return nidx
+
+        # print((i_b, j_b), (i_in, j_in))
+
+        # return (i_b, j_b), (i_in, j_in)
+
+        # mask = (xx - x)**2 + (yy - y)**2 <= r**2
+
+        # shifted_mask = (xx - x)**2 + (yy - y)**2 <= (r + 1)**2
+
+        # neumann_mask = np.logical_and(shifted_mask, ~mask)
+
+        # return np.where(neumann_mask)
         
 
     x, y = g["pos"]["x"], g["pos"]["y"]
@@ -234,7 +237,10 @@ def boundary(geometry, u = None, p = None):
             u = apply_neumann_bc(u, idx, neumann_idx)
             p = apply_dirichlet_bc(p, idx, 0)
         elif g["type"] == "cylinder":
+            neumann_idx = get_neumann_index(g, height, width)
+
             u = apply_dirichlet_bc(u, idx, (0, 0))
+            p = apply_neumann_bc(p, idx, neumann_idx)
 
     return u, p
 

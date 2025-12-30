@@ -33,7 +33,7 @@ def main(case_name = None):
         case["viscosity"],
         case["beta"],
         case["geometry"],
-        dynamic_time_step=False,
+        dynamic_time_step=True,
         implicit_laplacian=True,
         return_div_u_star=True,
         method_type="numeric", # numeric, poisson_model, full_model
@@ -43,7 +43,7 @@ def main(case_name = None):
         poisson_alternation=-1
     )
 
-    plot_flow_animation(u, p, case["dx"], case["geometry"], frame_step=10)
+    plot_flow_animation(u, p, case["dx"], case["geometry"], frame_step=20)
     # plot_poisson_animation(div_u_star, phi, case["grid_spacing"], case["geometry"], frame_step=100)
     # plot_navier_stokes_error(u, p, case["density"], case["viscosity"], case["time_step"], case["grid_spacing"], case["geometry"])
 

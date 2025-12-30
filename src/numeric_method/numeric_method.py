@@ -115,6 +115,18 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
     u_bc, p_bc = boundary(geometry=geometry, u=u, p=p)
 
+    # fig, ax = plt.subplots(1, 2)
+    # im0 = ax[0].imshow(u_bc[..., 0])
+    # im1 = ax[1].imshow(u_bc[..., 1])
+
+    # ax[0].set_title("x")
+    # ax[1].set_title("y")
+
+    # plt.colorbar(im0)
+    # plt.colorbar(im1)
+    # plt.show()
+    # exit(0)
+
     # Handle the Laplacian term implicitly
     if A_laplacian is not None:
 
@@ -129,6 +141,18 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                           dy = dy,
                           boundary=None,
                           numpy_=True)
+        
+        # fig, ax = plt.subplots(1, 2)
+        # im0 = ax[0].imshow(conv_u[..., 0])
+        # im1 = ax[1].imshow(conv_u[..., 1])
+
+        # ax[0].set_title("x")
+        # ax[1].set_title("y")
+
+        # plt.colorbar(im0)
+        # plt.colorbar(im1)
+        # plt.show()
+        # exit(0)
 
         # Compute the pressure gradient
         grad_p = grad(u=p_bc,
@@ -136,9 +160,29 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                       dy=dy,
                       boundary=None,
                       numpy_=True)
+        
+        full_lapl = laplacian(u=u_bc, dx=dx, dy=dy, numpy_=True)
+    
+        u_only_interior = np.pad(u, pad_width=((1, 1), (1, 1), (0, 0)), mode='constant', constant_values=0)
+        interior_lapl = laplacian(u=u_only_interior, dx=dx, dy=dy, numpy_=True)
+
+        boundary_injection = full_lapl - interior_lapl
 
         # Compute right hand side for implicit Laplacian system
-        b = (u - delta_t * conv_u - beta * delta_t / density * grad_p)
+        # TODO: Find a source for this last term
+        b = (u - delta_t * conv_u - beta * delta_t / density * grad_p) + (delta_t * viscosity * boundary_injection)
+
+        # fig, ax = plt.subplots(1, 2)
+        # im0 = ax[0].imshow(b[..., 0])
+        # im1 = ax[1].imshow(b[..., 1])
+
+        # ax[0].set_title("x")
+        # ax[1].set_title("y")
+
+        # plt.colorbar(im0)
+        # plt.colorbar(im1)
+        # plt.show()
+        # exit(0)
 
         # Reshape
         b_x = b[:, :, 0].ravel()
@@ -193,11 +237,19 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                      dy=dy,
                      boundary=None,
                      numpy_=True)
+    
+    # plt.imshow(div)
+    # plt.colorbar()
+    # plt.show()
+    # exit(0)
 
     # div_before = div.mean()
 
     # Scale the divergence of u star
     div_u_star = (density / delta_t) * div
+
+    # plt.imshow(bmi)
+    # plt.show()
 
     # _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, n, m)
 
@@ -348,7 +400,8 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
 
     _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, width, height)
 
-    A_poisson = compute_discrete_laplacian(height, width, dx, dy)
+    A_poisson = compute_discrete_laplacian(height, width, dy, dx)
+    A_laplacian_init = compute_discrete_laplacian(height, width, dy, dx)
 
     # randu = np.random.rand(height, width)
 
@@ -366,14 +419,16 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
     # ax[3].imshow((lap_mtx.reshape((height, width)) - lap_op) ** 2)
     # plt.show()
 
-    if implicit_laplacian:
-        # A_laplacian = compute_discrete_laplacian(height, width, dx, dy)
-        A_laplacian = A_poisson
-        I = sp.eye(width * height)
-        A_laplacian = (I - time_step * viscosity * A_laplacian)
-        A_laplacian = splu(A_laplacian)
-    else:
-        A_laplacian = None
+    time_step_arg = time_step
+
+    # if implicit_laplacian:
+    #     # A_laplacian = compute_discrete_laplacian(height, width, dx, dy)
+    #     A_laplacian = A_poisson
+    #     I = sp.eye(width * height)
+    #     A_laplacian = (I - time_step * viscosity * A_laplacian)
+    #     A_laplacian = splu(A_laplacian)
+    # else:
+    #     A_laplacian = None
 
     if method_type in ["full_model", "poisson_model"]:
         with open(os.path.join(model_path, "params.json"), "r") as f:
@@ -556,13 +611,25 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         for iter in tqdm(range(max_iter), desc="     "):
         
             if dynamic_time_step and np.max(np.abs(u)) != 0:
-                time_step = np.min([dx, dy]) * 0.01 / np.max(np.abs(u))
+                # time_step = np.min([dx, dy]) * time_step_arg / np.max(np.abs(u))
+                time_step = np.min([dx, dy]) * time_step_arg / np.max(np.abs(u))
+
 
             # if A_laplacian is None:
             #     A_laplacian_ = None
             # else:
             #     I = sp.eye(width * height)
             #     A_laplacian_ = (I - time_step * viscosity * A_laplacian)
+
+            if implicit_laplacian:
+                # A_laplacian = compute_discrete_laplacian(height, width, dx, dy)
+                A_laplacian = A_laplacian_init
+                I = sp.eye(width * height)
+                A_laplacian = (I - time_step * viscosity * A_laplacian)
+
+                A_laplacian = splu(A_laplacian)
+            else:
+                A_laplacian = None
 
             # Perform one step of the solver
             u_new, p_new, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian, model, iter=iter, geometry_mtx=geometry_mtx, x_mean=x_mean, x_std=x_std, poisson_alternation=poisson_alternation)
