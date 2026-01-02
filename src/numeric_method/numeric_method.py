@@ -83,8 +83,8 @@ def solve_discrete_poisson(u, A):
     # u[i] = 0
 
     # Solve the system
-    # phi_flat, info = spla.cg(A, u)
-    phi_flat = spla.spsolve(A, u)
+    phi_flat, info = spla.cg(A, u)
+    # phi_flat = spla.spsolve(A, u)
     # print("CG info:", info)
 
     # Reshape the solution vector into a matrix
@@ -610,9 +610,21 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         # Iterate
         for iter in tqdm(range(max_iter), desc="     "):
         
-            if dynamic_time_step and np.max(np.abs(u)) != 0:
-                # time_step = np.min([dx, dy]) * time_step_arg / np.max(np.abs(u))
-                time_step = np.min([dx, dy]) * time_step_arg / np.max(np.abs(u))
+            # if dynamic_time_step and np.max(np.abs(u)) != 0:
+            #     time_step = np.min([dx, dy]) * time_step_arg / np.max(np.abs(u))
+
+            if dynamic_time_step:
+                u_max = np.max(np.abs(u[..., 0]))
+                v_max = np.max(np.abs(u[..., 1]))
+
+                dt_adv = min(dx / max(u_max, 1e-6), dy / max(v_max, 1e-6))
+
+                dt_diff = 0.5 / (viscosity * (1 / dx ** 2 + 1 / dy ** 2))
+
+                CFL = time_step_arg
+                dt_new = CFL * min(dt_adv, dt_diff)
+
+                time_step = np.clip(dt_new, 1e-6, np.inf)
 
 
             # if A_laplacian is None:

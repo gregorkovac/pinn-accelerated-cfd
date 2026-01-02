@@ -1,0 +1,70 @@
+{
+    "base_case_path": "../../data/cases/pipe.json",
+    "fluids": [
+        {   "fluid":"water",
+            "density": 1000,
+            "viscosity": 0.001
+        },
+        {    
+            "fluid": "cooking_oil",
+            "density": 920,
+            "viscosity": 0.0056
+        },
+        {   "fluid": "honey",
+            "density": 1415,
+            "viscosity": 2
+        },
+        {   "fluid": "glycerol",
+            "density": 1261,
+            "viscosity": 1.5
+        },
+        {   "fluid": "ethanol",
+            "density": 789,
+            "viscosity": 0.001
+        },
+        {   "fluid": "ketchup",
+            "density": 1100,
+            "viscosity": 10
+        },
+        {   "fluid": "gasoline",
+            "density": 700,
+            "viscosity": 0.0006
+        }
+    ],
+    "Re": {
+        "min": 1,
+        "max": 10
+    }, 
+    "dam": {
+        "x": {
+            "min": 0,
+            "max": 30
+        },
+        "y": {
+            "min": 0,
+            "max": 30
+        },
+        "width": {
+            "min": 4,
+            "max": 16
+        },
+        "height": {
+            "min": 4,
+            "max": 16
+        }
+    },
+    "cylinder": {
+        "x": {
+            "min": 2,
+            "max": 30
+        },
+        "y": {
+            "min": 2,
+            "max": 30
+        },
+        "size": {
+            "min": 2,
+            "max": 8
+        }
+    }
+}

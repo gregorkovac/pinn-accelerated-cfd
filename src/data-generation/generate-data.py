@@ -6,69 +6,141 @@ import numpy as np
 import sys
 import copy
 import matplotlib.pyplot as plt
+import argparse
+import random
 
 sys.path.insert(0, "..")
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from numeric_method.numeric_method import solve_navier_stokes
+from numeric_method.geometry import get_boundary_image
 
-DATA_PATH = "../../../data_final_small"
-NUM_CASES = 300
-CYLINDER_SPLIT = 0
-DAM_SPLIT = 150
+# DATA_PATH = "../../../data_final_small"
+# NUM_CASES = 300
+# CYLINDER_SPLIT = 0
+# DAM_SPLIT = 150
 
-TEST_SET = False
+# TEST_SET = False
+
+def sample_param(x):
+    if isinstance(x, list):
+        return random.choice(x)
+    
+    if isinstance(x, dict):
+        return float(np.random.uniform(x["min"], x["max"]))
+    
+    return None
 
 def main():
-    case_path = "../../data/cases/pipe.json"
+    parser = argparse.ArgumentParser(description="Flow data generator")
+
+    parser.add_argument("--data-path",
+                        help="Where to output the data.",
+                        required=True)
+    parser.add_argument("--data-config-path",
+                        help="Path to the dataset configuration JSON.",
+                        default="./data-generation-config.json")
+    parser.add_argument("--num-cases",
+                        help="The number of cases to generate.",
+                        default=100)
+    parser.add_argument ("--cylinder-split",
+                         help="At what index to start cylinder flows. All indices before this value represent pipe flows.",
+                         default=20)
+    parser.add_argument ("--dam-split",
+                         help="At what index to start dam flows. All indices before this value represent cylinder and pipe flows.",
+                         default=60)
+    parser.add_argument("--test-set",
+                        action="store_true",
+                        help="Whether this is a training or testing set. If this flag is true, more complex data is generated.")
+
+    args = parser.parse_args()
+
+    data_path = args.data_path
+    data_config_path = args.data_config_path
+    num_cases = int(args.num_cases)
+    cylinder_split = int(args.cylinder_split)
+    dam_split = int(args.dam_split)
+    test_set = int(args.test_set)
+
+    if cylinder_split >= dam_split:
+        print("dam_split needs to be greater than cylinder_split")
+        exit(1)
+
+    with open(data_config_path, "r") as f:
+        data_config = json.load(f)
+
+    base_case_path = data_config["base_case_path"]
+    fluids = data_config["fluids"]
+    Re_range = data_config["Re"]
+    dam_x_range = data_config["dam"]["x"]
+    dam_y_range = data_config["dam"]["y"]
+    dam_width_range = data_config["dam"]["width"]
+    dam_height_range = data_config["dam"]["height"]
+    cylinder_x_range = data_config["cylinder"]["x"]
+    cylinder_y_range = data_config["cylinder"]["y"]
+    cylinder_size_range = data_config["cylinder"]["size"]
+
+    metadata = {
+        "num_cases": num_cases,
+        "cylinder_split": cylinder_split,
+        "dam_split": dam_split,
+        "test_set": test_set,
+        "data_config": data_config
+    }
+
+    sampled_params = {}
 
     np.random.seed(42)
-    
-    print(case_path)
 
-    with open(case_path) as f:
-        case_ = json.load(f)
+    with open(base_case_path) as f:
+        base_case = json.load(f)
 
-    if not os.path.exists(os.path.join(DATA_PATH, "flow_pics")):
-        os.makedirs(os.path.join(DATA_PATH, "flow_pics"))
+    if not os.path.exists(os.path.join(data_path, "flow_pics")):
+        os.makedirs(os.path.join(data_path, "flow_pics"))
 
-    for i in range(NUM_CASES):
-        print(f"[ {i} / {NUM_CASES} ]")
+    for i in range(num_cases):
+        print(f"[ {i} / {num_cases} ]")
 
-        w = case_["width"]
-        h = case_["height"]
+        sampled_params_case = {}
 
-        # density = float(10 ** np.random.uniform(np.log10(1e-2), np.log10(10)))
-        # density = float(np.random.uniform(0))
-        # inflow = float(10 ** np.random.uniform(np.log10(1e-1), np.log10(5)))
-        # inflow = float(np.random.uniform(0.5, 2))
+        w = base_case["width"]
+        h = base_case["height"]
 
-        # L = (h - 2) * 0.01
-        # Re = np.random.uniform(0.1, 20)
+        fluid = sample_param(fluids)
+        density = fluid["density"]
+        viscosity = fluid["viscosity"]
 
-        # viscosity = float((density * inflow * L) / Re)
-        # viscosity = viscosity / density
+        Re = sample_param(Re_range)
 
-        density = 1
-        viscosity = 0.01
-        inflow = 1
-        # inflow = np.random.choice([1, 1.5, 2])
+        inflow = (Re * viscosity) / (density * h)
 
+        # Convert to kinematic viscosity
+        viscosity = viscosity / density
 
-        g = copy.deepcopy(case_["geometry"])
+        sampled_params_case["fluid"] = fluid["fluid"]
+        sampled_params_case["Re"] = Re
+        sampled_params_case["inflow"] = inflow
+
+        g = copy.deepcopy(base_case["geometry"])
 
         for j in range(len(g)):
             if g[j]["type"] == "inflow":
                 g[j]["vel"]["x"] = inflow
 
-        if i >= DAM_SPLIT or TEST_SET:
+        if i >= dam_split or test_set:
 
-            dam_x = int(np.random.randint(0, w - 2))
-            dam_y = int(np.random.randint(0, h - 2))
-            dam_width = int(np.random.randint(4, int(w / 2)))
-            dam_height = int(np.random.randint(4, int(h / 2)))
+            dam_x = int(sample_param(dam_x_range))
+            dam_y = int(sample_param(dam_y_range))
+            dam_width = int(sample_param(dam_width_range))
+            dam_height = int(sample_param(dam_height_range))
 
             dam_width = int(np.min([dam_width, (w - dam_x) - 1]))
             dam_height = int(np.min([dam_height, (h - dam_y) - 1]))
+
+            sampled_params_case["dam_x"] = dam_x
+            sampled_params_case["dam_y"] = dam_y
+            sampled_params_case["dam_width"] = dam_width
+            sampled_params_case["dam_height"] = dam_height
 
             g.append({
                 "type": "wall",
@@ -86,18 +158,23 @@ def main():
                 }
             })
 
-        if (i >= CYLINDER_SPLIT and i < DAM_SPLIT) or TEST_SET:
+        if (i >= cylinder_split and i < dam_split) or test_set:
 
-            cylinder_x = int(np.random.randint(int(w / 10), w - int(w / 10)))
-            cylinder_y = int(np.random.randint(int(h / 10), h - int(h / 10)))
-            cylinder_r = int(np.random.randint(int(h / 10) - 2, int(h / 4)))
-            cylinder_r = int(np.min([
-                cylinder_r,
-                cylinder_x - 2,
-                cylinder_y - 2,
-                (w - cylinder_x) - 2,
-                (h - cylinder_y) - 2]
-            ))
+            cylinder_x = int(sample_param(cylinder_x_range))
+            cylinder_y = int(sample_param(cylinder_y_range))
+            cylinder_r = int(sample_param(cylinder_size_range))
+            cylinder_r = int(np.max([1, 
+                                np.min([
+                                    cylinder_r,
+                                    cylinder_x - 2,
+                                    cylinder_y - 2,
+                                    (w - cylinder_x) - 2,
+                                    (h - cylinder_y) - 2]
+                                )]))
+
+            sampled_params_case["cylinder_x"] = cylinder_x
+            sampled_params_case["cylinder_y"] = cylinder_y
+            sampled_params_case["cylinder_r"] = cylinder_r
 
             g.append({
                 "type": "cylinder",
@@ -108,21 +185,20 @@ def main():
                 "size": cylinder_r
             })
 
-        # delta_t = case_["dx"] / 100
-        # delta_t = case_["time_step"]
+        sampled_params[i] = sampled_params_case
 
         u, p, u_star, div_u_star, phi = solve_navier_stokes(
-            case_["width"],
-            case_["height"],
-            case_["dx"],
-            case_["dy"],
-            case_["iterations"],
-            case_["time_step"],
+            base_case["width"],
+            base_case["height"],
+            base_case["dx"],
+            base_case["dy"],
+            base_case["iterations"],
+            base_case["time_step"],
             density,
             viscosity,
-            case_["beta"],
+            base_case["beta"],
             g,
-            dynamic_time_step=False,
+            dynamic_time_step=True,
             implicit_laplacian=True,
             return_div_u_star=True,
             method_type="numeric"
@@ -130,28 +206,30 @@ def main():
 
         u_norm = np.linalg.norm(u[-1], axis=-1)
 
-        # if len(u_star) != case_["iterations"]:
+        # if len(u_star) != base_case["iterations"]:
         #     print("NAN FOUND --- NOT SAVING")
         #     continue
 
-        u_star = u_star[:-1]
-        div_u_star = div_u_star[:-1]
-        phi = phi[:-1]
+        u_star = np.array(u_star[:-1])
+        div_u_star = np.array(div_u_star[:-1])
+        phi = np.array(phi[:-1])
+
+        boundary_mask = get_boundary_image(g, w - 2, h - 2)
 
         params = {
-            "width": case_["width"],
-            "height": case_["height"],
-            "dx": case_["dx"],
-            "dy": case_["dy"],
-            "time_step": case_["time_step"],
-            "iterations": case_["iterations"],
+            "width": base_case["width"],
+            "height": base_case["height"],
+            "dx": base_case["dx"],
+            "dy": base_case["dy"],
+            "time_step": base_case["time_step"],
+            "iterations": base_case["iterations"],
             "density": density,
             "viscosity": viscosity,
-            "beta": case_["beta"],
+            "beta": base_case["beta"],
             "geometry": g
         }
 
-        save_path = os.path.join(DATA_PATH, str(i))
+        save_path = os.path.join(data_path, str(i))
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
@@ -162,10 +240,16 @@ def main():
         with open(os.path.join(save_path, "params.json"), "w") as f:
             json.dump(params, f)
 
-        plt.imshow(u_norm, cmap="viridis")
+        plt.imshow(u_norm * (1 - boundary_mask), cmap="viridis")
         plt.axis("off")
         plt.tight_layout()
-        plt.savefig(os.path.join(DATA_PATH, "flow_pics", f"{str(i)}.png"))
+        plt.savefig(os.path.join(data_path, "flow_pics", f"{str(i)}.png"))
+
+
+    metadata["sampled_params"] = sampled_params
+
+    with open(os.path.join(data_path, "metadata.json"), "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=4)
 
 if __name__ == "__main__":
     main()
