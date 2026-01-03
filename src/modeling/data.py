@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset, Sampler
 import os
 import numpy as np
@@ -14,6 +15,10 @@ def load_case(data_path, idx, samples_per_case=-1):
     u_star = np.load(os.path.join(case_path, "u_star.npy"))
     div_u_star = np.load(os.path.join(case_path, "div_u_star.npy"))
     phi = np.load(os.path.join(case_path, "phi.npy"))
+
+    u_star = u_star[:10]
+    phi = phi[:10]
+    div_u_star = div_u_star[:10]
 
     with open(os.path.join(case_path, "params.json")) as f:
         params = json.load(f)
@@ -159,12 +164,12 @@ class PINNDataset(Dataset):
                 grid_y, grid_x = torch.meshgrid(
                         torch.linspace(0, 1, self.height),
                         torch.linspace(0, 1, self.width),
-                        indexing="xy"
+                        indexing="ij"
                 )
                 self.coords = torch.stack([grid_x, grid_y], dim=0).to(device)
 
-            u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, self.width, self.height)
-
+            u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, self.width + 2, self.height + 2)
+        
             # Iterate over time steps
             for j in range(len(u_star)):
                 
@@ -253,12 +258,12 @@ class PoissonPINNDataset(PINNDataset):
             #         ], dim=0))
 
             self.x.append(torch.cat([
-                           0 * self.div_u_star[idx].unsqueeze(0), #* (1 - self.boundary_mask[idx].unsqueeze(0)), # 0
-                           self.coords, # 1, 2
+                           F.pad(0 * self.div_u_star[idx].unsqueeze(0), (1, 1, 1, 1)), #* (1 - self.boundary_mask[idx].unsqueeze(0)), # 0
+                           F.pad(self.coords, (1, 1, 1, 1)), # 1, 2
                            self.p_dirichlet[idx].unsqueeze(0), # 3,
                            self.p_dirichlet_mask[idx].unsqueeze(0), # 4
                            self.boundary_mask[idx].unsqueeze(0), # 5
-                           self.u_star[idx].permute(2, 0, 1), # 6, 7
+                           F.pad(self.u_star[idx].permute(2, 0, 1), (1, 1, 1, 1)), # 6, 7
                            self.p_neumann[idx].permute(2, 0, 1), # 8, 9
                            self.rho[idx] * ones, # 10
                            self.delta_t[idx] * ones, # 11
@@ -307,7 +312,8 @@ class FullPINNDataset(PINNDataset):
             shp = self.p_dirichlet[idx].unsqueeze(0).shape
             ones = torch.ones(shp).to(device)
 
-            self.x.append(torch.cat([self.coords, # 0, 1
+            self.x.append(torch.cat([
+                       F.pad(self.coords, (1, 1, 1, 1)), # 0, 1
                        self.u_dirichlet[idx].permute(2, 0, 1), # 2, 3
                        self.u_dirichlet_mask[idx].permute(2, 0, 1), # 4, 5
                        self.u_neumann[idx].permute(2, 0, 1), # 6, 7

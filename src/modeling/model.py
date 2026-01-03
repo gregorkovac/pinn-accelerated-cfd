@@ -164,7 +164,7 @@ class CNN(nn.Module):
 
         out = self.final_conv(out)
         
-        out = self.enforceBC(x, out)
+        # out = self.enforceBC(x, out)
 
         # out = out.squeeze(1)
 

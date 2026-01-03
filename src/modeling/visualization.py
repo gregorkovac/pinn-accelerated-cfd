@@ -68,7 +68,7 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=Non
 
     return [cbar0]
     
-def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1, dx=1):
+def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1, dx=1, enforceBC = lambda x : x):
     for a in ax:
         a.clear()
 
@@ -106,7 +106,10 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
 
     laplacian_phi = laplacian(x, dx, dy, boundary=boundary, numpy_=True)
 
-    div_u = divergence(u_star.transpose((1, 2, 0)), dx, dy, boundary=boundary, numpy_=True)
+    u_star = enforceBC(in_.unsqueeze(0), torch.from_numpy(u_star).unsqueeze(0))
+
+    # div_u = divergence(u_star.transpose((1, 2, 0)), dx, dy, boundary=boundary, numpy_=True)
+    div_u = divergence(u_star, dx, dy, boundary=boundary, numpy_=False).squeeze()
     div_u = div_u * rho / delta_t
 
     # grad_ux = np.gradient(u[1], dy, dx, edge_order=2)
@@ -144,6 +147,9 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
 
     ax[0].set_title(f"p = {np.mean(x_):.2f} +- {np.std(x_):.2f}")
     ax[1].set_title(f"p = {np.mean(np.array(y_)):.2f} +- {np.std(np.array(y_)):.2f}")
+
+    ax[2].set_title("Laplacian Phi")
+    ax[3].set_title("Div u*")
 
     if cbar:
         for cb in cbar:

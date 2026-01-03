@@ -15,8 +15,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from derivatives import *
 
 class PoissonLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, enforceBC):
         super().__init__()
+        self.enforceBC = enforceBC
 
     def forward(self, x, output, loss_weights):
 
@@ -30,10 +31,12 @@ class PoissonLoss(nn.Module):
         p_neumann = x[:, 8:10]
         p_dirichlet = x[:, 3:4]
         p_dirichlet_mask = x[:, 4:5]
-        rho = x[:, 10:11]
-        delta_t = x[:, 11:12]
+        rho = x[:, 10:11, 1:-1, 1:-1]
+        delta_t = x[:, 11:12, 1:-1, 1:-1]
         delta_x = x[:, 12:13, 0, 0].view(-1, 1, 1)
         delta_y = x[:, 13:14, 0, 0].view(-1, 1, 1)
+
+        u_star = self.enforceBC(x, u_star)
 
         # eroded_mask = -F.max_pool2d(-boundary_mask, kernel_size=3, stride=1, padding=3 // 2)
 
@@ -55,6 +58,8 @@ class PoissonLoss(nn.Module):
         #                         boundary_mask,
         #                         numpy_=True)
 
+        
+
         div_u_star = divergence(u_star,
                                 float(delta_x[0].item()),
                                 float(delta_y[0].item()),
@@ -72,7 +77,7 @@ class PoissonLoss(nn.Module):
 
         div_u_star = div_u_star.unsqueeze(1)
 
-        div_u_star = div_u_star * rho / delta_t     
+        div_u_star = div_u_star * rho / delta_t
 
         # div_u_star_orig = div_u_star_orig.unsqueeze(1)
 
@@ -109,8 +114,8 @@ class PoissonLoss(nn.Module):
         # loss_pde = torch.mean(torch.log(loss_pde))
 
 
-        # loss_nonneg = torch.mean(torch.relu(-output) ** 2)
-        loss_nonneg = torch.tensor(0, device=output.device)
+        loss_nonneg = torch.mean(torch.relu(-output) ** 2)
+        # loss_nonneg = torch.tensor(0, device=output.device)
 
         loss_bc = torch.tensor(0, device=output.device)
         # loss_bc = torch.mean(loss_pde_b)
@@ -133,8 +138,9 @@ class PoissonLoss(nn.Module):
 init_losses = {}
 
 class NavierStokesLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, enforceBC):
         super().__init__()
+        self.enforceBC = enforceBC
 
     def forward(self, x, output, loss_weights):
         # Reformat constants
@@ -149,6 +155,8 @@ class NavierStokesLoss(nn.Module):
 
         delta_x = x[0, 15:16, 0, 0] #.view(-1, 1, 1, 1)
         delta_y = x[0, 16:17, 0, 0] #.view(-1, 1, 1, 1)
+
+        output = self.enforceBC(x, output)
 
         uy = output[:, 0]
         ux = output[:, 1]
@@ -184,19 +192,21 @@ class NavierStokesLoss(nn.Module):
         # ax[2].imshow(grad_ux[0, 1].cpu().detach().numpy())
         # plt.show()
 
-        dux_dy = grad_ux[:, 0]
-        dux_dx = grad_ux[:, 1]
+        dux_dy = grad_ux[..., 0]
+        dux_dx = grad_ux[..., 1]
         
-        duy_dy = grad_uy[:, 0]
-        duy_dx = grad_uy[:, 1]
+        duy_dy = grad_uy[..., 0]
+        duy_dx = grad_uy[..., 1]
 
-        dp_dy = grad_p[:, 0]
-        dp_dx = grad_p[:, 1]
+        dp_dy = grad_p[..., 0]
+        dp_dx = grad_p[..., 1]
+
 
         div_u = divergence(u=torch.stack([uy, ux], dim=1),
                            dx=delta_x,
                            dy=delta_y,
                            boundary=boundary_mask_u * 0)
+        
 
         u_dot_del_u = convective(u = torch.stack([uy, ux], axis=1),
                            dx = delta_x,
@@ -221,17 +231,19 @@ class NavierStokesLoss(nn.Module):
         loss_nonneg_p = torch.mean(res_mom[:, 1]) #** (1 / 2)
         # loss_mom = torch.mean(loss_mom)
 
-        mask_dy = 1 - x[:, 6]
-        mask_dx = 1 - x[:, 7]
-        loss_bc = torch.mean((mask_dy * dux_dy) ** 2 + (mask_dy * duy_dy) ** 2 + (mask_dx * dux_dx) ** 2 + (mask_dx * duy_dx) ** 2)
+        # mask_dy = 1 - x[:, 6]
+        # mask_dx = 1 - x[:, 7]
+        # loss_bc = torch.mean((mask_dy * dux_dy) ** 2 + (mask_dy * duy_dy) ** 2 + (mask_dx * dux_dx) ** 2 + (mask_dx * duy_dx) ** 2)
 
-        mask_dy = 1 - x[:, 10]
-        mask_dx = 1 - x[:, 11]
-        loss_bc += torch.mean((mask_dy * dp_dy) ** 2 + (mask_dx * dp_dx) ** 2)
+        # mask_dy = 1 - x[:, 10]
+        # mask_dx = 1 - x[:, 11]
+        # loss_bc += torch.mean((mask_dy * dp_dy) ** 2 + (mask_dx * dp_dx) ** 2)
 
-        # loss_nonneg_p = torch.mean(torch.relu(-output[:, 2])**2) * 0
+        # # loss_nonneg_p = torch.mean(torch.relu(-output[:, 2])**2) * 0
 
-        loss_bc += torch.sum((uy[..., 0] - uy[..., -1]) ** 2) + torch.sum((ux[..., 0] - ux[..., -1]) ** 2)
+        # loss_bc += torch.sum((uy[..., 0] - uy[..., -1]) ** 2) + torch.sum((ux[..., 0] - ux[..., -1]) ** 2)
+
+        loss_bc = torch.tensor(0)
 
         # if epoch < 50:
         #     dynamic_weight_mom = 0

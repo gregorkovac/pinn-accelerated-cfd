@@ -217,28 +217,9 @@ def main():
     x_mean[:, dont_normalize] = 0
     x_std[:, dont_normalize] = 1
 
+    # Disable normalization
     # x_mean[...] = 0
     # x_std[...] = 1
-
-    # x_mean[:, 1] = 0
-    # x_mean[:, 2] = 0
-    # x_mean[:, 3] = 0
-    # x_mean[:, 4] = 0
-    # x_mean[:, 5] = 0
-    # x_mean[:, 8] = 0
-    # x_mean[:, 9] = 0
-    # x_mean[:, 10] = 0
-    # x_mean[:, 11] = 0
-
-    # x_std[:, 1] = 1
-    # x_std[:, 2] = 1
-    # x_std[:, 3] = 1
-    # x_std[:, 4] = 1
-    # x_std[:, 5] = 1
-    # x_std[:, 8] = 1
-    # x_std[:, 9] = 1
-    # x_std[:, 10] = 1
-    # x_std[:, 11] = 1
 
     train_dataset.x = (train_dataset.x - x_mean) / x_std
     val_dataset.x = (val_dataset.x - x_mean) / x_std
@@ -322,9 +303,9 @@ def main():
 
     # Initialize training criterion
     if model_type == "poisson":
-        criterion = PoissonLoss()
+        criterion = PoissonLoss(enforceBC=train_dataset.enforceBC)
     else:
-        criterion = NavierStokesLoss()
+        criterion = NavierStokesLoss(enforceBC=train_dataset.enforceBC)
 
     criterion = criterion.to(device)
 
@@ -504,7 +485,7 @@ def main():
                 out = out.detach().cpu().squeeze().numpy()
                 phi = train_dataset.get_phi(min(10, len(train_dataset) - 1))
                 x_ = (x_ * x_std.to(device) + x_mean.to(device)).squeeze()
-                cbar = plot_poisson(ax[:4], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)
+                cbar = plot_poisson(ax[:4], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_, enforceBC=train_dataset.enforceBC)
 
             x_, delta_x_, delta_y_, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(31, len(train_dataset) - 1)]
             x_ = x_.cpu().clone().detach().to(device)
@@ -517,7 +498,7 @@ def main():
                 out = out.detach().cpu().squeeze().numpy()
                 phi = train_dataset.get_phi(min(60, len(train_dataset) - 1))
                 x_ = (x_ * x_std.to(device) + x_mean.to(device)).squeeze()
-                cbar = plot_poisson(ax[4:], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_)
+                cbar = plot_poisson(ax[4:], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_, enforceBC=train_dataset.enforceBC)
 
             plt.draw()
             plt.pause(0.001)
