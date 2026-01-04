@@ -71,7 +71,14 @@ def main():
 
     base_case_path = data_config["base_case_path"]
     fluids = data_config["fluids"]
-    Re_range = data_config["Re"]
+    if "Re" in data_config.keys():
+        Re_range = data_config["Re"]
+    else:
+        Re_range = None
+    if "inflow" in data_config.keys():
+        inflow_range = data_config["inflow"]
+    else:
+        inflow_range = None
     dam_x_range = data_config["dam"]["x"]
     dam_y_range = data_config["dam"]["y"]
     dam_width_range = data_config["dam"]["width"]
@@ -110,9 +117,12 @@ def main():
         density = fluid["density"]
         viscosity = fluid["viscosity"]
 
-        Re = sample_param(Re_range)
-
-        inflow = (Re * viscosity) / (density * h)
+        if inflow_range is not None:
+            inflow = sample_param(inflow_range)
+            Re = (density * inflow * h) / viscosity
+        else:
+            Re = sample_param(Re_range)
+            inflow = (Re * viscosity) / (density * h)
 
         # Convert to kinematic viscosity
         viscosity = viscosity / density
@@ -198,7 +208,7 @@ def main():
             viscosity,
             base_case["beta"],
             g,
-            dynamic_time_step=True,
+            dynamic_time_step=False,
             implicit_laplacian=True,
             return_div_u_star=True,
             method_type="numeric"

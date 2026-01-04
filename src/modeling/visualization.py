@@ -19,6 +19,9 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=Non
     u = x[:2]
     p = x[2]
 
+    u = u[:, 1:-1, 1:-1]
+    p = p[1:-1, 1:-1]
+
     # u = np.transpose(u, (1, 2, 0))
 
     width, height = np.shape(u)[1], np.shape(u)[2]
@@ -46,9 +49,9 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=Non
     cbar0 = plt.colorbar(im0, ax=ax[0])
 
 
-    ax[1].imshow(p[::-1, :][::4, ::4], cmap=cmap, extent=[0,
+    ax[1].imshow(p[::-1, :][::1, ::1], cmap=cmap, extent=[0,
                                                            x_max + grid_spacing, 0, y_max + grid_spacing])
-    ax[1].quiver(X[::4, ::4], Y[::4, ::4], u[0,::4,::4], u[1,::4,::4], color="white",) #alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
+    ax[1].quiver(X[::1, ::1], Y[::1, ::1], u[0,::1,::1], u[1,::1,::1], color="white",) #alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
 
     ax[2].imshow(u[0, ::-1])
     ax[3].imshow(u[1, ::-1])

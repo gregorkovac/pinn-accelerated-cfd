@@ -33,8 +33,8 @@ def main(case_name = None):
         case["viscosity"],
         case["beta"],
         case["geometry"],
-        dynamic_time_step=True,
-        implicit_laplacian=True,
+        dynamic_time_step=False,
+        implicit_laplacian=False,
         return_div_u_star=True,
         method_type="numeric", # numeric, poisson_model, full_model
         # model_path="../../models/full/2025-11-17_11_06"

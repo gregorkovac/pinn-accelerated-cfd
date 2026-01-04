@@ -1,12 +1,12 @@
 {
     "width": 32,
     "height": 32,
-    "dx": 0.01,
-    "dy": 0.01,
-    "iterations": 2000,
-    "time_step": 0.1,
-    "density": 1,
-    "viscosity": 0.1,
+    "dx": 0.02,
+    "dy": 0.02,
+    "iterations": 1000,
+    "time_step": 0.005,
+    "density": 1000,
+    "viscosity": 1e-6,
     "beta": 0,
     "geometry": [
         {
@@ -35,7 +35,7 @@
                 "height": -1
             },
             "vel": {
-                "x": 1.0,
+                "x": 0.1,
                 "y": 0
             }
         },

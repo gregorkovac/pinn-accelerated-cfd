@@ -313,7 +313,7 @@ class FullPINNDataset(PINNDataset):
             ones = torch.ones(shp).to(device)
 
             self.x.append(torch.cat([
-                       F.pad(self.coords, (1, 1, 1, 1)), # 0, 1
+                       0 * F.pad(self.coords, (1, 1, 1, 1)), # 0, 1
                        self.u_dirichlet[idx].permute(2, 0, 1), # 2, 3
                        self.u_dirichlet_mask[idx].permute(2, 0, 1), # 4, 5
                        self.u_neumann[idx].permute(2, 0, 1), # 6, 7
@@ -347,16 +347,119 @@ class FullPINNDataset(PINNDataset):
     def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
         u_dirichlet = x[:, 2:4]
         u_dirichlet_mask = x[:, 4:6] #.expand(-1, 2, -1, -1)
+        u_neumann = x[:, 6:8]
         p_dirichlet = x[:, 8:9]
         p_dirichlet_mask = x[:, 9:10]
+        p_neumann = x[:, 10:12]
+
+        # plt.ioff()
+        # fig, ax = plt.subplots(2, 5)
+        # ax = ax.flatten()
+
+        # im0 = ax[0].imshow(u_dirichlet[0, 0].detach().cpu().numpy())
+        # ax[0].set_title("u_dirichlet[0]")
+        # plt.colorbar(im0)
+
+        # im1 = ax[1].imshow(u_dirichlet[0, 1].detach().cpu().numpy())
+        # ax[1].set_title("u_dirichlet[1]")
+        # plt.colorbar(im1)
+
+        # im2 = ax[2].imshow(u_dirichlet_mask[0, 0].detach().cpu().numpy())
+        # ax[2].set_title("u_dirichlet_mask[0]")
+        # plt.colorbar(im2)
+
+        # im3 = ax[3].imshow(u_dirichlet_mask[0, 1].detach().cpu().numpy())
+        # ax[3].set_title("u_dirichlet_mask[0]")
+        # plt.colorbar(im3)
+
+        # im4 = ax[4].imshow(u_neumann[0, 0].detach().cpu().numpy())
+        # ax[4].set_title("u_neumann[0]")
+        # plt.colorbar(im4)
+
+        # im5 = ax[5].imshow(u_neumann[0, 1].detach().cpu().numpy())
+        # ax[5].set_title("u_neumann[1]")
+        # plt.colorbar(im5)
+
+        # im6 = ax[6].imshow(p_dirichlet[0, 0].detach().cpu().numpy())
+        # ax[6].set_title("p_dirichlet")
+        # plt.colorbar(im6)
+
+        # im7 = ax[7].imshow(p_dirichlet_mask[0, 0].detach().cpu().numpy())
+        # ax[7].set_title("p_dirichlet_mask")
+        # plt.colorbar(im7)
+
+        # im8 = ax[8].imshow(p_neumann[0, 0].detach().cpu().numpy())
+        # ax[8].set_title("p_neumann[0]")
+        # plt.colorbar(im8)
+
+        # im9 = ax[9].imshow(p_neumann[0, 1].detach().cpu().numpy())
+        # ax[9].set_title("p_neumann[1]")
+        # plt.colorbar(im9)
+
+        # plt.show()
+
 
         u = out[:, :2]
         p = out[:, 2:3]
+
+        # plt.ioff()
+        # fig, ax = plt.subplots(3, 2)
+        # ax = ax.flatten()
+        # im0 = ax[0].imshow(u[0, 0].detach().cpu().numpy())
+        # im1 = ax[1].imshow(u[0, 1].detach().cpu().numpy())
+        # ax[0].set_title("Original")
+        # ax[1].set_title("Original")
+        # plt.colorbar(im0)
+        # plt.colorbar(im1)
+
+        u[:, 0] = torch.where(
+            u_neumann[:, 0] == -1, torch.roll(u[:, 0], 1, dims=2),
+            torch.where(u_neumann[:, 0] ==  1, torch.roll(u[:, 0], -1, dims=2), u[:, 0])
+        )
+
+        u[:, 1] = torch.where(
+            u_neumann[:, 1] == -1, torch.roll(u[:, 1],  1, dims=1),
+            torch.where(u_neumann[:, 1] ==  1, torch.roll(u[:, 1], -1, dims=1), u[:, 1])
+        )
+
+        # im2 = ax[2].imshow(u[0, 0].detach().cpu().numpy())
+        # im3 = ax[3].imshow(u[0, 1].detach().cpu().numpy())
+        # ax[2].set_title("After Neumann")
+        # ax[3].set_title("After Neumann")
+        # plt.colorbar(im2)
+        # plt.colorbar(im3)
+
 
         # u_y = u[:, 0] * (1 - u_dirichlet_mask) + u_dirichlet[:, 0] * u_dirichlet_mask
         # u_x = u[:, 1] * (1 - u_dirichlet_mask) + u_dirichlet[:, 1] * u_dirichlet_mask
         u = u * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
         p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
+
+        # im4 = ax[4].imshow(u[0, 0].detach().cpu().numpy())
+        # im5 = ax[5].imshow(u[0, 1].detach().cpu().numpy())
+        # ax[4].set_title("After Dirichlet")
+        # ax[5].set_title("After Dirichlet")
+        # plt.colorbar(im4)
+        # plt.colorbar(im5)
+
+        # plt.tight_layout()
+
+        # plt.show()
+
+
+        # plt.ioff()
+        # fig, ax = plt.subplots(1, 3)
+        # im0 = ax[0].imshow(u[0, 0].detach().cpu().numpy())
+        # im1 = ax[1].imshow(u[0, 1].detach().cpu().numpy())
+        # im2 = ax[2].imshow(p[0, 0].detach().cpu().numpy())
+        # plt.colorbar(im0)
+        # plt.colorbar(im1)
+        # plt.colorbar(im2)
+
+        # ax[0].set_title("ux")
+        # ax[1].set_title("uy")
+        # ax[2].set_title("p")
+        # plt.show()
 
         return torch.cat([u, p], dim=1).to(u.device)
 
