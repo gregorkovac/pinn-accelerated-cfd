@@ -81,6 +81,7 @@ def geometry_to_mtx(geometry, width, height):
             u_dirichlet_mask[y:(y+h), x:(x+w)] = 1
 
             # p_neumann[y:(y+h), x:(x+w)] = np.array([xn != 0, yn != 0], dtype=int)
+            p_neumann[y:(y+h), x:(x+w)] = np.array([(xn != 0) * np.sign(xn), (yn != 0) + np.sign(yn)], dtype=int)
         elif g["type"] == "wall":
             boundary_mask[y:(y+h), x:(x+w)] = 1
 
@@ -88,6 +89,7 @@ def geometry_to_mtx(geometry, width, height):
             u_dirichlet_mask[y:(y+h), x:(x+w)] = 1
 
             # p_neumann[y:(y+h), x:(x+w)] = np.array([xn != 0, yn != 0], dtype=int)
+            p_neumann[y:(y+h), x:(x+w)] = np.array([xn, yn], dtype=int)
         elif g["type"] == "outflow":
             boundary_mask[y:(y+h), x:(x+w)] = 1
 
@@ -162,8 +164,8 @@ class PINNDataset(Dataset):
 
                 # Create a coordinate grid
                 grid_y, grid_x = torch.meshgrid(
-                        torch.linspace(0, 1, self.height),
-                        torch.linspace(0, 1, self.width),
+                        torch.linspace(0, 1, self.height + 2),
+                        torch.linspace(0, 1, self.width + 2),
                         indexing="ij"
                 )
                 self.coords = torch.stack([grid_x, grid_y], dim=0).to(device)
@@ -259,7 +261,7 @@ class PoissonPINNDataset(PINNDataset):
 
             self.x.append(torch.cat([
                            F.pad(0 * self.div_u_star[idx].unsqueeze(0), (1, 1, 1, 1)), #* (1 - self.boundary_mask[idx].unsqueeze(0)), # 0
-                           F.pad(self.coords, (1, 1, 1, 1)), # 1, 2
+                           0 * self.coords, # 1, 2
                            self.p_dirichlet[idx].unsqueeze(0), # 3,
                            self.p_dirichlet_mask[idx].unsqueeze(0), # 4
                            self.boundary_mask[idx].unsqueeze(0), # 5
@@ -291,11 +293,19 @@ class PoissonPINNDataset(PINNDataset):
         return self.phi[idx]
     
     def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
-
         p_dirichlet = x[:, 3:4]
         p_dirichlet_mask = x[:, 4:5]
+        p_neumann = x[:, 8:10]
+        boundary_mask = x[:, 5:6]
 
-        return out * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
+        p = out
+
+        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == -1), torch.roll(p, 1, dims=-2), p)
+        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == 1), torch.roll(p, -1, dims=-2), p)
+
+        p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
+
+        return p
 
 class FullPINNDataset(PINNDataset):
     def __init__(self, data_path, N, device, samples_per_case=-1, start_sample=0):
@@ -313,7 +323,8 @@ class FullPINNDataset(PINNDataset):
             ones = torch.ones(shp).to(device)
 
             self.x.append(torch.cat([
-                       0 * F.pad(self.coords, (1, 1, 1, 1)), # 0, 1
+                    #    F.pad(self.coords, (1, 1, 1, 1)), # 0, 1
+                       0 * self.coords,
                        self.u_dirichlet[idx].permute(2, 0, 1), # 2, 3
                        self.u_dirichlet_mask[idx].permute(2, 0, 1), # 4, 5
                        self.u_neumann[idx].permute(2, 0, 1), # 6, 7
@@ -351,9 +362,10 @@ class FullPINNDataset(PINNDataset):
         p_dirichlet = x[:, 8:9]
         p_dirichlet_mask = x[:, 9:10]
         p_neumann = x[:, 10:12]
+        boundary_mask = x[:, 14:15]
 
         # plt.ioff()
-        # fig, ax = plt.subplots(2, 5)
+        # fig, ax = plt.subplots(2, 6)
         # ax = ax.flatten()
 
         # im0 = ax[0].imshow(u_dirichlet[0, 0].detach().cpu().numpy())
@@ -396,34 +408,50 @@ class FullPINNDataset(PINNDataset):
         # ax[9].set_title("p_neumann[1]")
         # plt.colorbar(im9)
 
-        # plt.show()
+        # im10 = ax[10].imshow(out[0, 0].detach().cpu().numpy())
+        # ax[10].set_title("u[0]")
+        # plt.colorbar(im10)
 
+        # plt.show()
 
         u = out[:, :2]
         p = out[:, 2:3]
 
+        # vmin = -0.01
+        # vmax = 0.01
+        
         # plt.ioff()
         # fig, ax = plt.subplots(3, 2)
         # ax = ax.flatten()
-        # im0 = ax[0].imshow(u[0, 0].detach().cpu().numpy())
-        # im1 = ax[1].imshow(u[0, 1].detach().cpu().numpy())
+        # im0 = ax[0].imshow(u[0, 0].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
+        # im1 = ax[1].imshow(u[0, 1].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
         # ax[0].set_title("Original")
         # ax[1].set_title("Original")
         # plt.colorbar(im0)
         # plt.colorbar(im1)
 
-        u[:, 0] = torch.where(
-            u_neumann[:, 0] == -1, torch.roll(u[:, 0], 1, dims=2),
-            torch.where(u_neumann[:, 0] ==  1, torch.roll(u[:, 0], -1, dims=2), u[:, 0])
-        )
+        # u[..., -1] = u[..., -2]
+        # u[:, -1, :] = 10
 
-        u[:, 1] = torch.where(
-            u_neumann[:, 1] == -1, torch.roll(u[:, 1],  1, dims=1),
-            torch.where(u_neumann[:, 1] ==  1, torch.roll(u[:, 1], -1, dims=1), u[:, 1])
-        )
+        u = torch.where((boundary_mask == 1) & (u_neumann[:, 0].unsqueeze(1) == -1), torch.roll(u, 1, dims=-1), u)
+        u = torch.where((boundary_mask == 1) & (u_neumann[:, 0].unsqueeze(1) == 1), torch.roll(u, -1, dims=-1), u)
 
-        # im2 = ax[2].imshow(u[0, 0].detach().cpu().numpy())
-        # im3 = ax[3].imshow(u[0, 1].detach().cpu().numpy())
+        u = torch.where((boundary_mask == 1) & (u_neumann[:, 1].unsqueeze(1) == -1), torch.roll(u, 1, dims=-2), u)
+        u = torch.where((boundary_mask == 1) & (u_neumann[:, 1].unsqueeze(1) == 1), torch.roll(u, -1, dims=-2), u)
+
+        p = torch.where((boundary_mask == 1) & (p_neumann[:, 0].unsqueeze(1) == -1), torch.roll(p, 1, dims=-1), p)
+        p = torch.where((boundary_mask == 1) & (p_neumann[:, 0].unsqueeze(1) == 1), torch.roll(p, -1, dims=-1), p)
+
+        p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == -1), torch.roll(p, 1, dims=-2), p)
+        p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == 1), torch.roll(p, -1, dims=-2), p)
+
+        # u = torch.where(
+        #     u_neumann[:, 1].unsqueeze(1) == -1, torch.roll(u, 1, dims=2),
+        #     torch.where(u_neumann[:, 1].unsqueeze(1) ==  1, torch.roll(u, -1, dims=2), u)
+        # )
+
+        # im2 = ax[2].imshow(u[0, 0].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
+        # im3 = ax[3].imshow(u[0, 1].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
         # ax[2].set_title("After Neumann")
         # ax[3].set_title("After Neumann")
         # plt.colorbar(im2)
@@ -435,15 +463,13 @@ class FullPINNDataset(PINNDataset):
         u = u * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
         p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
 
-        # im4 = ax[4].imshow(u[0, 0].detach().cpu().numpy())
-        # im5 = ax[5].imshow(u[0, 1].detach().cpu().numpy())
+        # im4 = ax[4].imshow(u[0, 0].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
+        # im5 = ax[5].imshow(u[0, 1].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
         # ax[4].set_title("After Dirichlet")
         # ax[5].set_title("After Dirichlet")
         # plt.colorbar(im4)
         # plt.colorbar(im5)
-
         # plt.tight_layout()
-
         # plt.show()
 
 

@@ -156,10 +156,29 @@ class NavierStokesLoss(nn.Module):
         delta_x = x[0, 15:16, 0, 0] #.view(-1, 1, 1, 1)
         delta_y = x[0, 16:17, 0, 0] #.view(-1, 1, 1, 1)
 
+        # plt.ioff()
+        # fig, ax = plt.subplots(2, 2)
+        # ax = ax.flatten()
+        # im0 = ax[0].imshow(output[0, 0].detach().cpu().numpy())
+        # ax[0].set_title("u[0]")
+        # plt.colorbar(im0)
+        # im1 = ax[1].imshow(output[0, 1].detach().cpu().numpy())
+        # ax[1].set_title("u[1]")
+        # plt.colorbar(im1)
+
+
         output = self.enforceBC(x, output)
 
-        uy = output[:, 0]
-        ux = output[:, 1]
+        # im2 = ax[2].imshow(output[0, 0].detach().cpu().numpy())
+        # ax[2].set_title("u_bc[0]")
+        # plt.colorbar(im2)
+        # im3 = ax[3].imshow(output[0, 1].detach().cpu().numpy())
+        # ax[3].set_title("u_bc[1]")
+        # plt.colorbar(im3)
+        # plt.show()
+
+        ux = output[:, 0]
+        uy = output[:, 1]
         p = output[:, 2]
 
         delta_x = float(delta_x.item())
@@ -170,15 +189,15 @@ class NavierStokesLoss(nn.Module):
 
         # boundary_mask = 1 - boundary_mask
 
-        grad_ux = grad(u = ux,
-                        dx=delta_x,
-                        dy=delta_y,
-                        boundary=boundary_mask * 0)
+        # grad_ux = grad(u = ux,
+        #                 dx=delta_x,
+        #                 dy=delta_y,
+        #                 boundary=boundary_mask * 0)
         
-        grad_uy= grad(u = uy,
-                        dx=delta_x,
-                        dy=delta_y,
-                        boundary=boundary_mask * 0)
+        # grad_uy= grad(u = uy,
+        #                 dx=delta_x,
+        #                 dy=delta_y,
+        #                 boundary=boundary_mask * 0)
                         
         grad_p = grad(u = p,
                         dx=delta_x,
@@ -192,33 +211,46 @@ class NavierStokesLoss(nn.Module):
         # ax[2].imshow(grad_ux[0, 1].cpu().detach().numpy())
         # plt.show()
 
-        dux_dy = grad_ux[..., 0]
-        dux_dx = grad_ux[..., 1]
+        # dux_dy = grad_ux[..., 0]
+        # dux_dx = grad_ux[..., 1]
         
-        duy_dy = grad_uy[..., 0]
-        duy_dx = grad_uy[..., 1]
+        # duy_dy = grad_uy[..., 0]
+        # duy_dx = grad_uy[..., 1]
 
-        dp_dy = grad_p[..., 0]
-        dp_dx = grad_p[..., 1]
+        dp_dx = grad_p[..., 0]
+        dp_dy = grad_p[..., 1]
 
 
-        div_u = divergence(u=torch.stack([uy, ux], dim=1),
+        div_u = divergence(u=torch.stack([ux, uy], dim=1),
                            dx=delta_x,
                            dy=delta_y,
                            boundary=boundary_mask_u * 0)
         
 
-        u_dot_del_u = convective(u = torch.stack([uy, ux], axis=1),
+        u_dot_del_u = convective(u = torch.stack([ux, uy], axis=1),
                            dx = delta_x,
                            dy = delta_y,
                            boundary = boundary_mask_u * 0)
  
-        grad_p = torch.stack([dp_dy, dp_dx], dim=1)
+        grad_p = torch.stack([dp_dx, dp_dy], dim=1)
 
-        laplacian_u = laplacian(u = torch.stack([uy, ux], axis=1),
+        laplacian_u = laplacian(u = torch.stack([ux, uy], axis=1),
                            dx = delta_x,
                            dy = delta_y,
                            boundary = boundary_mask_u * 0)
+        
+        # plt.ioff()
+        # fig, ax = plt.subplots(3, 3)
+        # ax = ax.flatten()
+        # ax[0].imshow(div_u[0].detach().cpu().numpy())
+        # ax[1].imshow(u_dot_del_u[0, 0].detach().cpu().numpy())
+        # ax[2].imshow(u_dot_del_u[0, 1].detach().cpu().numpy())
+        # ax[3].imshow(grad_p[0, 0].detach().cpu().numpy())
+        # ax[4].imshow(grad_p[0, 1].detach().cpu().numpy())
+        # ax[5].imshow(laplacian_u[0, 0].detach().cpu().numpy())
+        # ax[6].imshow(laplacian_u[0, 1].detach().cpu().numpy())
+
+        # plt.show()
 
         loss_div = div_u ** 2
         # loss_div = loss_div * (1 - boundary_mask)
@@ -226,9 +258,9 @@ class NavierStokesLoss(nn.Module):
 
         res_mom = (u_dot_del_u + (1 / rho) * grad_p - mu * laplacian_u) ** 2
         # res_mom = res_mom * (1 - boundary_mask_u)
-        # loss_mom = torch.mean(loss_mom[:, 0]) + torch.mean(loss_mom[:, 1])
-        loss_mom = torch.mean(res_mom[:, 0]) #** (1 / 2)
-        loss_nonneg_p = torch.mean(res_mom[:, 1]) #** (1 / 2)
+        loss_mom = torch.mean(res_mom[:, 0]) + torch.mean(res_mom[:, 1])
+        # loss_mom = torch.mean(res_mom[:, 0]) #** (1 / 2)
+        # loss_nonneg_p = torch.mean(res_mom[:, 1]) #** (1 / 2)
         # loss_mom = torch.mean(loss_mom)
 
         # mask_dy = 1 - x[:, 6]
@@ -243,6 +275,7 @@ class NavierStokesLoss(nn.Module):
 
         # loss_bc += torch.sum((uy[..., 0] - uy[..., -1]) ** 2) + torch.sum((ux[..., 0] - ux[..., -1]) ** 2)
 
+        loss_nonneg_p = torch.tensor(0)
         loss_bc = torch.tensor(0)
 
         # if epoch < 50:

@@ -19,8 +19,8 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=Non
     u = x[:2]
     p = x[2]
 
-    u = u[:, 1:-1, 1:-1]
-    p = p[1:-1, 1:-1]
+    # u = u[:, 1:-1, 1:-1]
+    # p = p[1:-1, 1:-1]
 
     # u = np.transpose(u, (1, 2, 0))
 
@@ -58,8 +58,8 @@ def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=Non
     
     ax[0].set_title("u norm")
     ax[1].set_title("u and p")
-    ax[2].set_title("u_y")
-    ax[3].set_title("u_x")
+    ax[2].set_title("u_x")
+    ax[3].set_title("u_y")
 
     # ax[0].imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
     #                                 0, y_max + grid_spacing], alpha=0.5*boundary_image)

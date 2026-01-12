@@ -478,6 +478,11 @@ def main():
             x_ = x_.cpu().clone().detach().to(device)
             out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
 
+            out = train_dataset.enforceBC(x_.unsqueeze(0), out)
+
+            # print(out[0, :, 10, 0])
+            # print(out[0, :, 0:3, 0:3])
+
             if model_type == "full":
                 out = out.detach().cpu().squeeze().numpy()
                 cbar = plot_full(ax[:4], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
@@ -490,6 +495,8 @@ def main():
             x_, delta_x_, delta_y_, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(31, len(train_dataset) - 1)]
             x_ = x_.cpu().clone().detach().to(device)
             out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
+
+            out = train_dataset.enforceBC(x_.unsqueeze(0), out)
 
             if model_type == "full":
                 out = out.detach().cpu().squeeze().numpy()
