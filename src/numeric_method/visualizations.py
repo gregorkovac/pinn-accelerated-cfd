@@ -31,7 +31,7 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
     X, Y = np.meshgrid(np.linspace(0, x_max, width) + 0.5 * grid_spacing, 
                        np.linspace(0, y_max, height) + 0.5 * grid_spacing)
     
-    # p *= (1 - boundary_image)
+    p *= (1 - boundary_image)
 
     im = ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing])
@@ -92,6 +92,7 @@ def plot_flow_animation(u, p, grid_spacing, geometry = None, frame_step=10):
         grid_spacing (float) - grid spacing
         geometry (dict) - geometry dictionary
     """
+
 
     boundary_image = get_boundary_image(geometry, np.shape(u[0])[1], np.shape(u[0])[0])
 

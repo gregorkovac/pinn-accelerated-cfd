@@ -389,8 +389,8 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         exit(1)
 
     # Shrink the domain by one point on each side to allow for padding with boundary values
-    height = height - 2
-    width = width - 2
+    # height = height - 2
+    # width = width - 2
 
     # Initialize velocity and pressure
     u = np.zeros((height, width, 2))

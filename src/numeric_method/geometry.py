@@ -1,7 +1,7 @@
 # import numpy as np
 import numpy as np
 import matplotlib.pyplot as plt
-
+import copy
 
 def apply_dirichlet_bc(u, idx, val, mask=(1, 1)):
     if u is None:
@@ -45,10 +45,15 @@ def apply_neumann_bc(u, idx, neumann_idx):
         i_in = neumann_idx[i_b, j_b, 0]
         j_in = neumann_idx[i_b, j_b, 1]
 
+        i_vec = i_in - i_b
+        j_vec = j_in - j_b
+
         if u.ndim == 2:
-            u[i_b, j_b] = u[i_in, j_in]
+            # u[i_b, j_b] = u[i_in, j_in]
+            u[i_b - i_vec, j_b - j_vec] = u[i_b + i_vec, j_b + j_vec]
         else:
-            u[i_b, j_b, :] = u[i_in, j_in, :]
+            # u[i_b, j_b, :] = u[i_in, j_in, :]
+            u[i_b - i_vec, j_b - j_vec, :] = u[i_b + i_vec, j_b + j_vec, :]
 
         return u
     
@@ -167,8 +172,10 @@ def get_neumann_index(g, height = None, width = None):
     if h == -1:
         h = height
 
-    return (slice(y + dir_y, y + h + dir_y), 
-            slice(x + dir_x, x + w + dir_x))
+    return [(slice(y + dir_y, y + h + dir_y), 
+            slice(x + dir_x, x + w + dir_x)),
+            (slice(y - dir_y, y + h - dir_y), 
+            slice(x - dir_x, x + w - dir_x))]
 
 def get_normal(g):
     if "dir" in g.keys():
@@ -195,7 +202,6 @@ def boundary(geometry, u = None, p = None):
         u (numpy.ndarray) - velocity vector field of shape (n, m, 2) with applied boundary conditions
         p (numpy.ndarray) - pressure scalar field of shape (n, m) with applied boundary conditions
     """
-
     
     # Get width and height and perform padding
     if u is not None:
@@ -206,41 +212,62 @@ def boundary(geometry, u = None, p = None):
         p = np.pad(p, pad_width=1, mode='constant', constant_values=0)
         height, width = np.shape(p)[0], np.shape(p)[1]
 
+    # if p is not None:
+    #     fig, ax = plt.subplots(1, 2)
+    #     ax[0].imshow(p)
+    #     ax[0].set_title("b4")
+
     # Iterate over geometries
     for g in geometry:
 
         # Get the boudnary condition index
         idx = get_index(g, height, width)
+        
+        g_inner = copy.deepcopy(g)
+        g_inner["pos"]["x"] += 1
+        g_inner["pos"]["y"] += 1
+        inner_idx = get_index(g_inner, height - 2, width - 2)
 
         # Apply boundary conditions depending on the type
         if g["type"] == "wall":
-            neumann_idx = get_neumann_index(g, height, width)
+            neumann_idx = get_neumann_index(g_inner, height, width)
             normal = get_normal(g)
-            u = apply_dirichlet_bc(u, idx, (0, 0))# mask=(1 - np.abs(normal)))
-            p = apply_neumann_bc(p, idx, neumann_idx)
+            # print(neumann_idx)
+            u = apply_dirichlet_bc(u, inner_idx, (0, 0))# mask=(1 - np.abs(normal)))
+            p = apply_neumann_bc(p, neumann_idx[1], neumann_idx[0])
         elif g["type"] == "inflow":
-            neumann_idx = get_neumann_index(g, height, width)
+            neumann_idx = get_neumann_index(g_inner, height, width)
 
-            # if u is not None:
-            #     for i in range(1, 62):
-            #         r = i - 62 / 2
-            #         R = 62
-            #         u[i, 0] = np.array([g["vel"]["x"], g["vel"]["y"]]) * (1 - (r / R) ** 2)
-
-            u = apply_dirichlet_bc(u, idx, (g["vel"]["x"],
+            u = apply_dirichlet_bc(u, inner_idx, (g["vel"]["x"],
                                             g["vel"]["y"]))
 
-            p = apply_neumann_bc(p, idx, neumann_idx)
+            # print(neumann_idx)
+            # exit(0)
+
+            p = apply_neumann_bc(p, neumann_idx[1], neumann_idx[0])
             # p = apply_dirichlet_bc(p, idx, 1)
         elif g["type"] == "outflow":
-            neumann_idx = get_neumann_index(g, height, width)
-            u = apply_neumann_bc(u, idx, neumann_idx)
-            p = apply_dirichlet_bc(p, idx, 0)
+            neumann_idx = get_neumann_index(g_inner, height, width)
+            u = apply_neumann_bc(u, neumann_idx[1], neumann_idx[0])
+            p = apply_dirichlet_bc(p, inner_idx, 0)
         elif g["type"] == "cylinder":
             neumann_idx = get_neumann_index(g, height, width)
 
-            u = apply_dirichlet_bc(u, idx, (0, 0))
+            inner_idx = get_index(g_inner, height, width)
+
+            u = apply_dirichlet_bc(u, inner_idx, (0, 0))
             p = apply_neumann_bc(p, idx, neumann_idx)
+
+    # if u is not None and p is not None:
+    #     fig, ax = plt.subplots(1, 3)
+    #     ax[0].imshow(u[..., 0])
+    #     ax[1].imshow(u[..., 1])
+    #     ax[2].imshow(p)
+    #     plt.show()
+    # if p is not None:
+    #     ax[1].imshow(p)
+    #     ax[1].set_title("after")
+    #     plt.show() 
 
     return u, p
 
@@ -257,12 +284,12 @@ def get_boundary_image(geometry, width, height):
         im (numpy.ndarray) - binary image of shape (height, width)
     """
 
-    im = np.zeros((height + 2, width + 2))
+    im = np.zeros((height, width))
 
     for g in geometry:
-        idx = get_index(g, height + 2, width + 2)
+        idx = get_index(g, height, width)
         im[idx] = 1
 
-    im = im[1:-1, 1:-1]
+    # im = im[1:-1, 1:-1]
 
     return im
