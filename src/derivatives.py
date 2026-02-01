@@ -21,16 +21,16 @@ def grad(u, dx, dy, boundary=None, numpy_=False):
         du_dx = (np.roll(u, -1, axis=1) - np.roll(u, 1, axis=1)) / (2 * dx)
         du_dy = (np.roll(u, -1, axis=0) - np.roll(u, 1, axis=0)) / (2 * dy)
 
-        du_dx = du_dx[1:-1, 1:-1]
-        du_dy = du_dy[1:-1, 1:-1]
+        # du_dx = du_dx[1:-1, 1:-1]
+        # du_dy = du_dy[1:-1, 1:-1]
 
         return np.stack((du_dx, du_dy), axis=-1)
     else:
         du_dx = (torch.roll(u, -1, dims=-1) - torch.roll(u, 1, dims=-1)) / (2 * dx)
         du_dy = (torch.roll(u, -1, dims=-2) - torch.roll(u, 1, dims=-2)) / (2 * dy)
 
-        du_dx = du_dx[..., 1:-1, 1:-1]
-        du_dy = du_dy[..., 1:-1, 1:-1]
+        # du_dx = du_dx[..., 1:-1, 1:-1]
+        # du_dy = du_dy[..., 1:-1, 1:-1]
 
 
         return torch.stack((du_dx, du_dy), dim=-1)
@@ -64,13 +64,14 @@ def convective(u, dx, dy, boundary = None, numpy_=False):
     
     if numpy_:
         du_dx, du_dy = grad_u[..., 0], grad_u[..., 1]
-        # u_y, u_x = u[1:-1, 1:-1, 0], u[1:-1, 1:-1, 1]
-        u_x, u_y = u[1:-1, 1:-1, 0], u[1:-1, 1:-1, 1]
+        # u_x, u_y = u[1:-1, 1:-1, 0], u[1:-1, 1:-1, 1]
+        u_x, u_y = u[..., 0], u[..., 1]
         u_y = u_y[..., np.newaxis]
         u_x = u_x[..., np.newaxis]
     else:
         du_dx, du_dy = grad_u[..., 0], grad_u[..., 1]
-        u_x, u_y = u[:, 0, 1:-1, 1:-1], u[:, 1, 1:-1, 1:-1]
+        # u_x, u_y = u[:, 0, 1:-1, 1:-1], u[:, 1, 1:-1, 1:-1]
+        u_x, u_y = u[:, 0], u[:, 1]
         u_y = u_y.unsqueeze(1)
         u_x = u_x.unsqueeze(1)
 
@@ -116,7 +117,7 @@ def laplacian(u, dx, dy, boundary=None, numpy_=False):
         d2u_dx2 = (np.roll(u, -1, axis=1) - 2 * u + np.roll(u, 1, axis=1)) / (dx ** 2)
         d2u_dy2 = (np.roll(u, -1, axis=0) - 2 * u + np.roll(u, 1, axis=0)) / (dy ** 2)
 
-        res = (d2u_dx2 + d2u_dy2)[1:-1, 1:-1]
+        res = (d2u_dx2 + d2u_dy2) #[1:-1, 1:-1]
 
         return res
     else:
@@ -124,6 +125,6 @@ def laplacian(u, dx, dy, boundary=None, numpy_=False):
         d2u_dx2 = (torch.roll(u, -1, dims=-1) - 2 * u + torch.roll(u, 1, dims=-1)) / (dx ** 2)
         d2u_dy2 = (torch.roll(u, -1, dims=-2) - 2 * u + torch.roll(u, 1, dims=-2)) / (dy ** 2)
         
-        res = (d2u_dx2 + d2u_dy2)[..., 1:-1, 1:-1]
+        res = (d2u_dx2 + d2u_dy2) #[..., 1:-1, 1:-1]
         
         return res

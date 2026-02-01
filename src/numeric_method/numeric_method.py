@@ -61,6 +61,7 @@ def compute_discrete_laplacian(n, m, dx, dy):
     A = sp.csr_matrix(A)
     return A
 
+
 def solve_discrete_poisson(u, A):
     """
     Solves the discrete poisson equation \nabla^2 phi = u for Phi with Conjugate gradient method
@@ -83,8 +84,8 @@ def solve_discrete_poisson(u, A):
     # u[i] = 0
 
     # Solve the system
-    phi_flat, info = spla.cg(A, u)
-    # phi_flat = spla.spsolve(A, u)
+    # phi_flat, info = spla.cg(A, u)
+    phi_flat = spla.spsolve(A, u)
     # print("CG info:", info)
 
     # Reshape the solution vector into a matrix
@@ -114,6 +115,26 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     n, m, _ = u.shape
 
     u_bc, p_bc = boundary(geometry=geometry, u=u, p=p)
+
+    # fig, ax = plt.subplots(5, 5)
+    # ax = ax.flatten()
+    # ax[0].imshow(u[..., 0])
+    # ax[0].set_title("u[0]")
+
+    # ax[1].imshow(u[..., 1])
+    # ax[1].set_title("u[1]")
+
+    # ax[2].imshow(p)
+    # ax[2].set_title("p")
+
+    # ax[3].imshow(u_bc[..., 0])
+    # ax[3].set_title("u_bc[0]")
+
+    # ax[4].imshow(u_bc[..., 1])
+    # ax[4].set_title("u_bc[1]")
+
+    # ax[5].imshow(p_bc)
+    # ax[5].set_title("p_bc")
 
     # fig, ax = plt.subplots(1, 2)
     # im0 = ax[0].imshow(u_bc[..., 0])
@@ -225,11 +246,41 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                            numpy_=True)
 
         # Compute intermediate velocity
-        u_star = u - delta_t * conv_u - beta * delta_t / density * grad_p + delta_t * viscosity * lapl_u
+        u_star = u_bc - delta_t * conv_u - beta * delta_t / density * grad_p + delta_t * viscosity * lapl_u
+
+        # ax[6].imshow(conv_u[..., 0])
+        # ax[6].set_title("conv_u[0]")
+
+        # ax[7].imshow(conv_u[..., 1])
+        # ax[7].set_title("conv_u[1]")
+
+        # ax[8].imshow(grad_p[..., 0])
+        # ax[8].set_title("grad_p[0]")
+
+        # ax[9].imshow(grad_p[..., 1])
+        # ax[9].set_title("grad_p[1]")
+
+        # ax[10].imshow(lapl_u[..., 0])
+        # ax[10].set_title("lapl_u[0]")
+
+        # ax[11].imshow(lapl_u[..., 1])
+        # ax[11].set_title("lapl_u[1]")
+
+        # ax[12].imshow(u_star[..., 0])
+        # ax[12].set_title("u_star[0]")
+
+        # ax[13].imshow(u_star[..., 1])
+        # ax[13].set_title("u_star[1]")
 
 
     # Apply boundary
     u_star_bc, _ = boundary(geometry, u = u_star)
+
+    # ax[14].imshow(u_star_bc[..., 0])
+    # ax[14].set_title("u_star_bc[0]")
+
+    # ax[15].imshow(u_star_bc[..., 1])
+    # ax[15].set_title("u_star_bc[1]")
 
     # Compute divergence of u star
     div = divergence(u=u_star_bc,
@@ -247,6 +298,10 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
     # Scale the divergence of u star
     div_u_star = (density / delta_t) * div
+
+    # ax[16].imshow(div_u_star)
+    # ax[16].set_title("div_u_star")
+
 
     # plt.imshow(bmi)
     # plt.show()
@@ -328,10 +383,16 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     else:
         # Obtain the pressure correction by numerically solving Poisson's equatio
         phi = solve_discrete_poisson(div_u_star, A=A_poisson)
+        # phi = solve_discrete_poisson_jacobi(div_u_star, dx, dy, geometry)
 
+    # ax[17].imshow(phi)
+    # ax[17].set_title("phi")
 
     # Apply the boundary conditions to the pressure correction
     _, phi_bc = boundary(geometry, p = phi)
+
+    # ax[18].imshow(phi_bc)
+    # ax[18].set_title("phi_bc")
 
     # Compute the gradient of the pressure correction
     grad_phi = grad(u=phi_bc,
@@ -339,6 +400,14 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                     dy=dy,
                     boundary=None,
                     numpy_=True)
+    
+    # ax[19].imshow(grad_phi[..., 0])
+    # ax[19].set_title("grad_phi[0]")
+
+    # ax[20].imshow(grad_phi[..., 1])
+    # ax[20].set_title("grad_phi[1]")
+
+    # plt.show()
 
     # Compute the new velocity field
     u = u_star - delta_t / density * grad_phi

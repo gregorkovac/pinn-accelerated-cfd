@@ -31,7 +31,7 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
     X, Y = np.meshgrid(np.linspace(0, x_max, width) + 0.5 * grid_spacing, 
                        np.linspace(0, y_max, height) + 0.5 * grid_spacing)
     
-    p *= (1 - boundary_image)
+    # p *= (1 - boundary_image)
 
     im = ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
                                     0, y_max + grid_spacing])
@@ -78,7 +78,8 @@ def update_animation(i, ax, u, p, grid_spacing, boundary_image = None, frame_ste
 
     plot_flow(ax, u[i], p[i], grid_spacing, boundary_image, cbar)
     # ax.set_title(f"Frame {i} / {np.shape(u)[0]}{title_note}   p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
-    ax.set_title(f"[{i} / {np.shape(u)[0]}{title_note}] u = {np.mean(u[i]):.2f} +- {np.std(u[i]):.2f}   p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
+    # ax.set_title(f"[{i} / {np.shape(u)[0]}{title_note}] u = {np.mean(u[i]):.2f} +- {np.std(u[i]):.2f}   p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
+    ax.set_title(f"[{i} / {np.shape(u)[0]}{title_note}] u : [{np.min(u[i]):.2f}, {np.max(u[i]):.2f}]   p : [{np.min(p[i]):.2f}, {np.max(p[i]):.2f}]")
     # ax.set_title(f"p = {np.mean(p[i]):.2f} +- {np.std(p[i]):.2f}")
 
 def plot_flow_animation(u, p, grid_spacing, geometry = None, frame_step=10):
