@@ -172,15 +172,21 @@ def get_neumann_index(g, height = None, width = None):
     if h == -1:
         h = height
 
+    return (slice(y + dir_y, y + h + dir_y), 
+            slice(x + dir_x, x + w + dir_x))
+
+    # return (slice(y + dir_y, y + h + dir_y), slice(x + dir_x, x + w + dir_x))
+
+
     # return [(slice(y + dir_y, y + h + dir_y), 
     #         slice(x + dir_x, x + w + dir_x)),
     #         (slice(y - dir_y, y + h - dir_y), 
     #         slice(x - dir_x, x + w - dir_x))]
 
-    return [(slice(y + dir_y, y + h + dir_y), 
-                slice(x + dir_x, x + w + dir_x)),
-                (slice(y - dir_y, y + h), 
-                slice(x - dir_x, x + w))]
+    # return [(slice(y + dir_y, y + h + dir_y), 
+    #             slice(x + dir_x, x + w + dir_x)),
+    #             (slice(y - dir_y, y + h), 
+    #             slice(x - dir_x, x + w))]
 
 def get_normal(g):
     if "dir" in g.keys():
@@ -245,18 +251,18 @@ def boundary(geometry, u = None, p = None):
             normal = get_normal(g)
             # print(neumann_idx)
             u = apply_dirichlet_bc(u, idx, (0, 0))# mask=(1 - np.abs(normal)))
-            p = apply_neumann_bc(p, neumann_idx[1], neumann_idx[0])
+            p = apply_neumann_bc(p, idx, neumann_idx)
         elif g["type"] == "inflow":
             neumann_idx = get_neumann_index(g, height, width)
 
             u = apply_dirichlet_bc(u, idx, (g["vel"]["x"],
                                             g["vel"]["y"]))
+            p = apply_neumann_bc(p, idx, neumann_idx)
 
-            p = apply_neumann_bc(p, neumann_idx[1], neumann_idx[0])
-            p = apply_dirichlet_bc(p, idx, 1)
+            # p = apply_dirichlet_bc(p, idx, 1)
         elif g["type"] == "outflow":
             neumann_idx = get_neumann_index(g, height, width)
-            u = apply_neumann_bc(u, neumann_idx[1], neumann_idx[0])
+            u = apply_neumann_bc(u, idx, neumann_idx)
             p = apply_dirichlet_bc(p, idx, 0)
         elif g["type"] == "cylinder":
             neumann_idx = get_neumann_index(g, height, width)

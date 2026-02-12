@@ -103,7 +103,7 @@ class EncDecCNN(nn.Module):
         # self.encoder = nn.ModuleList(encoder_layers)
         # self.decoder = nn.ModuleList(decoder_layers)
 
-        # self.final_conv = nn.Conv2d(input_channels, output_channels, 3, padding=1, padding_mode="zeros")
+        # self.final_conv = nn.Conv2d(input_channels, output_channels, 3, padding=1, padding_mode="replicate")
 
         if use_skip:
             # self.skip = nn.Conv2d(input_channels, input_channels, kernel_size=1)
@@ -117,6 +117,7 @@ class EncDecCNN(nn.Module):
 
     def forward(self, x):
 
+        x = x[:, :, 1:-1, 1:-1]
 
         out = self.encoder(x)
 
@@ -135,7 +136,7 @@ class EncDecCNN(nn.Module):
             # out = self.final_conv(out)
 
         out = self.final_conv(out)
-        
+
         out = self.enforceBC(x, out)
 
         # out = out.squeeze(1)
@@ -146,16 +147,16 @@ class EncDecCNN(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 if m is self.final_conv:
-                    nn.init.zeros_(m.weight)
+                    nn.init.replicate_(m.weight)
                     if m.bias is not None:
-                        nn.init.zeros_(m.bias)
+                        nn.init.replicate_(m.bias)
                 else:
                     if activation_fn == "tanh":
                         nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('tanh'))
                     elif activation_fn == "relu":
                         nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="relu")
                     if m.bias is not None:
-                        nn.init.zeros_(m.bias)
+                        nn.init.replicate_(m.bias)
 
     def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
         return out

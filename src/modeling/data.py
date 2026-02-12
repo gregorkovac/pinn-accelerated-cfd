@@ -16,9 +16,9 @@ def load_case(data_path, idx, samples_per_case=-1):
     div_u_star = np.load(os.path.join(case_path, "div_u_star.npy"))
     phi = np.load(os.path.join(case_path, "phi.npy"))
 
-    u_star = u_star[:10]
-    phi = phi[:10]
-    div_u_star = div_u_star[:10]
+    u_star = u_star #[:10]
+    phi = phi #[:10]
+    div_u_star = div_u_star #[:10]
 
     with open(os.path.join(case_path, "params.json")) as f:
         params = json.load(f)
@@ -164,13 +164,24 @@ class PINNDataset(Dataset):
 
                 # Create a coordinate grid
                 grid_y, grid_x = torch.meshgrid(
-                        torch.linspace(0, 1, self.height + 2),
-                        torch.linspace(0, 1, self.width + 2),
-                        indexing="ij"
+                        torch.linspace(0, 1, self.height),
+                        torch.linspace(0, 1, self.width),
+                        indexing="xy"
                 )
+
+                # plt.ioff()
+                # fig, ax = plt.subplots(1, 2)
+                # im0 = ax[0].imshow(grid_y)
+                # im1 = ax[1].imshow(grid_x)
+
+                # plt.colorbar(im0)
+                # plt.colorbar(im1)
+
+                # plt.show()
+
                 self.coords = torch.stack([grid_x, grid_y], dim=0).to(device)
 
-            u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, self.width + 2, self.height + 2)
+            u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, self.width, self.height)
         
             # Iterate over time steps
             for j in range(len(u_star)):
@@ -245,6 +256,7 @@ class PoissonPINNDataset(PINNDataset):
         self.x = []
         for idx in range(N * samples_per_case):
 
+
             shp = self.p_dirichlet[idx].unsqueeze(0).shape
             ones = torch.ones(shp).to(device)
 
@@ -260,12 +272,12 @@ class PoissonPINNDataset(PINNDataset):
             #         ], dim=0))
 
             self.x.append(torch.cat([
-                           F.pad(0 * self.div_u_star[idx].unsqueeze(0), (1, 1, 1, 1)), #* (1 - self.boundary_mask[idx].unsqueeze(0)), # 0
-                           0 * self.coords, # 1, 2
+                           0 * self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
+                           self.coords, # 1, 2
                            self.p_dirichlet[idx].unsqueeze(0), # 3,
                            self.p_dirichlet_mask[idx].unsqueeze(0), # 4
                            self.boundary_mask[idx].unsqueeze(0), # 5
-                           F.pad(self.u_star[idx].permute(2, 0, 1), (1, 1, 1, 1)), # 6, 7
+                           self.u_star[idx].permute(2, 0, 1), # 6, 7
                            self.p_neumann[idx].permute(2, 0, 1), # 8, 9
                            self.rho[idx] * ones, # 10
                            self.delta_t[idx] * ones, # 11
@@ -284,6 +296,9 @@ class PoissonPINNDataset(PINNDataset):
 
         self.x = torch.stack(self.x, dim=0).to(device)
 
+        # for k in range(self.x.shape[1]):
+        #     print(f"{k}  :    {self.x[0, k].mean()} +- {self.x[0, k].std()}      min = {self.x[0, k].min()}   max = {self.x[0, k].max()}")
+        # exit(0)
 
 
     def __getitem__(self, idx):
@@ -298,13 +313,28 @@ class PoissonPINNDataset(PINNDataset):
         p_neumann = x[:, 8:10]
         boundary_mask = x[:, 5:6]
 
-        p = out
+        # p = out
+        p = F.pad(out, (1, 1, 1, 1), mode="replicate")
+
+        p_dirichlet_mask = F.pad(p_dirichlet_mask, (1, 1, 1, 1), mode="constant", value=1)
+        p_dirichlet = F.pad(p_dirichlet, (1, 1, 1, 1), mode="constant", value=0)
+        p_neumann = F.pad(p_neumann, (1, 1, 1, 1), mode="constant", value=1)
+        boundary_mask = F.pad(boundary_mask, (1, 1, 1, 1), mode="constant", value=1)
+
+        # print(f"Inside enforce BC after pad: {p.shape}")
 
         # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == -1), torch.roll(p, 1, dims=-2), p)
         # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == 1), torch.roll(p, -1, dims=-2), p)
 
-        p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
+        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == -1), torch.roll(p, 1, dims=-2), p)
+        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == 1), torch.roll(p, -1, dims=-2), p)
 
+        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 0].unsqueeze(1) == -1), torch.roll(p, 1, dims=-1), p)
+        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 0].unsqueeze(1) == 1), torch.roll(p, -1, dims=-1), p)
+
+
+        p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
+        
         return p
 
 class FullPINNDataset(PINNDataset):

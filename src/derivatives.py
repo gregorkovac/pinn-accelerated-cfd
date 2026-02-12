@@ -26,11 +26,20 @@ def grad(u, dx, dy, boundary=None, numpy_=False):
 
         return np.stack((du_dx, du_dy), axis=-1)
     else:
+
+        # u = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
+
         du_dx = (torch.roll(u, -1, dims=-1) - torch.roll(u, 1, dims=-1)) / (2 * dx)
         du_dy = (torch.roll(u, -1, dims=-2) - torch.roll(u, 1, dims=-2)) / (2 * dy)
 
-        # du_dx = du_dx[..., 1:-1, 1:-1]
-        # du_dy = du_dy[..., 1:-1, 1:-1]
+        # du_dx[..., 0] = (u[..., 1] - u[..., 0]) / dx
+        # du_dx[..., -1] = (u[..., -1] - u[..., -2]) / dx
+
+        # du_dy[..., 0, :] = (u[..., 1, :] - u[..., 0, :]) / dy
+        # du_dy[..., -1, :] = (u[..., -1, :] - u[..., -2, :]) / dy
+
+        du_dx = du_dx[..., 1:-1, 1:-1]
+        du_dy = du_dy[..., 1:-1, 1:-1]
 
 
         return torch.stack((du_dx, du_dy), dim=-1)
@@ -44,12 +53,27 @@ def divergence(u, dx, dy, boundary = None, numpy_=False):
     
     du_dx, du_dy = grad_u[..., 0], grad_u[..., 1]
 
+
     if numpy_:
         dux_dx = du_dx[..., 0]
         duy_dy = du_dy[..., 1]
     else:
         dux_dx = du_dx[:, 0]
         duy_dy = du_dy[:, 1]
+
+    # import matplotlib.pyplot as plt
+    # plt.ioff()
+    # fig, ax = plt.subplots(1, 4)
+    # im0 = ax[0].imshow(u[0, 0].cpu().detach().numpy())
+    # im1 = ax[1].imshow(u[0, 1].cpu().detach().numpy())
+    # im2 = ax[2].imshow(dux_dx[0].cpu().detach().numpy())
+    # im3 = ax[3].imshow(duy_dy[0].cpu().detach().numpy())
+
+    # plt.colorbar(im0)
+    # plt.colorbar(im1)
+    # plt.colorbar(im2)
+    # plt.colorbar(im3)
+    # plt.show()
 
     div = dux_dx + duy_dy
 
@@ -114,6 +138,7 @@ def convective(u, dx, dy, boundary = None, numpy_=False):
 def laplacian(u, dx, dy, boundary=None, numpy_=False):
     if numpy_:
 
+
         d2u_dx2 = (np.roll(u, -1, axis=1) - 2 * u + np.roll(u, 1, axis=1)) / (dx ** 2)
         d2u_dy2 = (np.roll(u, -1, axis=0) - 2 * u + np.roll(u, 1, axis=0)) / (dy ** 2)
 
@@ -121,10 +146,17 @@ def laplacian(u, dx, dy, boundary=None, numpy_=False):
 
         return res
     else:
+        # u = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="constant", value=0)
 
         d2u_dx2 = (torch.roll(u, -1, dims=-1) - 2 * u + torch.roll(u, 1, dims=-1)) / (dx ** 2)
         d2u_dy2 = (torch.roll(u, -1, dims=-2) - 2 * u + torch.roll(u, 1, dims=-2)) / (dy ** 2)
         
-        res = (d2u_dx2 + d2u_dy2) #[..., 1:-1, 1:-1]
+        # d2u_dx2[..., 0] = (u[..., 0] - 2 * u[..., 1] + u[..., 2]) / (dx ** 2)
+        # d2u_dx2[..., -1] = (u[..., -1] - 2 * u[..., -2] + u[..., -3]) / (dx ** 2)
+
+        # d2u_dy2[..., 0, :] = (u[..., 0, :] - 2 * u[..., 1, :] + u[..., 2, :]) / (dy ** 2)
+        # d2u_dy2[..., -1, :] = (u[..., -1, :] - 2 * u[..., -2, :] + u[..., -3, :]) / (dy ** 2)
+
+        res = (d2u_dx2 + d2u_dy2)[..., 1:-1, 1:-1]
         
         return res

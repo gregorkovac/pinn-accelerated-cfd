@@ -209,7 +209,7 @@ def main():
             base_case["beta"],
             g,
             dynamic_time_step=False,
-            implicit_laplacian=True,
+            implicit_laplacian=False,
             return_div_u_star=True,
             method_type="numeric"
         )
@@ -224,7 +224,7 @@ def main():
         div_u_star = np.array(div_u_star[:-1])
         phi = np.array(phi[:-1])
 
-        boundary_mask = get_boundary_image(g, w - 2, h - 2)
+        boundary_mask = get_boundary_image(g, w, h)
 
         params = {
             "width": base_case["width"],

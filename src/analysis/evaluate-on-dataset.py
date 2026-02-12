@@ -44,8 +44,8 @@ def prepare_case(case_bench, case_nm, ux, type, changing_param, case_num=-1):
         x_phys = abs(case_bench["x_min"]) + radius_phys
         y_phys = abs(case_bench["y_min"]) + radius_phys
     
-    height_px = np.shape(ux)[1] + 2
-    width_px = np.shape(ux)[2] + 2
+    height_px = np.shape(ux)[1]# + 2
+    width_px = np.shape(ux)[2]# + 2
 
     # if type == "tube" and changing_param == "geo":
     #     dx = case_bench["dx"]
@@ -142,7 +142,7 @@ def eval_case(case_path, case_num=-1):
     elif "geo" in case_path:
         changing_param = "geo"
 
-    with open("../../data/cases/pipe.json", "r") as f:
+    with open("../../data/cases/pipe_64.json", "r") as f:
         case_nm = json.load(f)
 
     case_nm, prepared_params = prepare_case(case_, case_nm, ux, type=case_type, changing_param=changing_param, case_num=case_num)
@@ -174,7 +174,7 @@ def eval_case(case_path, case_num=-1):
 
     u_baseline = np.stack([ux[-1], uy[-1]], axis=0)
 
-    _, _, _, _, _, _, boundary = geometry_to_mtx(case_nm["geometry"], prepared_params["width_px"] - 2, prepared_params["height_px"] - 2)
+    _, _, _, _, _, _, boundary = geometry_to_mtx(case_nm["geometry"], prepared_params["width_px"], prepared_params["height_px"])
 
     err_vec_inf = pointwise_inf(u_baseline, u_nm)[boundary != 1]
     err_vec_l1 = pointwise_l1(u_baseline, u_nm)[boundary != 1]

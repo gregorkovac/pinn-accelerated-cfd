@@ -16,6 +16,7 @@ from torch.quantization import quantize_dynamic
 import torch._dynamo
 torch._dynamo.config.suppress_errors = True
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 
 import gc
 
@@ -182,16 +183,16 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
                       boundary=None,
                       numpy_=True)
         
-        full_lapl = laplacian(u=u_bc, dx=dx, dy=dy, numpy_=True)
+        # full_lapl = laplacian(u=u_bc, dx=dx, dy=dy, numpy_=True)
     
-        u_only_interior = np.pad(u, pad_width=((1, 1), (1, 1), (0, 0)), mode='constant', constant_values=0)
-        interior_lapl = laplacian(u=u_only_interior, dx=dx, dy=dy, numpy_=True)
+        # u_only_interior = np.pad(u, pad_width=((1, 1), (1, 1), (0, 0)), mode='constant', constant_values=0)
+        # interior_lapl = laplacian(u=u_only_interior, dx=dx, dy=dy, numpy_=True)
 
-        boundary_injection = full_lapl - interior_lapl
+        # boundary_injection = full_lapl - interior_lapl
 
         # Compute right hand side for implicit Laplacian system
         # TODO: Find a source for this last term
-        b = (u - delta_t * conv_u - beta * delta_t / density * grad_p) + (delta_t * viscosity * boundary_injection)
+        b = (u - delta_t * conv_u - beta * delta_t / density * grad_p) # + (delta_t * viscosity * boundary_injection)
 
         # fig, ax = plt.subplots(1, 2)
         # im0 = ax[0].imshow(b[..., 0])
@@ -299,6 +300,19 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # Scale the divergence of u star
     div_u_star = (density / delta_t) * div
 
+    # print(density, delta_t, density/delta_t)
+
+    # fig, ax = plt.subplots(1, 3)
+    # im0 = ax[0].imshow(u_star[..., 0])
+    # im1 = ax[1].imshow(u_star[..., 1])
+    # im2 = ax[2].imshow(div_u_star)
+
+    # plt.colorbar(im0)
+    # plt.colorbar(im1)
+    # plt.colorbar(im2)
+
+    # plt.show()
+
     # ax[16].imshow(div_u_star)
     # ax[16].set_title("div_u_star")
 
@@ -379,7 +393,9 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             u_star_coords = (u_star_coords - x_mean) / x_std
 
             # Perform a forward pass and obtain the pressure correction
-            phi = poisson_model(u_star_coords).view(n, m).cpu().numpy()
+            phi = poisson_model(u_star_coords)
+            phi = F.pad(phi, (1, 1, 1, 1), mode="constant", value=0)
+            phi = phi.view(n, m).cpu().numpy()
     else:
         # Obtain the pressure correction by numerically solving Poisson's equatio
         phi = solve_discrete_poisson(div_u_star, A=A_poisson)
@@ -410,7 +426,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # plt.show()
 
     # Compute the new velocity field
-    u = u_star - delta_t / density * grad_phi
+    u = u_star_bc - delta_t / density * grad_phi
 
     # div = divergence(u, dx=dx, dy=dy, boundary=None, numpy_=True)
 
@@ -422,11 +438,11 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # print(f"{div.mean():.5f} +- {div.std():.5f}")
 
     # Update pressure
-    p = phi + beta * p
+    p = phi_bc + beta * p
 
-    # u, p = boundary(geometry=geometry, u=u, p=p)
+    u, p = boundary(geometry=geometry, u=u, p=p)
 
-    return u, p, u_star, div_u_star, phi
+    return u, p, u_star_bc, div_u_star, phi_bc
 
 def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, viscosity, beta, geometry, dynamic_time_step = False, implicit_laplacian = False, return_div_u_star = False, method_type = "numeric", model_path = None, poisson_alternation=-1):
     """

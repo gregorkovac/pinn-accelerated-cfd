@@ -24,6 +24,8 @@ class PoissonLoss(nn.Module):
         # delta_x = delta_x.to(output.device).view(-1, 1, 1)
         # delta_y = delta_y.to(output.device).view(-1, 1, 1)
 
+        # output = self.enforceBC(x, output)
+
         phi = output[:, 0:1]
         # div_u_star_orig = x[:, 0]
         boundary_mask = x[:, 5:6]
@@ -31,12 +33,10 @@ class PoissonLoss(nn.Module):
         p_neumann = x[:, 8:10]
         p_dirichlet = x[:, 3:4]
         p_dirichlet_mask = x[:, 4:5]
-        rho = x[:, 10:11, 1:-1, 1:-1]
-        delta_t = x[:, 11:12, 1:-1, 1:-1]
+        rho = x[:, 10:11]
+        delta_t = x[:, 11:12]
         delta_x = x[:, 12:13, 0, 0].view(-1, 1, 1)
         delta_y = x[:, 13:14, 0, 0].view(-1, 1, 1)
-
-        u_star = self.enforceBC(x, u_star)
 
         # eroded_mask = -F.max_pool2d(-boundary_mask, kernel_size=3, stride=1, padding=3 // 2)
 
@@ -64,7 +64,7 @@ class PoissonLoss(nn.Module):
                                 float(delta_x[0].item()),
                                 float(delta_y[0].item()),
                                 boundary_mask)
-        
+
         # plt.ioff()
         # fig, ax = plt.subplots(1, 2)
         # im0 = ax[0].imshow(div_u_star_orig)
@@ -75,7 +75,12 @@ class PoissonLoss(nn.Module):
         # plt.colorbar(im1)
         # plt.show()
 
+        # div_u_star = x[:, 0]
+
         div_u_star = div_u_star.unsqueeze(1)
+
+        rho = rho[..., 1:-1, 1:-1]
+        delta_t = delta_t[..., 1:-1, 1:-1]
 
         div_u_star = div_u_star * rho / delta_t
 
@@ -85,12 +90,53 @@ class PoissonLoss(nn.Module):
         laplacian_phi = laplacian(phi, float(delta_x[0].item()), float(delta_y[0].item()), boundary_mask)
 
         # plt.ioff()
+        # fig, ax = plt.subplots(1, 2)
+        # im0 = ax[0].imshow(div_u_star[0, 0].cpu().detach().numpy())
+        # im1 = ax[1].imshow(laplacian_phi[0, 0].cpu().detach().numpy())
+        # ax[0].set_title("div_u_star")
+        # ax[1].set_title("laplacian_phi")
+        # plt.colorbar(im0)
+        # plt.colorbar(im1)
+        # plt.show()
+
+
+        # plt.ioff()
         # plt.imshow(div_u_star[0, 0].cpu().detach().numpy())
         # plt.show()
 
         # div_u_star *= (1 - boundary_mask)
 
-        loss_pde = (laplacian_phi - div_u_star) ** 2 #/ ((div_u_star ** 2).mean() + 1e-8)
+        # loss_pde = (laplacian_phi - div_u_star) ** 2 #/ ((div_u_star ** 2).mean() + 1e-8)
+        loss_pde = torch.abs(laplacian_phi - div_u_star)
+        # loss_pde = torch.log(1 + loss_pde)
+
+        # plt.ioff()
+        # fig, ax = plt.subplots(1, 2)
+        # im0 = ax[0].imshow(loss_pde.cpu().detach().numpy()[0, 0])
+        # im1 = ax[1].imshow(torch.log(loss_pde / ((div_u_star ** 2) + 1e-8)).cpu().detach().numpy()[0, 0])
+        
+        # plt.colorbar(im0)
+        # plt.colorbar(im1)
+        # plt.show()
+        # exit(0)
+
+
+        # loss_pde *= (1 - boundary_mask)
+
+        # loss_pde = loss_pde[boundary_mask == 0]
+
+        # plt.ioff()
+        # fig, ax = plt.subplots(1, 3)
+        # im0 = ax[0].imshow(u_star.cpu().detach().numpy()[0, 0])
+        # im1 = ax[1].imshow(u_star.cpu().detach().numpy()[0, 1])
+        # # im2 = ax[2].imshow(div_u_star.cpu().detach().numpy()[0, 0])
+        # im2 = ax[2].imshow((div_u_star * delta_t / rho).cpu().detach().numpy()[0, 0])
+        
+        # plt.colorbar(im0)
+        # plt.colorbar(im1)
+        # plt.colorbar(im2)
+        # plt.show()
+        # exit(0)
 
         # loss_pde = loss_pde * (1 - p_dirichlet_mask)
 
@@ -167,7 +213,7 @@ class NavierStokesLoss(nn.Module):
         # plt.colorbar(im1)
 
 
-        output = self.enforceBC(x, output)
+        # output = self.enforceBC(x, output)
 
         # im2 = ax[2].imshow(output[0, 0].detach().cpu().numpy())
         # ax[2].set_title("u_bc[0]")

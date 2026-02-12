@@ -25,7 +25,7 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
     x_max = (width - 1) * grid_spacing
     y_max = (height - 1) * grid_spacing
 
-    u[boundary_image == 1, :] = 0
+    # u[boundary_image == 1, :] = 0
 
     ax.clear()
     X, Y = np.meshgrid(np.linspace(0, x_max, width) + 0.5 * grid_spacing, 
@@ -49,9 +49,9 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
     ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white")
 
     # Boundary image overlay (OLD)
-    boundary_image = boundary_image[::-1, :]
-    ax.imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
-                                    0, y_max + grid_spacing], alpha=0.5*boundary_image)
+    # boundary_image = boundary_image[::-1, :]
+    # ax.imshow(boundary_image, cmap="Greys", extent=[0, x_max + grid_spacing, 
+    #                                 0, y_max + grid_spacing], alpha=0.5*boundary_image)
 
 
     if cbar is None:

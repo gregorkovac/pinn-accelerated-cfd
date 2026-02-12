@@ -78,7 +78,7 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     # grad_phi = torch.autograd.grad(x, in_, grad_outputs=torch.ones_like(x), create_graph=True)[0][2:4]
     # grad_phi = np.gradient(x.detach().squeeze().numpy(), dy, dx)[0]
     # grad_phi = np.gradient(x.detach().squeeze().numpy(), dy, dx, edge_order=2)[0]
-    grad_phi = np.gradient(x, dy, dx, edge_order=2)[0]
+    grad_phi = np.gradient(x, dy, dx, edge_order=2)[0][..., 1:-1, 1:-1]
 
     u = in_[6:8] - (delta_t / rho) * grad_phi
     u = u.detach().numpy()
@@ -138,6 +138,10 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     
     # im2 = ax[2].quiver(X[::4, ::4], Y[::4, ::4], u[0, ::4, ::4], u[1, ::4, ::4], color="black", alpha = 1)
     # im2 = ax[2].quiver(X[::4, ::4], Y[::4, ::4], u_star[0, ::4, ::4], u_star[1, ::4, ::4], color="red", alpha = 1)
+
+    # laplacian_phi *= (1 - boundary)
+    # div_u *= (1 - boundary)
+
 
     im2 = ax[2].imshow(laplacian_phi)
 
