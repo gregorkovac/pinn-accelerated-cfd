@@ -33,20 +33,20 @@ def plot_flow(ax, u, p, grid_spacing, boundary_image = None, cbar = None):
     
     # p *= (1 - boundary_image)
 
-    im = ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
-                                    0, y_max + grid_spacing])
+    # im = ax.imshow(p[::-1, :], cmap=cmap, extent=[0, x_max + grid_spacing, 
+    #                                 0, y_max + grid_spacing])
     
 
     # Velocity image (NEW)
-    # im = ax.imshow(np.sqrt(u[:, :, 0] ** 2 + u[:, :, 1] ** 2)[::-1, ::], extent=[0, x_max + grid_spacing, 
-    #                                 0, y_max + grid_spacing], vmin = 0, vmax = 10)
+    im = ax.imshow(np.sqrt(u[:, :, 0] ** 2 + u[:, :, 1] ** 2)[::-1, ::], extent=[0, x_max + grid_spacing, 
+                                    0, y_max + grid_spacing] , vmin = 0, vmax = 0.2)
 
     # Velocity quivers (NEW)
-    # ax.quiver(X[::1, ::1], Y[::1, ::1], u[::1,::1,0], u[::1,::1,1], color="black", scale=100, scale_units="xy", angles="xy")
+    ax.quiver(X[::4, ::4], Y[::4, ::4], u[::4,::4,0], u[::4,::4,1], color="white", scale=20, scale_units="xy", angles="xy")
 
     # Velocity quivers (OLD)
     # ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white", alpha = np.minimum(np.ones(np.shape(boundary_image)), 0.5 + np.abs(boundary_image - 1)))
-    ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white")
+    # ax.quiver(X, Y, u[:,:,0], u[:,:,1], color="white")
 
     # Boundary image overlay (OLD)
     # boundary_image = boundary_image[::-1, :]

@@ -12,11 +12,11 @@ sys.path.insert(0, "..")
 
 from numeric_method.numeric_method import solve_navier_stokes
 
-CASE_DIR = "../../../data_simple_test"
+CASE_DIR = "../../../data_glycerol_large_test"
 # CASE_DIR = "../../../data_final_small_test_inflow"
 # CASE_DIR = "../../../data_final_small_test_params"
-POISSON_MODEL_PATH = "../../models/poisson/2025-11-20_13_03"
-FULL_MODEL_PATH = "../../models/full/2025-11-20_17_16"
+POISSON_MODEL_PATH = "../../models/poisson/2026-02-25_19_18"
+FULL_MODEL_PATH = "../../models/full/2026-02-25_21_04"
 
 def run_case(case, method_type, model_path=""):
     start_time = time.time()
@@ -31,10 +31,10 @@ def run_case(case, method_type, model_path=""):
             case["time_step"],
             case["density"],
             case["viscosity"],
-            0,
+            case["beta"],
             case["geometry"],
             dynamic_time_step=False,
-            implicit_laplacian=True,
+            implicit_laplacian=False,
             return_div_u_star=False,
             method_type=method_type,
             model_path=model_path

@@ -1,0 +1,49 @@
+{
+    "base_case_path": "../../data/cases/pipe_large.json",
+    "fluids": [
+        {   "fluid": "glycerol",
+            "density": 1261,
+            "viscosity": 1.5
+        }
+    ],
+    "Re": {
+        "min": 1,
+        "max": 10
+    },
+    "inflow": {
+        "min": 0.1,
+        "max": 0.5
+    },
+    "dam": {
+        "x": {
+            "min": 10,
+            "max": 118
+        },
+        "y": {
+            "min": 10,
+            "max": 118
+        },
+        "width": {
+            "min": 10,
+            "max": 40
+        },
+        "height": {
+            "min": 10,
+            "max": 40
+        }
+    },
+    "cylinder": {
+        "x": {
+            "min": 10,
+            "max": 118
+        },
+        "y": {
+            "min": 10,
+            "max": 118
+        },
+        "size": {
+            "min": 10,
+            "max": 20          
+        }
+    }
+}

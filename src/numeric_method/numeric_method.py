@@ -330,30 +330,30 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             device = torch.device('cpu')
 
             # Convert u star to Torch
-            u_star_ = torch.from_numpy(u_star).float().to(device).permute(2, 0, 1)
+            # u_star_ = torch.from_numpy(u_star).float().to(device).permute(2, 0, 1)
             div_u_star_ = torch.from_numpy(div_u_star).float().to(device).unsqueeze(0)
 
             # Create a coordinate grid
-            grid_y, grid_x = torch.meshgrid(
-                    torch.linspace(0, 1, m),
-                    torch.linspace(0, 1, n),
-                    indexing="xy"
-                )
-            coords = torch.stack([grid_x, grid_y], dim=0)
+            # grid_y, grid_x = torch.meshgrid(
+            #         torch.linspace(0, 1, m),
+            #         torch.linspace(0, 1, n),
+            #         indexing="xy"
+            #     )
+            # coords = torch.stack([grid_x, grid_y], dim=0)
 
             # Obtain required boundary representations
-            u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, m, n)
+            # u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, m, n)
 
             # Convert boundaries to Torch
-            p_neumann = torch.tensor(p_neumann, dtype=torch.float32).permute(2, 0, 1)
-            p_dirichlet = torch.tensor(p_dirichlet, dtype=torch.float32).unsqueeze(0)
-            p_dirichlet_mask = torch.tensor(p_dirichlet_mask, dtype=torch.float32).unsqueeze(0)
+            # p_neumann = torch.tensor(p_neumann, dtype=torch.float32).permute(2, 0, 1)
+            # p_dirichlet = torch.tensor(p_dirichlet, dtype=torch.float32).unsqueeze(0)
+            # p_dirichlet_mask = torch.tensor(p_dirichlet_mask, dtype=torch.float32).unsqueeze(0)
 
             rho = torch.ones((1, n, m)) * density
             delta_t_ = torch.ones((1, n, m)) * delta_t
             dx_ = torch.ones((1, n, m)) * dx
             dy_ = torch.ones((1, n, m)) * dy
-            boundary_mask_ = torch.tensor(boundary_mask, dtype=torch.float32).unsqueeze(0)
+            # boundary_mask_ = torch.tensor(boundary_mask, dtype=torch.float32).unsqueeze(0)
 
             # Construct the model's input tensor
             # u_star_coords = torch.cat([u_star_, 
@@ -367,15 +367,22 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             #                         ], dim=0).unsqueeze(0)
                                     
 
-            u_star_coords = torch.cat([0 * div_u_star_, # TODO: THIS IS ZERO
-                                       coords, 
-                                       p_dirichlet,
-                                       p_dirichlet_mask,
-                                       boundary_mask_,
-                                       u_star_,
-                                       p_neumann, 
-                                       rho,
-                                       delta_t_,
+            # u_star_coords = torch.cat([div_u_star_, # TODO: THIS IS ZERO
+            #                            0 * coords, 
+            #                            0 * p_dirichlet,
+            #                            0 * p_dirichlet_mask,
+            #                            0 * boundary_mask_,
+            #                            0 * u_star_,
+            #                            0 * p_neumann, 
+            #                            rho,
+            #                            delta_t_,
+            #                            dx_,
+            #                            dy_
+            #                         ], dim=0).unsqueeze(0)
+
+            u_star_coords = torch.cat([div_u_star_,
+                                    #    rho,
+                                    #    delta_t_,
                                        dx_,
                                        dy_
                                     ], dim=0).unsqueeze(0)
@@ -394,9 +401,13 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
             # Perform a forward pass and obtain the pressure correction
             phi = poisson_model(u_star_coords)
-            phi = F.pad(phi, (1, 1, 1, 1), mode="constant", value=0)
+            # phi = F.pad(phi, (1, 1, 1, 1), mode="constant", value=0)
             phi = phi.view(n, m).cpu().numpy()
     else:
+        # div_u_star_flat = div_u_star.ravel()
+        # p_dirichlet_mask = geometry_mtx[4]
+        # div_u_star_flat[p_dirichlet_mask.ravel() == 1] = 0.0
+
         # Obtain the pressure correction by numerically solving Poisson's equatio
         phi = solve_discrete_poisson(div_u_star, A=A_poisson)
         # phi = solve_discrete_poisson_jacobi(div_u_star, dx, dy, geometry)
@@ -404,9 +415,25 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
     # ax[17].imshow(phi)
     # ax[17].set_title("phi")
 
+    phi_nm = solve_discrete_poisson(div_u_star, A=A_poisson)
+    _, phi_bc_nm = boundary(geometry, p = phi_nm)
+
     # Apply the boundary conditions to the pressure correction
     _, phi_bc = boundary(geometry, p = phi)
 
+    # fig, ax = plt.subplots(2, 2)
+    # ax = ax.flatten()
+    # ax[0].imshow(phi)
+    # ax[1].imshow(phi_bc)
+    # ax[2].imshow(phi_nm)
+    # ax[3].imshow(phi_bc_nm)
+
+    # ax[0].set_title("phi")
+    # ax[1].set_title("phi_bc")
+    # ax[2].set_title("phi_nm")
+    # ax[3].set_title("phi_bc_nm")
+    # plt.show()
+    
     # ax[18].imshow(phi_bc)
     # ax[18].set_title("phi_bc")
 
@@ -488,6 +515,16 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
     A_poisson = compute_discrete_laplacian(height, width, dy, dx)
     A_laplacian_init = compute_discrete_laplacian(height, width, dy, dx)
 
+    # A_poisson = A_poisson.tolil()
+    
+    # bc_indices = np.where(p_dirichlet_mask.ravel() == 1)[0]
+    
+    # for idx in bc_indices:
+    #     A_poisson.rows[idx] = [idx]
+    #     A_poisson.data[idx] = [1.0]
+
+    # A_poisson = A_poisson.tocsr()
+
     # randu = np.random.rand(height, width)
 
     # randu[5:12, 3:30] = 1
@@ -553,7 +590,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                                 input_width=width,
                                 input_height=height,
                                 enforceBC=dataset.enforceBC,
-                                use_skip=True,
+                                use_skip=False,
                                 activation=params["activation"],
                                 architecture=params["architecture"],
                                 pooling=params["pooling"],
@@ -614,8 +651,8 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         p_neumann = torch.tensor(p_neumann, dtype=torch.float32)
 
         grid_y, grid_x = torch.meshgrid(
-                    torch.linspace(0, 1, width),
                     torch.linspace(0, 1, height),
+                    torch.linspace(0, 1, width),
                     indexing="xy"
                 )
         coords = torch.stack([grid_x, grid_y], dim=0)
@@ -637,7 +674,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         # print(mu.shape)
         # print(boundary_mask_.shape)
 
-        x = torch.cat([coords,
+        x = torch.cat([0 * coords,
                        u_dirichlet.permute(2, 0, 1),
                        u_dirichlet_mask.permute(2, 0, 1),
                        u_neumann.permute(2, 0, 1),
@@ -653,12 +690,21 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         
         x = (x - x_mean) / x_std
 
-        out = model(x)#.squeeze(0).detach().numpy()
+        out = model(x).squeeze(0).detach().numpy()
+        
+        # plt.imshow(out.detach().cpu().numpy()[0, 1])
+        # plt.show()
 
-        out = dataset.enforceBC(x, out).squeeze(0).detach().numpy()
+        # out = dataset.enforceBC(x, out).squeeze(0).detach().numpy()
 
         u_x, u_y, p = out[0], out[1], out[2]
         u = np.stack((u_x, u_y), axis=-1)
+
+        u, p = boundary(geometry, u = u, p = p)
+
+        # plt.imshow(u[..., 1])
+        # plt.colorbar()
+        # plt.show()
 
         u_star = np.zeros((20, 20))
         div_u_star = np.zeros((20, 20))

@@ -78,15 +78,20 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     # grad_phi = torch.autograd.grad(x, in_, grad_outputs=torch.ones_like(x), create_graph=True)[0][2:4]
     # grad_phi = np.gradient(x.detach().squeeze().numpy(), dy, dx)[0]
     # grad_phi = np.gradient(x.detach().squeeze().numpy(), dy, dx, edge_order=2)[0]
-    grad_phi = np.gradient(x, dy, dx, edge_order=2)[0][..., 1:-1, 1:-1]
+    # grad_phi = np.gradient(x, dy, dx, edge_order=2)[0] #[..., 1:-1, 1:-1]
+    laplacian_phi = laplacian(x, dx, dy, boundary=boundary, numpy_=True)
 
-    u = in_[6:8] - (delta_t / rho) * grad_phi
-    u = u.detach().numpy()
+    div_u_star = in_[0].cpu().detach().numpy()
 
-    u_star = in_[6:8].detach().numpy()
+    err = np.abs(laplacian_phi - div_u_star)
 
-    rho = rho.detach().numpy()
-    delta_t = delta_t.detach().numpy()
+    # u = in_[6:8] - (delta_t / rho) * grad_phi
+    # u = u.detach().numpy()
+
+    # u_star = in_[6:8].detach().numpy()
+
+    # rho = rho.detach().numpy()
+    # delta_t = delta_t.detach().numpy()
 
     # x = x.detach().squeeze().numpy()
     # y = y.detach().squeeze().numpy()
@@ -107,13 +112,12 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     # div_u = div_u * (1 - boundary.detach().numpy())
     # div_u = div_u ** 2
 
-    laplacian_phi = laplacian(x, dx, dy, boundary=boundary, numpy_=True)
-
-    u_star = enforceBC(in_.unsqueeze(0), torch.from_numpy(u_star).unsqueeze(0))
+    # u_star = enforceBC(in_.unsqueeze(0), torch.from_numpy(u_star).unsqueeze(0))
+    # u_star = torch.from_numpy(u_star).unsqueeze(0)
 
     # div_u = divergence(u_star.transpose((1, 2, 0)), dx, dy, boundary=boundary, numpy_=True)
-    div_u = divergence(u_star, dx, dy, boundary=boundary, numpy_=False).squeeze()
-    div_u = div_u * rho / delta_t
+    # div_u = divergence(u_star, dx, dy, boundary=boundary, numpy_=False).squeeze()
+    # div_u = div_u * rho / delta_t
 
     # grad_ux = np.gradient(u[1], dy, dx, edge_order=2)
     # grad_uy = np.gradient(u[0], dy, dx, edge_order=2)
@@ -126,6 +130,11 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     #                             numpy_=True)
 
     # laplacian_phi = laplacian(x, dx.item(), dy.item(), boundary)
+
+    # x_ = x_[..., 1:-1, 1:-1]
+    # y_ = y_[..., 1:-1, 1:-1]
+    # laplacian_phi = laplacian_phi[..., 1:-1, 1:-1]
+    # div_u = div_u[..., 1:-1, 1:-1]
 
     im0 = ax[0].imshow(x_, cmap=cmap)
     im1 = ax[1].imshow(y_, cmap=cmap)
@@ -144,8 +153,9 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
 
 
     im2 = ax[2].imshow(laplacian_phi)
+    im3 = ax[3].imshow(err[:20, :20])
 
-    im3 = ax[3].imshow(div_u)
+    # im3 = ax[3].imshow(div_u)
     # div_u_star = divergence(u_star.transpose((1, 2, 0)), dx.item(), dy.item(), numpy_=True)
     # div_u = divergence(u.transpose((1, 2, 0)), dx.item(), dy.item(), numpy_=True)
     
@@ -156,7 +166,7 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     ax[1].set_title(f"p = {np.mean(np.array(y_)):.2f} +- {np.std(np.array(y_)):.2f}")
 
     ax[2].set_title("Laplacian Phi")
-    ax[3].set_title("Div u*")
+    ax[3].set_title("Absolute error")
 
     if cbar:
         for cb in cbar:
