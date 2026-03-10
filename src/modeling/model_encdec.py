@@ -26,8 +26,8 @@ class EncDecCNN(nn.Module):
 
         self.enforceBC = enforceBC
 
-        encoder_layers = []
-        decoder_layers = []
+        # encoder_layers = []
+        # decoder_layers = []
 
         # self.encoder = nn.ModuleList()
         # self.decoder = nn.ModuleList()
@@ -46,6 +46,8 @@ class EncDecCNN(nn.Module):
             #     in_channels = hidden_channels
             
             # out_channels = hidden_channels
+
+            # print(in_channels, out_channels)
 
             if activation == "relu":
                 activation_fn = nn.ReLU()
@@ -82,13 +84,17 @@ class EncDecCNN(nn.Module):
             # ])
 
             encoder_block = [
-                nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, padding_mode="replicate", stride=stride),
+                nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, padding_mode="zeros", stride=stride),
                 norm_fn,
                 activation_fn,
                 pooling_fn
             ]
 
             self.encoder.append(nn.Sequential(*encoder_block))
+
+        #     print(in_channels, out_channels)
+
+        # print("----------")
 
         # DECODER
         for i in range(num_layers):
@@ -101,6 +107,11 @@ class EncDecCNN(nn.Module):
             
             in_channels = input_channels * (2 ** (num_layers - i))
             out_channels = input_channels * (2 ** (num_layers - i - 1))
+
+            if i != 0:
+                in_channels *= 2
+
+            # print(in_channels, out_channels)
 
             # if use_skip:
             #     in_channels = 2 * in_channels
@@ -117,7 +128,7 @@ class EncDecCNN(nn.Module):
             if upsampling == "upsample":
                 upsampling_fn = nn.Sequential(
                                     nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
-                                    nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=2, padding_mode="zeros", dilation=2)
+                                    nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, padding_mode="zeros")
                                 )
             elif upsampling == "convtranspose":
                 upsampling_fn = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2, padding=0, output_padding=0)
@@ -134,7 +145,6 @@ class EncDecCNN(nn.Module):
             ]
 
             self.decoder.append(nn.Sequential(*decoder_block))
-
 
         self.encoder = nn.Sequential(*self.encoder)
         self.decoder = nn.Sequential(*self.decoder)
@@ -165,11 +175,21 @@ class EncDecCNN(nn.Module):
 
         # self.initialize_weights(activation_fn)
 
+
     def forward(self, x):
         # x_trunc = x[:, :, 1:-1, 1:-1]
         # x_trunc = x
 
-        out = self.encoder(x)
+        out_enc = [x]
+
+        for layer in self.encoder:
+            out_e = layer(out_enc[-1])
+            out_enc.append(out_e)
+        #     print(out_e.shape)
+
+        # print("------------------")
+
+        # out = self.encoder(x)
 
         # batch_size, channels, H, W = out.shape
 
@@ -177,10 +197,22 @@ class EncDecCNN(nn.Module):
         # out = self.fc(out)
         # out = out.view(batch_size, channels, H, W)
 
-        out = self.decoder(out)
+        # out = self.decoder(out)
+
+        out = out_enc[-1]
+
+        for i, layer in enumerate(self.decoder):
+            if i != 0:
+                # print("-----", out.shape, out_enc[-(i + 1)].shape)
+                out = torch.cat([out, out_enc[-(i + 1)]], dim=1)
+
+            # print(out.shape)
+            # print(self.decoder[i])
+            # print()
+            out = layer(out)
 
         if self.skip is not None:
-            # out = out + self.x(x)
+            # out = out + self.skip(x)
             x_skip = self.skip(x)
 
             out = torch.cat([out, x_skip], dim=1)

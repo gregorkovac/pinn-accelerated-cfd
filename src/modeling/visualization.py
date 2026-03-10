@@ -10,9 +10,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from derivatives import *
 
-cmap = mpl.cm.Blues(np.linspace(0,1,20))
-cmap = mpl.colors.ListedColormap(cmap[10:,:-1])
-# cmap = "viridis"
+# cmap = mpl.cm.Blues(np.linspace(0,1,20))
+# cmap = mpl.colors.ListedColormap(cmap[10:,:-1])
+cmap = "viridis"
 
 def plot_full(ax, x, grid_spacing, boundary_image = np.zeros((20, 20)), cbar=None):
 
@@ -152,21 +152,22 @@ def plot_poisson(ax, x, y, boundary, cbar=None, delta_t=1, rho=1, in_=None, dy=1
     # div_u *= (1 - boundary)
 
 
+    # im2 = ax[2].imshow(laplacian_phi[80:, 20:80])
     im2 = ax[2].imshow(laplacian_phi)
-    im3 = ax[3].imshow(err[:20, :20])
+    # im3 = ax[3].imshow(err[:20, :20])
 
     # im3 = ax[3].imshow(div_u)
     # div_u_star = divergence(u_star.transpose((1, 2, 0)), dx.item(), dy.item(), numpy_=True)
     # div_u = divergence(u.transpose((1, 2, 0)), dx.item(), dy.item(), numpy_=True)
     
-    # im2 = ax[2].imshow(div_u_star)
-    # im3 = ax[3].imshow(div_u)
+    # im3 = ax[3].imshow(div_u_star[80:, 20:80])
+    im3 = ax[3].imshow(div_u_star)
 
     ax[0].set_title(f"p = {np.mean(x_):.2f} +- {np.std(x_):.2f}")
     ax[1].set_title(f"p = {np.mean(np.array(y_)):.2f} +- {np.std(np.array(y_)):.2f}")
 
     ax[2].set_title("Laplacian Phi")
-    ax[3].set_title("Absolute error")
+    ax[3].set_title("Div u star")
 
     if cbar:
         for cb in cbar:

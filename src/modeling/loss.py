@@ -25,17 +25,33 @@ class PoissonLoss(nn.Module):
 
         phi = output[:, 0:1]
         div_u_star = x[:, 0]
-        delta_x = x[:, 1:2, 0, 0].view(-1, 1, 1)
-        delta_y = x[:, 2:3, 0, 0].view(-1, 1, 1)
+        # delta_x = x[:, 1:2, 0, 0].view(-1, 1, 1)
+        # delta_y = x[:, 2:3, 0, 0].view(-1, 1, 1)
+
+        delta_x = x[:, 12:13, 0, 0].view(-1, 1, 1)
+        delta_y = x[:, 13:14, 0, 0].view(-1, 1, 1)
+
+        boundary_mask = x[:, 5:6]
+
+        # print(float(delta_x[0].item()))
+        # print(float(delta_y[0].item()))
+        # exit(0)
 
         div_u_star = div_u_star.unsqueeze(1)
 
         # Compute the laplacian of pressure
         laplacian_phi = laplacian(phi, float(delta_x[0].item()), float(delta_y[0].item()), None)
+        # laplacian_phi = laplacian(phi, 1, 1, None)
 
-        loss_pde = torch.abs(laplacian_phi - div_u_star)
+        # loss_pde = torch.abs(laplacian_phi - div_u_star)
+        # loss_pde = (laplacian_phi - div_u_star) ** 2
 
-        loss_pde = torch.mean(loss_pde)
+        # loss_pde = loss_pde[boundary_mask != 1]
+
+        # loss_pde = torch.mean(loss_pde)
+
+        # loss_pde = torch.max(torch.abs(laplacian_phi - div_u_star))
+        loss_pde = torch.sqrt(torch.mean(((laplacian_phi - div_u_star) ** 2))) #/ (torch.sqrt(torch.mean(div_u_star ** 2)) + 1e-6)
 
         # loss_nonneg = torch.mean(torch.relu(-output) ** 2)
         loss_nonneg = torch.tensor(0, device=output.device)

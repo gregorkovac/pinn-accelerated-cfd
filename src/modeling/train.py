@@ -213,6 +213,7 @@ def main():
     if model_type == "poisson":
         # dont_normalize = [3, 4, 5, 8, 9]
         # dont_normalize = [0, 1, 2, 3, 4]
+        # dont_normalize = [0, 1, 2]
         dont_normalize = []
     else:
         dont_normalize = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14]
@@ -355,6 +356,13 @@ def main():
 
     # Training loop
     for epoch in range(epochs):
+        # if epoch == 200:
+        #     optimizer = torch.optim.LBFGS(model.parameters(), 
+        #                               lr=1, 
+        #                               max_iter=20, 
+        #                               history_size=10, 
+        #                               line_search_fn='strong_wolfe')
+
         running_loss = [0, 0, 0, 0, 0]
         val_running_loss = [0, 0, 0, 0, 0]
 
@@ -363,91 +371,97 @@ def main():
         #     if loss_weights[2] >= 1000:
         #         print("EXCEEDED")
 
-        def closure():
-            optimizer.zero_grad()
-            total_loss_train = torch.tensor(0.0, device=device)
+        ################################################
+        # def closure():
+        #     optimizer.zero_grad()
+        #     total_loss_train = torch.tensor(0.0, device=device)
 
-            for data in train_dataloader:
-                x, _, _, _, _, _, _, _ = data
-                x = x.to(device)
+        #     for data in train_dataloader:
+        #         x, _, _, _, _, _, _, _ = data
+        #         x = x.to(device)
                 
-                outputs = model(x)
-                x_norm = x * x_std.to(device) + x_mean.to(device)
+        #         outputs = model(x)
+        #         x_norm = x * x_std.to(device) + x_mean.to(device)
 
-                l = criterion(x_norm, outputs, loss_weights)
+        #         l = criterion(x_norm, outputs, loss_weights)
 
-                loss_scaled = l[0] * (x.size(0) / len(train_dataset))
-                loss_scaled.backward() 
+        #         loss_scaled = l[0] * (x.size(0) / len(train_dataset))
+        #         loss_scaled.backward() 
                 
-                total_loss_train += loss_scaled.detach()
+        #         total_loss_train += loss_scaled.detach()
 
-                # for i in range(len(running_loss)):
-                #     running_loss[i] += l[i].item() * x.size(0)
+        #         # for i in range(len(running_loss)):
+        #         #     running_loss[i] += l[i].item() * x.size(0)
 
-            return total_loss_train
+        #         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+        #     return total_loss_train
         
 
-        optimizer.step(closure)
+        # optimizer.step(closure)
 
-        model.eval() 
-        with torch.no_grad():
-            for data in train_dataloader:
-                x = data[0].to(device)
-                outputs = model(x)
-                x_norm = x * x_std.to(device) + x_mean.to(device)
-                l = criterion(x_norm, outputs, loss_weights)
+        # model.eval() 
+        # with torch.no_grad():
+        #     for data in train_dataloader:
+        #         x = data[0].to(device)
+        #         outputs = model(x)
+        #         x_norm = x * x_std.to(device) + x_mean.to(device)
+        #         l = criterion(x_norm, outputs, loss_weights)
                 
-                for i in range(len(l)):
-                    running_loss[i] += l[i].item() * x.size(0)
-
-        # # Iterate through data loader
-        # for data in train_dataloader:
-        #     # Extract data
-        #     x, delta_x, delta_y, _, _, _, _, _ = data
-
-        #     x = x.to(device) #.detach()#.clone()#.requires_grad_(True)
-        #     delta_x = delta_x.to(device) #.detach()
-        #     delta_y = delta_y.to(device) #.detach()
-
-        #     batch_loss = [0, 0, 0, 0, 0]
-
-        #     # outputs = model(x)
-
-        #     # x_norm = x * x_std.to(device) + x_mean.to(device)
-
-        #     # l = criterion(x, outputs, delta_x, delta_y, loss_weights,)
-
-        #     # optimizer.zero_grad()
-        #     # l[0].backward()
-        #     # optimizer.step()
-
-        #     # for i in range(len(l)):
-        #     #     batch_loss[i] = l[i].item()
-
-
-        #     def closure():
-        #         optimizer.zero_grad()
-        #         # total_loss = torch.tensor(0.0, device=device)
-
-        #         with torch.enable_grad():
-        #             outputs = model(x)
-
-        #             x_norm = x * x_std.to(device) + x_mean.to(device)
-                    
-        #             l = criterion(x_norm, outputs, loss_weights)
-        #             l[0].backward()
-
         #         for i in range(len(l)):
-        #             batch_loss[i] = l[i].item()
+        #             running_loss[i] += l[i].item() * x.size(0)
+        ################################################
 
-        #         return l[0]
+        #########################################
+        # Iterate through data loader
+        for data in train_dataloader:
+            # Extract data
+            x, delta_x, delta_y, _, _, _, _, _ = data
+
+            x = x.to(device) #.detach()#.clone()#.requires_grad_(True)
+            delta_x = delta_x.to(device) #.detach()
+            delta_y = delta_y.to(device) #.detach()
+
+            batch_loss = [0, 0, 0, 0, 0]
+
+            # outputs = model(x)
+
+            # x_norm = x * x_std.to(device) + x_mean.to(device)
+
+            # l = criterion(x, outputs, delta_x, delta_y, loss_weights,)
+
+            # optimizer.zero_grad()
+            # l[0].backward()
+            # optimizer.step()
+
+            # for i in range(len(l)):
+            #     batch_loss[i] = l[i].item()
+
+
+            def closure():
+                optimizer.zero_grad()
+                # total_loss = torch.tensor(0.0, device=device)
+
+                with torch.enable_grad():
+                    outputs = model(x)
+
+                    x_norm = x * x_std.to(device) + x_mean.to(device)
+                    
+                    l = criterion(x_norm, outputs, loss_weights)
+                    l[0].backward()
+
+                for i in range(len(l)):
+                    batch_loss[i] = l[i].item()
+
+                return l[0]
             
-        #     # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
-        #     optimizer.step(closure)
+            optimizer.step(closure)
 
-        #     for i in range(len(running_loss)):
-        #         running_loss[i] += batch_loss[i] * x.size(0)
+            for i in range(len(running_loss)):
+                running_loss[i] += batch_loss[i] * x.size(0)
+        #####################################
 
         loss = np.array(running_loss) / len(train_dataloader.dataset)
 
