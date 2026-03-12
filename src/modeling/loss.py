@@ -53,6 +53,8 @@ class PoissonLoss(nn.Module):
         # loss_pde = torch.max(torch.abs(laplacian_phi - div_u_star))
         loss_pde = torch.sqrt(torch.mean(((laplacian_phi - div_u_star) ** 2))) #/ (torch.sqrt(torch.mean(div_u_star ** 2)) + 1e-6)
 
+        # loss_pde = loss_pde + 0.1 * torch.max(torch.abs(laplacian_phi - div_u_star))
+
         # loss_nonneg = torch.mean(torch.relu(-output) ** 2)
         loss_nonneg = torch.tensor(0, device=output.device)
 

@@ -112,6 +112,10 @@ def main():
                         help="Normalization type in the model",
                         choices=["none", "batch", "group"],
                         default="none")
+    parser.add_argument("--skips",
+                        help="Skip type to use. None is no skip, single is a global skip from input to output, and unet is UNet-style skips",
+                        choices=["none", "single", "unet"],
+                        default="none")
     
     # Parse command line arguments
     args = parser.parse_args()
@@ -140,6 +144,7 @@ def main():
     pooling = args.pooling
     upsampling = args.upsampling
     norm = args.norm
+    skips = args.skips
 
     # Set the device
     device = torch.device(f"cuda:{torch.cuda.current_device()}" if torch.cuda.is_available() else "cpu")
@@ -207,7 +212,6 @@ def main():
     x_mean = train_dataset.x.mean(dim=(0, 2, 3), keepdim=True)
     x_std = train_dataset.x.std(dim=(0, 2, 3), keepdim=True)
     x_std[x_std < 1e-8] = 1.0
-
 
     # TODO: Normalization logic should probably be moved to the dataset
     if model_type == "poisson":
@@ -294,12 +298,11 @@ def main():
                     input_width=input_width,
                     input_height=input_height,
                     enforceBC=train_dataset.enforceBC,
-                    use_skip=False,
                     activation=activation,
-                    architecture=architecture,
                     pooling=pooling,
                     upsampling=upsampling,
-                    norm=norm)
+                    norm=norm,
+                    skips=skips)
     
     # state_dict = torch.load(os.path.join("../../models/poisson/2025-11-18_13_28", "model.pt"), map_location=device)
     # model.load_state_dict(state_dict, strict=True)
@@ -354,14 +357,16 @@ def main():
 
     prev_loss = 0
 
+    OPTIMIZER_SWITCH_EPOCH = 500000
+
     # Training loop
     for epoch in range(epochs):
-        # if epoch == 200:
-        #     optimizer = torch.optim.LBFGS(model.parameters(), 
-        #                               lr=1, 
-        #                               max_iter=20, 
-        #                               history_size=10, 
-        #                               line_search_fn='strong_wolfe')
+        if epoch == OPTIMIZER_SWITCH_EPOCH:
+            optimizer = torch.optim.LBFGS(model.parameters(), 
+                                      lr=1, 
+                                      max_iter=20, 
+                                      history_size=10, 
+                                      line_search_fn='strong_wolfe')
 
         running_loss = [0, 0, 0, 0, 0]
         val_running_loss = [0, 0, 0, 0, 0]
@@ -413,54 +418,74 @@ def main():
         ################################################
 
         #########################################
-        # Iterate through data loader
-        for data in train_dataloader:
-            # Extract data
-            x, delta_x, delta_y, _, _, _, _, _ = data
+        if epoch < OPTIMIZER_SWITCH_EPOCH:
+            # Iterate through data loader
+            for data in train_dataloader:
+                # Extract data
+                x, delta_x, delta_y, _, _, _, _, _ = data
 
-            x = x.to(device) #.detach()#.clone()#.requires_grad_(True)
-            delta_x = delta_x.to(device) #.detach()
-            delta_y = delta_y.to(device) #.detach()
+                x = x.to(device) #.detach()#.clone()#.requires_grad_(True)
+                delta_x = delta_x.to(device) #.detach()
+                delta_y = delta_y.to(device) #.detach()
 
-            batch_loss = [0, 0, 0, 0, 0]
+                batch_loss = [0, 0, 0, 0, 0]
 
-            # outputs = model(x)
+                # outputs = model(x)
 
-            # x_norm = x * x_std.to(device) + x_mean.to(device)
+                # x_norm = x * x_std.to(device) + x_mean.to(device)
 
-            # l = criterion(x, outputs, delta_x, delta_y, loss_weights,)
+                # l = criterion(x, outputs, delta_x, delta_y, loss_weights,)
 
-            # optimizer.zero_grad()
-            # l[0].backward()
-            # optimizer.step()
+                # optimizer.zero_grad()
+                # l[0].backward()
+                # optimizer.step()
 
-            # for i in range(len(l)):
-            #     batch_loss[i] = l[i].item()
+                # for i in range(len(l)):
+                #     batch_loss[i] = l[i].item()
 
 
-            def closure():
-                optimizer.zero_grad()
-                # total_loss = torch.tensor(0.0, device=device)
+                def closure():
+                    optimizer.zero_grad()
+                    # total_loss = torch.tensor(0.0, device=device)
 
-                with torch.enable_grad():
+                    with torch.enable_grad():
+                        outputs = model(x)
+
+                        x_norm = x * x_std.to(device) + x_mean.to(device)
+                        
+                        l = criterion(x_norm, outputs, loss_weights)
+                        l[0].backward()
+
+                    for i in range(len(l)):
+                        batch_loss[i] = l[i].item()
+
+                    return l[0]
+                
+                # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+                optimizer.step(closure)
+
+                for i in range(len(running_loss)):
+                    running_loss[i] += batch_loss[i] * x.size(0)
+        else:
+            for data in train_dataloader:
+                x, _, _, _, _, _, _, _ = data
+                x = x.to(device)
+                x_norm = x * x_std.to(device) + x_mean.to(device)
+
+                def closure():
+                    optimizer.zero_grad()
                     outputs = model(x)
-
-                    x_norm = x * x_std.to(device) + x_mean.to(device)
-                    
                     l = criterion(x_norm, outputs, loss_weights)
                     l[0].backward()
+                    return l[0]
 
-                for i in range(len(l)):
-                    batch_loss[i] = l[i].item()
-
-                return l[0]
-            
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
-            optimizer.step(closure)
-
-            for i in range(len(running_loss)):
-                running_loss[i] += batch_loss[i] * x.size(0)
+                optimizer.step(closure)
+                
+                # Update running loss properly
+                l_eval = criterion(x_norm, model(x), loss_weights)
+                for i in range(len(l_eval)):
+                    running_loss[i] += l_eval[i].item() * x.size(0)
         #####################################
 
         loss = np.array(running_loss) / len(train_dataloader.dataset)

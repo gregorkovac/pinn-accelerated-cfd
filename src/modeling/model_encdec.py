@@ -10,9 +10,8 @@ class EncDecCNN(nn.Module):
                  input_width=20, 
                  input_height=20, 
                  enforceBC=lambda x, out: out,
-                 use_skip=False,
+                 skips="none",
                  activation="relu",
-                 architecture="cnn",
                  pooling="avg",
                  upsampling="upsample",
                  norm="none"):
@@ -26,11 +25,7 @@ class EncDecCNN(nn.Module):
 
         self.enforceBC = enforceBC
 
-        # encoder_layers = []
-        # decoder_layers = []
-
-        # self.encoder = nn.ModuleList()
-        # self.decoder = nn.ModuleList()
+        self.skips = skips
 
         self.encoder = []
         self.decoder = []
@@ -39,15 +34,6 @@ class EncDecCNN(nn.Module):
         for i in range(num_layers):
             in_channels = input_channels * (2 ** i)
             out_channels = input_channels * (2 ** (i + 1))
-
-            # if i == 0:
-            #     in_channels = input_channels
-            # else:
-            #     in_channels = hidden_channels
-            
-            # out_channels = hidden_channels
-
-            # print(in_channels, out_channels)
 
             if activation == "relu":
                 activation_fn = nn.ReLU()
@@ -108,7 +94,7 @@ class EncDecCNN(nn.Module):
             in_channels = input_channels * (2 ** (num_layers - i))
             out_channels = input_channels * (2 ** (num_layers - i - 1))
 
-            if i != 0:
+            if skips == "unet" and i != 0:
                 in_channels *= 2
 
             # print(in_channels, out_channels)
@@ -164,12 +150,12 @@ class EncDecCNN(nn.Module):
 
         # self.final_conv = nn.Conv2d(input_channels, output_channels, 3, padding=1, padding_mode="replicate")
 
-        if use_skip:
-            self.skip = nn.Conv2d(input_channels, input_channels, kernel_size=1)
+        if skips == "single":
+            self.global_skip = nn.Conv2d(input_channels, input_channels, kernel_size=1)
             # self.final_conv = nn.Conv2d(input_channels + hidden_channels, output_channels, kernel_size=1)
             self.final_conv = nn.Conv2d(2 * input_channels, output_channels, kernel_size=1)
         else:
-            self.skip = None
+            self.global_skip = None
             self.final_conv = nn.Conv2d(input_channels, output_channels, kernel_size=1)
             # self.final_conv = nn.Conv2d(hidden_channels, output_channels, kernel_size=1)
 
@@ -177,14 +163,31 @@ class EncDecCNN(nn.Module):
 
 
     def forward(self, x):
-        # x_trunc = x[:, :, 1:-1, 1:-1]
-        # x_trunc = x
 
-        out_enc = [x]
+        if self.skips == "unet":
+            out_enc = [x]
 
-        for layer in self.encoder:
-            out_e = layer(out_enc[-1])
-            out_enc.append(out_e)
+            for layer in self.encoder:
+                out_e = layer(out_enc[-1])
+                out_enc.append(out_e)
+
+            out = out_enc[-1]
+
+            for i, layer in enumerate(self.decoder):
+                if i != 0:
+                    out = torch.cat([out, out_enc[-(i + 1)]], dim=1)
+
+                out = layer(out)
+        else:
+            out = self.encoder(x)
+            out = self.decoder(out)
+
+            if self.global_skip is not None:
+                # out = out + self.skip(x)
+                x_skip = self.global_skip(x)
+
+                out = torch.cat([out, x_skip], dim=1)
+        
         #     print(out_e.shape)
 
         # print("------------------")
@@ -199,23 +202,11 @@ class EncDecCNN(nn.Module):
 
         # out = self.decoder(out)
 
-        out = out_enc[-1]
+        # if self.skip is not None:
+        #     # out = out + self.skip(x)
+        #     x_skip = self.skip(x)
 
-        for i, layer in enumerate(self.decoder):
-            if i != 0:
-                # print("-----", out.shape, out_enc[-(i + 1)].shape)
-                out = torch.cat([out, out_enc[-(i + 1)]], dim=1)
-
-            # print(out.shape)
-            # print(self.decoder[i])
-            # print()
-            out = layer(out)
-
-        if self.skip is not None:
-            # out = out + self.skip(x)
-            x_skip = self.skip(x)
-
-            out = torch.cat([out, x_skip], dim=1)
+        #     out = torch.cat([out, x_skip], dim=1)
             # out = self.final_conv(out)
 
         # skip_connections = []
