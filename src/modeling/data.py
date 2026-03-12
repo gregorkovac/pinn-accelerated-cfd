@@ -153,101 +153,84 @@ class PINNDataset(Dataset):
 
         print("Loading data...")
 
-        self.cases = []
-        for i in tqdm(range(start_sample, start_sample + N)):
-
-            for j in range(samples_per_case):
-                self.cases.append([data_path, i, samples_per_case, j])
-
-                self.data_len += samples_per_case
-
         # Iterate over cases
-        # for i in tqdm(range(start_sample, start_sample + N)):
-        #     u_star, phi, dx, dy, time_step, rho, mu, geometry, div_u_star = load_case(data_path, i, samples_per_case)
+        for i in tqdm(range(start_sample, start_sample + N)):
+            u_star, phi, dx, dy, time_step, rho, mu, geometry, div_u_star = load_case(data_path, i, samples_per_case)
 
-        #     # Save the case shape
-        #     if i == start_sample:
-        #         shape = np.shape(u_star)
-        #         self.height, self.width = shape[1], shape[2]
+            # Save the case shape
+            if i == start_sample:
+                shape = np.shape(u_star)
+                self.height, self.width = shape[1], shape[2]
 
-        #         # Create a coordinate grid
-        #         grid_y, grid_x = torch.meshgrid(
-        #                 torch.linspace(0, 1, self.height),
-        #                 torch.linspace(0, 1, self.width),
-        #                 indexing="xy"
-        #         )
+                # Create a coordinate grid
+                grid_y, grid_x = torch.meshgrid(
+                        torch.linspace(0, 1, self.height),
+                        torch.linspace(0, 1, self.width),
+                        indexing="xy"
+                )
 
-        #         # plt.ioff()
-        #         # fig, ax = plt.subplots(1, 2)
-        #         # im0 = ax[0].imshow(grid_y)
-        #         # im1 = ax[1].imshow(grid_x)
+                # plt.ioff()
+                # fig, ax = plt.subplots(1, 2)
+                # im0 = ax[0].imshow(grid_y)
+                # im1 = ax[1].imshow(grid_x)
 
-        #         # plt.colorbar(im0)
-        #         # plt.colorbar(im1)
+                # plt.colorbar(im0)
+                # plt.colorbar(im1)
 
-        #         # plt.show()
+                # plt.show()
 
-        #         self.coords = torch.stack([grid_x, grid_y], dim=0).to(device)
+                self.coords = torch.stack([grid_x, grid_y], dim=0).to(device)
 
-        #     u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, self.width, self.height)
+            u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, self.width, self.height)
         
-        #     # Iterate over time steps
-        #     for j in range(len(u_star)):
+            # Iterate over time steps
+            for j in range(len(u_star)):
                 
-        #         # Fields of interest 
-        #         self.u_star.append(u_star[j])
-        #         self.div_u_star.append(div_u_star[j])
-        #         self.phi.append(phi[j])
+                # Fields of interest 
+                self.u_star.append(u_star[j])
+                self.div_u_star.append(div_u_star[j])
+                self.phi.append(phi[j])
                 
-        #         # Time-space parameters
-        #         self.delta_x.append(dx)
-        #         self.delta_y.append(dy)
-        #         self.delta_t.append(time_step)
+                # Time-space parameters
+                self.delta_x.append(dx)
+                self.delta_y.append(dy)
+                self.delta_t.append(time_step)
 
-        #         # Fluid parameters
-        #         self.rho.append(rho)
-        #         self.mu.append(mu)
+                # Fluid parameters
+                self.rho.append(rho)
+                self.mu.append(mu)
 
-        #         # Boundary conditions
-        #         self.u_dirichlet.append(u_dirichlet)
-        #         self.u_dirichlet_mask.append(u_dirichlet_mask)
-        #         self.u_neumann.append(u_neumann)
-        #         self.p_dirichlet.append(p_dirichlet)
-        #         self.p_dirichlet_mask.append(p_dirichlet_mask)
-        #         self.p_neumann.append(p_neumann)
-        #         self.boundary_mask.append(boundary_mask)
+                # Boundary conditions
+                self.u_dirichlet.append(u_dirichlet)
+                self.u_dirichlet_mask.append(u_dirichlet_mask)
+                self.u_neumann.append(u_neumann)
+                self.p_dirichlet.append(p_dirichlet)
+                self.p_dirichlet_mask.append(p_dirichlet_mask)
+                self.p_neumann.append(p_neumann)
+                self.boundary_mask.append(boundary_mask)
 
-        #     self.data_len += len(u_star)
+            self.data_len += len(u_star)
 
 
-        # # Convert to torch tensors
-        # self.u_star = torch.tensor(np.array(self.u_star), dtype=torch.float32, device=device)
-        # self.div_u_star = torch.tensor(np.array(self.div_u_star), dtype=torch.float32, device=device)
-        # self.phi = torch.tensor(np.array(self.phi), dtype=torch.float32, device=device)
+        # Convert to torch tensors
+        self.u_star = torch.tensor(np.array(self.u_star), dtype=torch.float32, device=device)
+        self.div_u_star = torch.tensor(np.array(self.div_u_star), dtype=torch.float32, device=device)
+        self.phi = torch.tensor(np.array(self.phi), dtype=torch.float32, device=device)
 
-        # self.delta_x = torch.tensor(np.array(self.delta_x), dtype=torch.float32, device=device)
-        # self.delta_y = torch.tensor(np.array(self.delta_y), dtype=torch.float32, device=device)
-        # self.delta_t = torch.tensor(np.array(self.delta_t), dtype=torch.float32, device=device)
+        self.delta_x = torch.tensor(np.array(self.delta_x), dtype=torch.float32, device=device)
+        self.delta_y = torch.tensor(np.array(self.delta_y), dtype=torch.float32, device=device)
+        self.delta_t = torch.tensor(np.array(self.delta_t), dtype=torch.float32, device=device)
 
-        # self.rho = torch.tensor(np.array(self.rho), dtype=torch.float32, device=device)
-        # self.mu = torch.tensor(np.array(self.mu), dtype=torch.float32, device=device)
+        self.rho = torch.tensor(np.array(self.rho), dtype=torch.float32, device=device)
+        self.mu = torch.tensor(np.array(self.mu), dtype=torch.float32, device=device)
 
-        # self.u_dirichlet = torch.tensor(np.array(self.u_dirichlet), dtype=torch.float32, device=device)
-        # self.u_dirichlet_mask = torch.tensor(np.array(self.u_dirichlet_mask), dtype=torch.float32, device=device)
-        # self.u_neumann = torch.tensor(np.array(self.u_neumann), dtype=torch.float32, device=device)
-        # self.p_dirichlet = torch.tensor(np.array(self.p_dirichlet), dtype=torch.float32, device=device)
-        # self.p_dirichlet_mask = torch.tensor(np.array(self.p_dirichlet_mask), dtype=torch.float32, device=device)
-        # self.p_neumann = torch.tensor(np.array(self.p_neumann), dtype=torch.float32, device=device)
-        # self.boundary_mask = torch.tensor(np.array(self.boundary_mask), dtype=torch.float32, device=device)
-
-    def load_single_case(self, idx):
-        data_path, i, samples_per_case, j = self.cases[idx]
-
-        u_star, phi, dx, dy, time_step, rho, mu, geometry, div_u_star = load_case(data_path, i, samples_per_case)
-
-        u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, self.width, self.height)
-
-        return u_star[j], div_u_star[j], phi[j], dx[j], dy[j], time_step[j], rho[j], mu[j], u_dirichlet[j], u_dirichlet_mask[j], u_neumann[j], p_dirichlet[j], p_dirichlet_mask[j], p_neumann[j], boundary_mask[j]
+        self.u_dirichlet = torch.tensor(np.array(self.u_dirichlet), dtype=torch.float32, device=device)
+        self.u_dirichlet_mask = torch.tensor(np.array(self.u_dirichlet_mask), dtype=torch.float32, device=device)
+        self.u_neumann = torch.tensor(np.array(self.u_neumann), dtype=torch.float32, device=device)
+        self.p_dirichlet = torch.tensor(np.array(self.p_dirichlet), dtype=torch.float32, device=device)
+        self.p_dirichlet_mask = torch.tensor(np.array(self.p_dirichlet_mask), dtype=torch.float32, device=device)
+        self.p_neumann = torch.tensor(np.array(self.p_neumann), dtype=torch.float32, device=device)
+        self.boundary_mask = torch.tensor(np.array(self.boundary_mask), dtype=torch.float32, device=device)
 
     def __len__(self):
         return self.data_len
@@ -269,8 +252,6 @@ class PoissonPINNDataset(PINNDataset):
 
         if N == 0:
             return
-
-        return
 
         self.x = []
         for idx in range(N * samples_per_case):
@@ -336,26 +317,7 @@ class PoissonPINNDataset(PINNDataset):
 
 
     def __getitem__(self, idx):
-
-        u_star, div_u_star, phi, dx, dy, time_step, rho, mu, u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = self.load_single_case(idx)
-
-        x = torch.cat([
-            torch.from_numpy(div_u_star).unsqueeze(0),
-            torch.zeros((2, div_u_star.shape[0], div_u_star.shape[1])),
-            torch.zeros((1, div_u_star.shape[0], div_u_star.shape[1])),
-            torch.zeros((1, div_u_star.shape[0], div_u_star.shape[1])),
-            torch.from_numpy(boundary_mask).unsqueeze(0),
-            torch.zeros((2, div_u_star.shape[0], div_u_star.shape[1])),
-            torch.zeros((2, div_u_star.shape[0], div_u_star.shape[1])),
-            rho * torch.ones((1, div_u_star.shape[0], div_u_star.shape[1])), # 10
-            time_step * torch.ones((1, div_u_star.shape[0], div_u_star.shape[1])), # 11
-            dx * torch.ones((1, div_u_star.shape[0], div_u_star.shape[1])), # 12
-            dy * torch.ones((1, div_u_star.shape[0], div_u_star.shape[1])), # 13
-        ], dim=0)
-
-        return x, dx, dy, time_step, rho, mu, torch.zeros((2, div_u_star.shape[0], div_u_star.shape[1])), torch.from_numpy(boundary_mask)
-
-        # return self.x[idx], self.delta_x[idx], self.delta_y[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
+        return self.x[idx], self.delta_x[idx], self.delta_y[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
     
     def get_phi(self, idx):
         return self.phi[idx]
