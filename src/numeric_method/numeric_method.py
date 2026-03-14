@@ -569,6 +569,8 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                 
             input_channels, _, _, output_channels = dataset.get_dims()
 
+            print(params)
+
             if params["architecture"] == "cnn": #or method_type == "poisson_model": # TODO: Remove this last case
                 model = CNN(input_channels=input_channels,
                             output_channels=output_channels,
@@ -592,9 +594,8 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                                 input_width=width,
                                 input_height=height,
                                 enforceBC=dataset.enforceBC,
-                                use_skip=False,
+                                skips=params["skips"],
                                 activation=params["activation"],
-                                architecture=params["architecture"],
                                 pooling=params["pooling"],
                                 upsampling=params["upsampling"],
                                 norm=params["norm"],

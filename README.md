@@ -1,13 +1,7 @@
 <h1 align="center">
-<span style="font-size:0.6em; font-weight:normal;">
-Gregor Kovač
-</span>
 <br>
 Accelerating numerical methods for solving Navier-Stokes equations with physics-informed machine learning
 <br>
-<span style="font-size:0.6em; font-style:italic; font-weight:normal;">
-Master's thesis for the Data Science program at the Faculty of Computer and Information Science, University of Ljubljana
-</span>
 </h1>
 
 ## Current best training params

@@ -247,7 +247,7 @@ class PINNDataset(Dataset):
 class PoissonPINNDataset(PINNDataset):
     def __init__(self, data_path, N, device, samples_per_case=-1, start_sample=0):
         super().__init__(data_path, N, device, samples_per_case, start_sample)
-        self.input_channels = 14
+        self.input_channels = 6
         self.output_channels = 1
 
         if N == 0:
@@ -271,18 +271,27 @@ class PoissonPINNDataset(PINNDataset):
             #            self.div_u_star[idx].unsqueeze(0) # 11
             #         ], dim=0))
 
+            # self.x.append(torch.cat([
+            #                self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
+            #                0 * self.coords, # 1, 2
+            #                0 * self.p_dirichlet[idx].unsqueeze(0), # 3,
+            #                0 * self.p_dirichlet_mask[idx].unsqueeze(0), # 4
+            #                self.boundary_mask[idx].unsqueeze(0), # 5
+            #                0 * self.u_star[idx].permute(2, 0, 1), # 6, 7
+            #                0 * self.p_neumann[idx].permute(2, 0, 1), # 8, 9
+            #                self.rho[idx] * ones, # 10
+            #                self.delta_t[idx] * ones, # 11
+            #                self.delta_x[idx] * ones, # 12
+            #                self.delta_y[idx] * ones, # 13
+            #             ], dim=0))
+
             self.x.append(torch.cat([
                            self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
-                           0 * self.coords, # 1, 2
-                           0 * self.p_dirichlet[idx].unsqueeze(0), # 3,
-                           0 * self.p_dirichlet_mask[idx].unsqueeze(0), # 4
-                           self.boundary_mask[idx].unsqueeze(0), # 5
-                           0 * self.u_star[idx].permute(2, 0, 1), # 6, 7
-                           0 * self.p_neumann[idx].permute(2, 0, 1), # 8, 9
-                           self.rho[idx] * ones, # 10
-                           self.delta_t[idx] * ones, # 11
-                           self.delta_x[idx] * ones, # 12
-                           self.delta_y[idx] * ones, # 13
+                           self.boundary_mask[idx].unsqueeze(0), # 1
+                           self.rho[idx] * ones, # 2
+                           self.delta_t[idx] * ones, # 3
+                           self.delta_x[idx] * ones, # 4
+                           self.delta_y[idx] * ones, # 5
                         ], dim=0))
 
             # self.x.append(torch.cat([

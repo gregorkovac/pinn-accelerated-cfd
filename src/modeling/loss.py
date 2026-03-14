@@ -28,10 +28,10 @@ class PoissonLoss(nn.Module):
         # delta_x = x[:, 1:2, 0, 0].view(-1, 1, 1)
         # delta_y = x[:, 2:3, 0, 0].view(-1, 1, 1)
 
-        delta_x = x[:, 12:13, 0, 0].view(-1, 1, 1)
-        delta_y = x[:, 13:14, 0, 0].view(-1, 1, 1)
+        boundary_mask = x[:, 1:0]
+        delta_x = x[:, 4:5, 0, 0].view(-1, 1, 1)
+        delta_y = x[:, 5:6, 0, 0].view(-1, 1, 1)
 
-        boundary_mask = x[:, 5:6]
 
         # print(float(delta_x[0].item()))
         # print(float(delta_y[0].item()))
