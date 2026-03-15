@@ -8,6 +8,7 @@ import scipy.sparse.linalg as spla
 from scipy.sparse.linalg import splu, factorized
 # from cupyx.scipy.sparse.linalg import splu, factorized
 import torch
+torch.set_num_threads(1)
 import sys
 import os
 import json
@@ -94,7 +95,7 @@ def solve_discrete_poisson(u, A):
 
     return phi
 
-def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian = None, poisson_model = None, iter = 0, geometry_mtx=None, x_mean=None, x_std=None, poisson_alternation=-1):
+def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian = None, poisson_model = None, iter = 0, geometry_mtx=None, x_mean=None, x_std=None, poisson_alternation=-1, poisson_input=None):
     """
     Performs a step of the Navier-Stokes solver
 
@@ -330,30 +331,30 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             device = torch.device('cpu')
 
             # Convert u star to Torch
-            u_star_ = torch.from_numpy(u_star).float().to(device).permute(2, 0, 1)
+            # u_star_ = torch.from_numpy(u_star).float().to(device).permute(2, 0, 1)
             div_u_star_ = torch.from_numpy(div_u_star).float().to(device).unsqueeze(0)
 
-            # Create a coordinate grid
-            grid_y, grid_x = torch.meshgrid(
-                    torch.linspace(0, 1, m),
-                    torch.linspace(0, 1, n),
-                    indexing="xy"
-                )
-            coords = torch.stack([grid_x, grid_y], dim=0)
+            # # Create a coordinate grid
+            # grid_y, grid_x = torch.meshgrid(
+            #         torch.linspace(0, 1, m),
+            #         torch.linspace(0, 1, n),
+            #         indexing="xy"
+            #     )
+            # coords = torch.stack([grid_x, grid_y], dim=0)
 
             # Obtain required boundary representations
-            u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, m, n)
+            # u_dirichlet, u_dirichlet_mask, u_neumann, p_dirichlet, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, m, n)
 
             # Convert boundaries to Torch
-            p_neumann = torch.tensor(p_neumann, dtype=torch.float32).permute(2, 0, 1)
-            p_dirichlet = torch.tensor(p_dirichlet, dtype=torch.float32).unsqueeze(0)
-            p_dirichlet_mask = torch.tensor(p_dirichlet_mask, dtype=torch.float32).unsqueeze(0)
+            # p_neumann = torch.tensor(p_neumann, dtype=torch.float32).permute(2, 0, 1)
+            # p_dirichlet = torch.tensor(p_dirichlet, dtype=torch.float32).unsqueeze(0)
+            # p_dirichlet_mask = torch.tensor(p_dirichlet_mask, dtype=torch.float32).unsqueeze(0)
 
-            rho = torch.ones((1, n, m)) * density
-            delta_t_ = torch.ones((1, n, m)) * delta_t
-            dx_ = torch.ones((1, n, m)) * dx
-            dy_ = torch.ones((1, n, m)) * dy
-            boundary_mask_ = torch.tensor(boundary_mask, dtype=torch.float32).unsqueeze(0)
+            # rho = torch.ones((1, n, m)) * density
+            # delta_t_ = torch.ones((1, n, m)) * delta_t
+            # dx_ = torch.ones((1, n, m)) * dx
+            # dy_ = torch.ones((1, n, m)) * dy
+            # boundary_mask_ = torch.tensor(boundary_mask, dtype=torch.float32).unsqueeze(0)
 
             # Construct the model's input tensor
             # u_star_coords = torch.cat([u_star_, 
@@ -367,18 +368,23 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
             #                         ], dim=0).unsqueeze(0)
                                     
 
-            u_star_coords = torch.cat([div_u_star_,
-                                       0 * coords, 
-                                       0 * p_dirichlet,
-                                       0 * p_dirichlet_mask,
-                                       boundary_mask_,
-                                       0 * u_star_,
-                                       0 * p_neumann, 
-                                       rho,
-                                       delta_t_,
-                                       dx_,
-                                       dy_
-                                    ], dim=0).unsqueeze(0)
+            # u_star_coords = torch.cat([div_u_star_,
+            #                            0 * coords, 
+            #                            0 * p_dirichlet,
+            #                            0 * p_dirichlet_mask,
+            #                            boundary_mask_,
+            #                            0 * u_star_,
+            #                            0 * p_neumann, 
+            #                            rho,
+            #                            delta_t_,
+            #                            dx_,
+            #                            dy_
+            #                         ], dim=0).unsqueeze(0)
+
+            # u_star_coords = torch.cat([div_u_star_,
+            #                            dx_,
+            #                            dy_
+            #                         ], dim=0).unsqueeze(0)
 
             # u_star_coords = torch.cat([div_u_star_,
             #                         #    rho,
@@ -397,10 +403,16 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
             # print(u_star_.max())
 
-            u_star_coords = (u_star_coords - x_mean) / x_std
+            poisson_input[0, 0] = div_u_star_
+            poisson_input[0, 1] = torch.ones((1, n, m)) * dx
+            poisson_input[0, 2] = torch.ones((1, n, m)) * dy
+
+            poisson_input.sub_(x_mean).div_(x_std)
+
+            # poisson_input = (poisson_input - x_mean) / x_std
 
             # Perform a forward pass and obtain the pressure correction
-            phi = poisson_model(u_star_coords)
+            phi = poisson_model(poisson_input)
             # phi = F.pad(phi, (1, 1, 1, 1), mode="constant", value=0)
             phi = phi.view(n, m).cpu().numpy()
     else:
@@ -703,6 +715,12 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         u_x, u_y, p = out[0], out[1], out[2]
         u = np.stack((u_x, u_y), axis=-1)
 
+        # fig, ax = plt.subplots(1, 3)
+        # ax[0].imshow(u_x)
+        # ax[1].imshow(u_y)
+        # ax[2].imshow(p)
+        # plt.show()
+
         u, p = boundary(geometry, u = u, p = p)
 
         # plt.imshow(u[..., 1])
@@ -741,6 +759,13 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
 
         geometry_mtx = geometry_to_mtx(geometry, width, height)
 
+        # poisson_input = torch.cat([torch.zeros(1, height, width),
+        #                             torch.ones((1, height, width)) * dx,
+        #                             torch.ones((1, height, width)) * dy
+        #                         ], dim=0).unsqueeze(0)
+
+        poisson_input = torch.zeros((1, 3, height, width), dtype=torch.float32, device=device)
+
         # Iterate
         for iter in tqdm(range(max_iter), desc="     "):
         
@@ -778,7 +803,24 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                 A_laplacian = None
 
             # Perform one step of the solver
-            u_new, p_new, u_star, div_u_star, phi = navier_stokes_step(u, p, time_step, density, viscosity, beta, dx, dy, geometry, A_poisson, A_laplacian, model, iter=iter, geometry_mtx=geometry_mtx, x_mean=x_mean, x_std=x_std, poisson_alternation=poisson_alternation)
+            u_new, p_new, u_star, div_u_star, phi = navier_stokes_step(u, 
+                                                                       p, 
+                                                                       time_step, 
+                                                                       density, 
+                                                                       viscosity, 
+                                                                       beta, 
+                                                                       dx, 
+                                                                       dy, 
+                                                                       geometry, 
+                                                                       A_poisson, 
+                                                                       A_laplacian, 
+                                                                       model, 
+                                                                       iter=iter, 
+                                                                       geometry_mtx=geometry_mtx, 
+                                                                       x_mean=x_mean, 
+                                                                       x_std=x_std, 
+                                                                       poisson_alternation=poisson_alternation,
+                                                                       poisson_input=poisson_input)
 
             # if np.max(np.abs(u - u_new)) < 1e-5 and np.max(np.abs(p - p_new)) < 1e-5:
             #     print(f"\t Converged after {iter} iterations.")

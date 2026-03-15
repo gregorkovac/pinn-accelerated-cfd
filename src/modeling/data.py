@@ -213,24 +213,24 @@ class PINNDataset(Dataset):
 
 
         # Convert to torch tensors
-        self.u_star = torch.tensor(np.array(self.u_star), dtype=torch.float32, device=device)
-        self.div_u_star = torch.tensor(np.array(self.div_u_star), dtype=torch.float32, device=device)
-        self.phi = torch.tensor(np.array(self.phi), dtype=torch.float32, device=device)
+        self.u_star = torch.tensor(np.array(self.u_star, dtype=np.float32), dtype=torch.float32, device=device)
+        self.div_u_star = torch.tensor(np.array(self.div_u_star, dtype=np.float32), dtype=torch.float32, device=device)
+        self.phi = torch.tensor(np.array(self.phi, dtype=np.float32), dtype=torch.float32, device=device)
 
-        self.delta_x = torch.tensor(np.array(self.delta_x), dtype=torch.float32, device=device)
-        self.delta_y = torch.tensor(np.array(self.delta_y), dtype=torch.float32, device=device)
-        self.delta_t = torch.tensor(np.array(self.delta_t), dtype=torch.float32, device=device)
+        self.delta_x = torch.tensor(np.array(self.delta_x, dtype=np.float32), dtype=torch.float32, device=device)
+        self.delta_y = torch.tensor(np.array(self.delta_y, dtype=np.float32), dtype=torch.float32, device=device)
+        self.delta_t = torch.tensor(np.array(self.delta_t, dtype=np.float32), dtype=torch.float32, device=device)
 
-        self.rho = torch.tensor(np.array(self.rho), dtype=torch.float32, device=device)
-        self.mu = torch.tensor(np.array(self.mu), dtype=torch.float32, device=device)
+        self.rho = torch.tensor(np.array(self.rho, dtype=np.float32), dtype=torch.float32, device=device)
+        self.mu = torch.tensor(np.array(self.mu, dtype=np.float32), dtype=torch.float32, device=device)
 
-        self.u_dirichlet = torch.tensor(np.array(self.u_dirichlet), dtype=torch.float32, device=device)
-        self.u_dirichlet_mask = torch.tensor(np.array(self.u_dirichlet_mask), dtype=torch.float32, device=device)
-        self.u_neumann = torch.tensor(np.array(self.u_neumann), dtype=torch.float32, device=device)
-        self.p_dirichlet = torch.tensor(np.array(self.p_dirichlet), dtype=torch.float32, device=device)
-        self.p_dirichlet_mask = torch.tensor(np.array(self.p_dirichlet_mask), dtype=torch.float32, device=device)
-        self.p_neumann = torch.tensor(np.array(self.p_neumann), dtype=torch.float32, device=device)
-        self.boundary_mask = torch.tensor(np.array(self.boundary_mask), dtype=torch.float32, device=device)
+        self.u_dirichlet = torch.tensor(np.array(self.u_dirichlet, dtype=np.float32), dtype=torch.float32, device=device)
+        self.u_dirichlet_mask = torch.tensor(np.array(self.u_dirichlet_mask, dtype=np.float32), dtype=torch.float32, device=device)
+        self.u_neumann = torch.tensor(np.array(self.u_neumann, dtype=np.float32), dtype=torch.float32, device=device)
+        self.p_dirichlet = torch.tensor(np.array(self.p_dirichlet, dtype=np.float32), dtype=torch.float32, device=device)
+        self.p_dirichlet_mask = torch.tensor(np.array(self.p_dirichlet_mask, dtype=np.float32), dtype=torch.float32, device=device)
+        self.p_neumann = torch.tensor(np.array(self.p_neumann, dtype=np.float32), dtype=torch.float32, device=device)
+        self.boundary_mask = torch.tensor(np.array(self.boundary_mask, dtype=np.float32), dtype=torch.float32, device=device)
 
     def __len__(self):
         return self.data_len
@@ -247,7 +247,7 @@ class PINNDataset(Dataset):
 class PoissonPINNDataset(PINNDataset):
     def __init__(self, data_path, N, device, samples_per_case=-1, start_sample=0):
         super().__init__(data_path, N, device, samples_per_case, start_sample)
-        self.input_channels = 6
+        self.input_channels = 3
         self.output_channels = 1
 
         if N == 0:
@@ -285,13 +285,19 @@ class PoissonPINNDataset(PINNDataset):
             #                self.delta_y[idx] * ones, # 13
             #             ], dim=0))
 
+            # self.x.append(torch.cat([
+            #                self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
+            #                self.boundary_mask[idx].unsqueeze(0), # 1
+            #                self.rho[idx] * ones, # 2
+            #                self.delta_t[idx] * ones, # 3
+            #                self.delta_x[idx] * ones, # 4
+            #                self.delta_y[idx] * ones, # 5
+            #             ], dim=0))
+
             self.x.append(torch.cat([
                            self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
-                           self.boundary_mask[idx].unsqueeze(0), # 1
-                           self.rho[idx] * ones, # 2
-                           self.delta_t[idx] * ones, # 3
-                           self.delta_x[idx] * ones, # 4
-                           self.delta_y[idx] * ones, # 5
+                           self.delta_x[idx] * ones, # 1
+                           self.delta_y[idx] * ones, # 2
                         ], dim=0))
 
             # self.x.append(torch.cat([

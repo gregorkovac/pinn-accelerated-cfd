@@ -110,12 +110,16 @@ def main():
                         default="none")
     parser.add_argument("--norm",
                         help="Normalization type in the model",
-                        choices=["none", "batch", "group"],
+                        choices=["none", "batch", "group", "layer"],
                         default="none")
     parser.add_argument("--skips",
-                        help="Normalization type in the model",
+                        help="Skips type of the model. Single is one global skip from input to output, and unet is UNet-style skips.",
                         choices=["none", "single", "unet"],
                         default="none")
+    parser.add_argument("--plot",
+                        help="Whether to plot the results while training or not",
+                        type=str2bool,
+                        default=False)
     
     # Parse command line arguments
     args = parser.parse_args()
@@ -145,6 +149,7 @@ def main():
     upsampling = args.upsampling
     norm = args.norm
     skips = args.skips
+    use_plot = args.plot
 
     # Set the device
     device = torch.device(f"cuda:{torch.cuda.current_device()}" if torch.cuda.is_available() else "cpu")
@@ -347,12 +352,13 @@ def main():
     best_loss = np.inf
     best_model_dict = None
 
-    plt.ion()
-    plt.tight_layout()
-    fig, ax = plt.subplots(nrows=2, ncols=4, figsize=(18, 7))
-    ax = ax.flatten()
-    im = None
-    cbar = None
+    if use_plot:
+        plt.ion()
+        plt.tight_layout()
+        fig, ax = plt.subplots(nrows=2, ncols=4, figsize=(18, 7))
+        ax = ax.flatten()
+        im = None
+        cbar = None
 
     print(f"DATA LENGTH: {len(train_dataset)}")
 
@@ -537,42 +543,43 @@ def main():
                        "val_loss4": val_loss[4],
                        "log_val_loss": np.log(val_loss_unweighted)})
             
-        with torch.no_grad():
-            x_, delta_x_, delta_y_, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(0, len(train_dataset) - 1)]
-            x_ = x_.cpu().clone().detach().to(device)
-            out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
+        if use_plot:
+            with torch.no_grad():
+                x_, delta_x_, delta_y_, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(0, len(train_dataset) - 1)]
+                x_ = x_.cpu().clone().detach().to(device)
+                out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
 
-            # out = train_dataset.enforceBC(x_.unsqueeze(0), out)
+                # out = train_dataset.enforceBC(x_.unsqueeze(0), out)
 
-            # print(out[0, :, 10, 0])
-            # print(out[0, :, 0:3, 0:3])
+                # print(out[0, :, 10, 0])
+                # print(out[0, :, 0:3, 0:3])
 
-            if model_type == "full":
-                out = out.detach().cpu().squeeze().numpy()
-                cbar = plot_full(ax[:4], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
-            else:
-                out = out.detach().cpu().squeeze().numpy()
-                phi = train_dataset.get_phi(min(10, len(train_dataset) - 1))
-                x_ = (x_ * x_std.to(device) + x_mean.to(device)).squeeze()
-                cbar = plot_poisson(ax[:4], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_, enforceBC=train_dataset.enforceBC)
+                if model_type == "full":
+                    out = out.detach().cpu().squeeze().numpy()
+                    cbar = plot_full(ax[:4], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
+                else:
+                    out = out.detach().cpu().squeeze().numpy()
+                    phi = train_dataset.get_phi(min(10, len(train_dataset) - 1))
+                    x_ = (x_ * x_std.to(device) + x_mean.to(device)).squeeze()
+                    cbar = plot_poisson(ax[:4], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_, enforceBC=train_dataset.enforceBC)
 
-            x_, delta_x_, delta_y_, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(31, len(train_dataset) - 1)]
-            x_ = x_.cpu().clone().detach().to(device)
-            out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
+                x_, delta_x_, delta_y_, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(31, len(train_dataset) - 1)]
+                x_ = x_.cpu().clone().detach().to(device)
+                out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
 
-            # out = train_dataset.enforceBC(x_.unsqueeze(0), out)
+                # out = train_dataset.enforceBC(x_.unsqueeze(0), out)
 
-            if model_type == "full":
-                out = out.detach().cpu().squeeze().numpy()
-                cbar = plot_full(ax[4:], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
-            else:
-                out = out.detach().cpu().squeeze().numpy()
-                phi = train_dataset.get_phi(min(60, len(train_dataset) - 1))
-                x_ = (x_ * x_std.to(device) + x_mean.to(device)).squeeze()
-                cbar = plot_poisson(ax[4:], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_, enforceBC=train_dataset.enforceBC)
+                if model_type == "full":
+                    out = out.detach().cpu().squeeze().numpy()
+                    cbar = plot_full(ax[4:], out, delta_x_.item(), cbar=cbar, boundary_image=boundary_mask)
+                else:
+                    out = out.detach().cpu().squeeze().numpy()
+                    phi = train_dataset.get_phi(min(60, len(train_dataset) - 1))
+                    x_ = (x_ * x_std.to(device) + x_mean.to(device)).squeeze()
+                    cbar = plot_poisson(ax[4:], out, phi, boundary_mask, cbar=cbar, in_=x_.cpu(), delta_t=delta_t_, rho=rho_, dx=delta_x_, dy=delta_y_, enforceBC=train_dataset.enforceBC)
 
-            plt.draw()
-            plt.pause(0.001)
+                plt.draw()
+                plt.pause(0.001)
             
     if use_wandb:
         wandb.finish()

@@ -37,8 +37,8 @@ def main(case_name = None):
         implicit_laplacian=False,
         return_div_u_star=True,
         method_type="poisson_model", # numeric, poisson_model, full_model
-        # model_path="../../models/full/2026-02-25_21_04",
-        model_path="../../models/poisson/2026-03-11_19_54",
+        # model_path="../../models/full/2026-03-14_17_17",
+        model_path="../../models/poisson/2026-03-15_11_59", # ../../models/poisson/2026-03-14_08_29
         poisson_alternation=-1
     )
 

@@ -15,8 +15,8 @@ from numeric_method.numeric_method import solve_navier_stokes
 CASE_DIR = "../../../data_glycerol_large_test"
 # CASE_DIR = "../../../data_final_small_test_inflow"
 # CASE_DIR = "../../../data_final_small_test_params"
-POISSON_MODEL_PATH = "../../models/poisson/2026-02-25_19_18"
-FULL_MODEL_PATH = "../../models/full/2026-02-25_21_04"
+POISSON_MODEL_PATH = "../../models/poisson/2026-03-14_19_47"
+FULL_MODEL_PATH = "../../models/full/2026-03-14_17_17"
 
 def run_case(case, method_type, model_path=""):
     start_time = time.time()

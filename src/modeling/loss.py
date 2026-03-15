@@ -24,20 +24,20 @@ class PoissonLoss(nn.Module):
     def forward(self, x, output, loss_weights):
 
         phi = output[:, 0:1]
-        div_u_star = x[:, 0]
+        div_u_star = x[:, 0:1]
         # delta_x = x[:, 1:2, 0, 0].view(-1, 1, 1)
         # delta_y = x[:, 2:3, 0, 0].view(-1, 1, 1)
 
-        boundary_mask = x[:, 1:0]
-        delta_x = x[:, 4:5, 0, 0].view(-1, 1, 1)
-        delta_y = x[:, 5:6, 0, 0].view(-1, 1, 1)
+        # boundary_mask = x[:, 1:0]
+        delta_x = x[:, 1:2, 0, 0].view(-1, 1, 1)
+        delta_y = x[:, 2:3, 0, 0].view(-1, 1, 1)
 
 
         # print(float(delta_x[0].item()))
         # print(float(delta_y[0].item()))
         # exit(0)
 
-        div_u_star = div_u_star.unsqueeze(1)
+        # div_u_star = div_u_star.unsqueeze(1)
 
         # Compute the laplacian of pressure
         laplacian_phi = laplacian(phi, float(delta_x[0].item()), float(delta_y[0].item()), None)
