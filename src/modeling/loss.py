@@ -184,16 +184,21 @@ class NavierStokesLoss(nn.Module):
 
         loss_div = div_u ** 2
 
+        loss_div[boundary_mask != 0] = 0
+
         # loss_div = loss_div * (1 - boundary_mask)
         loss_div = torch.mean(loss_div)
 
         res_mom = (u_dot_del_u + (1 / rho) * grad_p - mu * laplacian_u) ** 2
         # res_mom = res_mom * (1 - boundary_mask_u)
 
-        loss_mom = torch.mean(res_mom[:, 0]) + torch.mean(res_mom[:, 1])
+        # loss_mom = torch.mean(res_mom[:, 0]) + torch.mean(res_mom[:, 1])
         # loss_mom = torch.mean(res_mom[:, 0]) #** (1 / 2)
         # loss_nonneg_p = torch.mean(res_mom[:, 1]) #** (1 / 2)
-        # loss_mom = torch.mean(loss_mom)
+
+        res_mom[boundary_mask_u != 0] = 0
+
+        loss_mom = torch.mean(res_mom)
 
         # mask_dy = 1 - x[:, 6]
         # mask_dx = 1 - x[:, 7]

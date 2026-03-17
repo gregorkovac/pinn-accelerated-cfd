@@ -764,7 +764,10 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         #                             torch.ones((1, height, width)) * dy
         #                         ], dim=0).unsqueeze(0)
 
-        poisson_input = torch.zeros((1, 3, height, width), dtype=torch.float32, device=device)
+        if method_type == "poisson_model":
+            poisson_input = torch.zeros((1, 3, height, width), dtype=torch.float32, device=device)
+        else:
+            poisson_input = None
 
         # Iterate
         for iter in tqdm(range(max_iter), desc="     "):

@@ -15,8 +15,8 @@ from numeric_method.numeric_method import solve_navier_stokes
 CASE_DIR = "../../../data_glycerol_large_test"
 # CASE_DIR = "../../../data_final_small_test_inflow"
 # CASE_DIR = "../../../data_final_small_test_params"
-POISSON_MODEL_PATH = "../../models/poisson/2026-03-14_19_47"
-FULL_MODEL_PATH = "../../models/full/2026-03-14_17_17"
+POISSON_MODEL_PATH = "../../models/poisson/2026-03-15_11_59"
+FULL_MODEL_PATH = "../../models/full/2026-03-17_12_13"
 
 def run_case(case, method_type, model_path=""):
     start_time = time.time()
@@ -76,7 +76,7 @@ def main():
 
     for case_name in os.listdir(CASE_DIR):
 
-        if "flow" in case_name:
+        if "flow" in case_name or "metadata" in case_name:
             continue
         
         with open(os.path.join(CASE_DIR, case_name, "params.json")) as f:

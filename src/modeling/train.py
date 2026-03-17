@@ -366,6 +366,7 @@ def main():
 
     # Training loop
     for epoch in range(epochs):
+
         # if epoch == 200:
         #     optimizer = torch.optim.LBFGS(model.parameters(), 
         #                               lr=1, 
@@ -536,7 +537,7 @@ def main():
                        "train_loss2": loss[2],
                        "train_loss3": loss[3],
                        "train_loss4": loss[4],
-                       "val_loss": val_loss_unweighted,
+                       "val_loss": val_loss[0],
                        "val_loss1": val_loss[1],
                        "val_loss2": val_loss[2],
                        "val_loss3": val_loss[3],
