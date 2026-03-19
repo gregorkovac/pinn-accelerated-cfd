@@ -14,9 +14,10 @@ parameters:
   data_samples:
     value: 100
   epochs:
-    value: 500
+    value: 100
   hidden_dim:
     values:
+      - 8
       - 16
       - 32
   lr:
@@ -34,7 +35,6 @@ parameters:
     - 3
     - 4
     - 5
-    - 6
   optimizer:
     value: adam
   pooling:
@@ -52,18 +52,19 @@ parameters:
       - 50
       - 100
       - 200
-      - 10000
+      - 500
   upsampling:
-    values:
-    - upsample
+    value: upsample
   use_scheduler:
-    value: true
+    values:
+      - true
+      - false
   wandb:
     value: true
   wandb-project:
     value: ns-architecture
   weight1:
-    value: 100
+    value: 1
   weight2:
     value: 1
   weight3:

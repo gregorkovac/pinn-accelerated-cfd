@@ -342,6 +342,13 @@ def main():
         scheduler = StepLR(optimizer,
                            step_size=scheduler_step,
                            gamma=scheduler_gamma)
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        #     optimizer, 
+        #     mode='min', 
+        #     factor=0.5, 
+        #     patience=10,
+        #     threshold=1e-3
+        # )
 
     # Create the folder for saving the model
     timestamp = datetime.now().strftime("%Y-%m-%d_%H_%M")
@@ -364,15 +371,20 @@ def main():
 
     prev_loss = 0
 
+    OPTIMIZER_SWITCH_EPOCH = -1
+
     # Training loop
     for epoch in range(epochs):
 
-        # if epoch == 200:
-        #     optimizer = torch.optim.LBFGS(model.parameters(), 
-        #                               lr=1, 
-        #                               max_iter=20, 
-        #                               history_size=10, 
-        #                               line_search_fn='strong_wolfe')
+        if epoch == OPTIMIZER_SWITCH_EPOCH:
+            optimizer = torch.optim.LBFGS(model.parameters(), 
+                                      lr=1, 
+                                      max_iter=20, 
+                                      history_size=10,
+                                      line_search_fn=None) 
+                                    #   line_search_fn='strong_wolfe')
+            
+            use_scheduler = False
 
         running_loss = [0, 0, 0, 0, 0]
         val_running_loss = [0, 0, 0, 0, 0]
@@ -429,6 +441,9 @@ def main():
             # Extract data
             x, delta_x, delta_y, _, _, _, _, _ = data
 
+            # loss_weights[0] = loss_weights[0] * min(1, epoch * 0.003)
+            # loss_weights = (loss_weights[0] * min(1, epoch * 0.03), loss_weights[1], loss_weights[2], loss_weights[3])
+
             x = x.to(device) #.detach()#.clone()#.requires_grad_(True)
             delta_x = delta_x.to(device) #.detach()
             delta_y = delta_y.to(device) #.detach()
@@ -457,7 +472,7 @@ def main():
                     outputs = model(x)
 
                     x_norm = x * x_std.to(device) + x_mean.to(device)
-                    
+
                     l = criterion(x_norm, outputs, loss_weights)
                     l[0].backward()
 
@@ -510,7 +525,7 @@ def main():
                     json.dump(params, f)
 
         if use_scheduler:
-            scheduler.step()
+            scheduler.step(loss[0])
 
         print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL TRAIN LOSS = {loss[0]:.10f}   TRAIN LOSS PARTS = [{loss[1]:.5f}, {loss[2]:.5f}, {loss[3]:.5f}, {loss[4]:.5f}]   |   TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.5f}, {val_loss[2]:.5f}, {val_loss[3]:.5f}, {val_loss[4]:.5f}]")
         print()

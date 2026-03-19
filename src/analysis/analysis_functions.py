@@ -7,6 +7,7 @@ import seaborn as sns
 import sys
 sys.path.insert(0, "..")
 from modeling.data import geometry_to_mtx
+from derivatives import divergence
 
 COLOR_NUMERIC = "#1b9e77"
 COLOR_POISSON = "#d95f02"
@@ -120,10 +121,14 @@ def pointwise_vec_inf(y_true, y_pred):
 def divergence_err(y, dy, dx, bound):
     bound = 1 - bound
 
-    grad_x = np.gradient(y[:,:,0], dy, dx, edge_order=2)[1]
-    grad_y = np.gradient(y[:,:,1], dy, dx, edge_order=2)[0]
+    div_y = divergence(u = y, dx = dx, dy = dy, boundary=bound, numpy_=True)
 
-    return bound * (grad_x + grad_y) ** 2
+    return bound * (div_y ** 2)
+
+    # grad_x = np.gradient(y[:,:,0], dy, dx, edge_order=2)[1]
+    # grad_y = np.gradient(y[:,:,1], dy, dx, edge_order=2)[0]
+
+    # return bound * (grad_x + grad_y) ** 2
 
 def rinf(y_true, y_pred, bound):
     y_true = y_true[bound != 1]

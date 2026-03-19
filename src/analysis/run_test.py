@@ -16,7 +16,7 @@ CASE_DIR = "../../../data_glycerol_large_test"
 # CASE_DIR = "../../../data_final_small_test_inflow"
 # CASE_DIR = "../../../data_final_small_test_params"
 POISSON_MODEL_PATH = "../../models/poisson/2026-03-15_11_59"
-FULL_MODEL_PATH = "../../models/full/2026-03-17_12_13"
+FULL_MODEL_PATH = "../../models/full/2026-03-19_11_02"
 
 def run_case(case, method_type, model_path=""):
     start_time = time.time()

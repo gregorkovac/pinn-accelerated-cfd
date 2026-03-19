@@ -170,6 +170,20 @@ def laplacian(u, dx, dy, boundary=None, numpy_=False):
 
         # return res
     else:
+        if u.shape[1] == 2:
+            d2u_dx2 = torch.zeros_like(u)
+            d2u_dy2 = torch.zeros_like(u)
+
+            d2u_dx2[..., 1:-1] = (u[..., 2:] - 2*u[..., 1:-1] + u[..., :-2]) / (dx**2)
+            d2u_dx2[..., 0] = (u[..., 0] - 2*u[..., 1] + u[..., 2]) / (dx**2)
+            d2u_dx2[..., -1] = (u[..., -1] - 2*u[..., -2] + u[..., -3]) / (dx**2)
+
+            d2u_dy2[..., 1:-1, :] = (u[..., 2:, :] - 2*u[..., 1:-1, :] + u[..., :-2, :]) / (dy**2)
+            d2u_dy2[..., 0, :] = (u[..., 0, :] - 2*u[..., 1, :] + u[..., 2, :]) / (dy**2)
+            d2u_dy2[..., -1, :] = (u[..., -1, :] - 2*u[..., -2, :] + u[..., -3, :]) / (dy**2)
+
+            return d2u_dx2 + d2u_dy2
+
         u = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="constant", value=0)
 
         d2u_dx2 = (torch.roll(u, -1, dims=-1) - 2 * u + torch.roll(u, 1, dims=-1)) / (dx ** 2)

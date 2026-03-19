@@ -30,6 +30,8 @@ def load_case(data_path, idx, samples_per_case=-1):
 
     return u_star[indices], phi[indices], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["geometry"], div_u_star[indices] #, params["cylinder_x"], params["cylinder_y"], params["cylinder_r"]
 
+    # return u_star[indices], phi[indices], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["geometry"], div_u_star[indices] #, params["cylinder_x"], params["cylinder_y"], params["cylinder_r"]
+
 def get_geometry_region(g, width, height):
     # Extract the region
     x, y = g["pos"]["x"], g["pos"]["y"]
@@ -530,6 +532,7 @@ class FullPINNDataset(PINNDataset):
         # u[..., -1] = u[..., -2]
         # u[:, -1, :] = 10
 
+
         u = torch.where((boundary_mask == 1) & (u_neumann[:, 0].unsqueeze(1) == -1), torch.roll(u, 1, dims=-1), u)
         u = torch.where((boundary_mask == 1) & (u_neumann[:, 0].unsqueeze(1) == 1), torch.roll(u, -1, dims=-1), u)
 
@@ -542,6 +545,9 @@ class FullPINNDataset(PINNDataset):
         p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == -1), torch.roll(p, 1, dims=-2), p)
         p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == 1), torch.roll(p, -1, dims=-2), p)
 
+        u = u * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
+        p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
+        
         # u = torch.where(
         #     u_neumann[:, 1].unsqueeze(1) == -1, torch.roll(u, 1, dims=2),
         #     torch.where(u_neumann[:, 1].unsqueeze(1) ==  1, torch.roll(u, -1, dims=2), u)
@@ -557,8 +563,6 @@ class FullPINNDataset(PINNDataset):
 
         # u_y = u[:, 0] * (1 - u_dirichlet_mask) + u_dirichlet[:, 0] * u_dirichlet_mask
         # u_x = u[:, 1] * (1 - u_dirichlet_mask) + u_dirichlet[:, 1] * u_dirichlet_mask
-        u = u * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
-        p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
 
         # im4 = ax[4].imshow(u[0, 0].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
         # im5 = ax[5].imshow(u[0, 1].detach().cpu().numpy(), vmin=vmin, vmax=vmax)

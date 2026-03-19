@@ -161,6 +161,7 @@ class NavierStokesLoss(nn.Module):
                            dx = delta_x,
                            dy = delta_y,
                            boundary = boundary_mask_u * 0)
+        
  
         grad_p = torch.stack([dp_dx, dp_dy], dim=1)
 
@@ -169,6 +170,15 @@ class NavierStokesLoss(nn.Module):
                            dy = delta_y,
                            boundary = boundary_mask_u * 0)
         
+        div_u_dot_del_u = divergence(u = u_dot_del_u,
+                                     dx = delta_x,
+                                     dy = delta_y,
+                                     boundary=boundary_mask_u * 0)
+        
+        laplacian_p = laplacian(u = p,
+                           dx = delta_x,
+                           dy = delta_y,
+                           boundary = boundary_mask_u * 0)
         # plt.ioff()
         # fig, ax = plt.subplots(3, 3)
         # ax = ax.flatten()
@@ -184,19 +194,20 @@ class NavierStokesLoss(nn.Module):
 
         loss_div = div_u ** 2
 
-        loss_div[boundary_mask != 0] = 0
+        # loss_div[boundary_mask != 0] = 0
 
-        # loss_div = loss_div * (1 - boundary_mask)
+        loss_div = loss_div * (1 - boundary_mask)
         loss_div = torch.mean(loss_div)
 
         res_mom = (u_dot_del_u + (1 / rho) * grad_p - mu * laplacian_u) ** 2
-        # res_mom = res_mom * (1 - boundary_mask_u)
+        # res_mom = (u_dot_del_u + grad_p - mu * laplacian_u) ** 2
+        res_mom = res_mom * (1 - boundary_mask_u)
 
         # loss_mom = torch.mean(res_mom[:, 0]) + torch.mean(res_mom[:, 1])
         # loss_mom = torch.mean(res_mom[:, 0]) #** (1 / 2)
         # loss_nonneg_p = torch.mean(res_mom[:, 1]) #** (1 / 2)
 
-        res_mom[boundary_mask_u != 0] = 0
+        # res_mom[boundary_mask_u != 0] = 0
 
         loss_mom = torch.mean(res_mom)
 
@@ -211,6 +222,9 @@ class NavierStokesLoss(nn.Module):
         # # loss_nonneg_p = torch.mean(torch.relu(-output[:, 2])**2) * 0
 
         # loss_bc += torch.sum((uy[..., 0] - uy[..., -1]) ** 2) + torch.sum((ux[..., 0] - ux[..., -1]) ** 2)
+
+        # loss_nonneg_p = (div_u_dot_del_u + (1 / rho) * laplacian_p) ** 2
+        # loss_nonneg_p = torch.mean(loss_nonneg_p)
 
         loss_nonneg_p = torch.tensor(0)
         loss_bc = torch.tensor(0)
