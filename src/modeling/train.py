@@ -240,8 +240,9 @@ def main():
     train_dataset.x.sub_(x_mean)
     train_dataset.x.div_(x_std)
 
-    val_dataset.x.sub_(x_mean)
-    val_dataset.x.div_(x_std)
+    if len(val_dataset) > 0:
+        val_dataset.x.sub_(x_mean)
+        val_dataset.x.div_(x_std)
 
     # Fetch and print parameters
     params = vars(args)
@@ -346,7 +347,7 @@ def main():
         #     optimizer, 
         #     mode='min', 
         #     factor=0.5, 
-        #     patience=10,
+        #     patience=200,
         #     threshold=1e-3
         # )
 
@@ -373,6 +374,11 @@ def main():
 
     OPTIMIZER_SWITCH_EPOCH = -1
 
+    min_val_loss = np.inf
+
+    # epochs = 3000
+
+
     # Training loop
     for epoch in range(epochs):
 
@@ -386,13 +392,10 @@ def main():
             
             use_scheduler = False
 
+        
         running_loss = [0, 0, 0, 0, 0]
         val_running_loss = [0, 0, 0, 0, 0]
 
-        # if loss_weights[2] < 1000:
-        #     loss_weights = (loss_weights[0], loss_weights[1], loss_weights[2] * 1.1, loss_weights[3])
-        #     if loss_weights[2] >= 1000:
-        #         print("EXCEEDED")
 
         ################################################
         # def closure():
@@ -448,7 +451,7 @@ def main():
             delta_x = delta_x.to(device) #.detach()
             delta_y = delta_y.to(device) #.detach()
 
-            batch_loss = [0, 0, 0, 0, 0]
+            # batch_loss = [0, 0, 0, 0, 0]
 
             # outputs = model(x)
 
@@ -463,30 +466,43 @@ def main():
             # for i in range(len(l)):
             #     batch_loss[i] = l[i].item()
 
+        ########################## OLD
+            # def closure():
+            #     optimizer.zero_grad()
+            #     # total_loss = torch.tensor(0.0, device=device)
 
-            def closure():
-                optimizer.zero_grad()
-                # total_loss = torch.tensor(0.0, device=device)
+            #     with torch.enable_grad():
+            #         outputs = model(x)
 
-                with torch.enable_grad():
-                    outputs = model(x)
+            #         x_norm = x * x_std.to(device) + x_mean.to(device)
 
-                    x_norm = x * x_std.to(device) + x_mean.to(device)
+            #         l = criterion(x_norm, outputs, loss_weights)
+            #         l[0].backward()
 
-                    l = criterion(x_norm, outputs, loss_weights)
-                    l[0].backward()
+            #     for i in range(len(l)):
+            #         batch_loss[i] = l[i].item()
 
-                for i in range(len(l)):
-                    batch_loss[i] = l[i].item()
+            #     return l[0]
+        ############################
+        
+            optimizer.zero_grad()
 
-                return l[0]
-            
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            outputs = model(x)
+            x_norm = x * x_std.to(device) + x_mean.to(device)
 
-            optimizer.step(closure)
+            l = criterion(x_norm, outputs, loss_weights)
+            l[0].backward()
+
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+            # optimizer.step(closure)
+            optimizer.step()
+
+            # for i in range(len(l)):
+            #     batch_loss[i] = l[i].item()
 
             for i in range(len(running_loss)):
-                running_loss[i] += batch_loss[i] * x.size(0)
+                running_loss[i] += l[i].item() * x.size(0)
         #####################################
 
         loss = np.array(running_loss) / len(train_dataloader.dataset)
@@ -525,9 +541,11 @@ def main():
                     json.dump(params, f)
 
         if use_scheduler:
-            scheduler.step(loss[0])
+            # scheduler.step(val_loss[1])
+            scheduler.step()
 
-        print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL TRAIN LOSS = {loss[0]:.10f}   TRAIN LOSS PARTS = [{loss[1]:.5f}, {loss[2]:.5f}, {loss[3]:.5f}, {loss[4]:.5f}]   |   TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.5f}, {val_loss[2]:.5f}, {val_loss[3]:.5f}, {val_loss[4]:.5f}]")
+        # print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL TRAIN LOSS = {loss[0]:.10f}   TRAIN LOSS PARTS = [{loss[1]:.5f}, {loss[2]:.5f}, {loss[3]:.5f}, {loss[4]:.5f}]   |   TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.5f}, {val_loss[2]:.5f}, {val_loss[3]:.5f}, {val_loss[4]:.5f}]")
+        print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL TRAIN LOSS = {loss[0]:.10f}   TRAIN LOSS PARTS = [{loss[1]:.5f}, {loss[2]:.5f}]   |   MIN VAL LOSS = {best_loss:.10f}   |   TOTAL VAL LOSS = {val_loss_unweighted:.10f}   VAL LOSS PARTS = [{val_loss[1]:.5f}, {val_loss[2]:.5f}]")
         print()
         # print(f"                                TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.10f}, {val_loss[2]:.10f}, {val_loss[3]:.10f}, {val_loss[4]:.10f}]")
         # print(f"EPOCHS [{epoch + 1}/{epochs}]   TRAIN LOSS = {loss[0]:.10f}   VAL LOSS = {val_loss[0]:.10f}")
@@ -557,7 +575,8 @@ def main():
                        "val_loss2": val_loss[2],
                        "val_loss3": val_loss[3],
                        "val_loss4": val_loss[4],
-                       "log_val_loss": np.log(val_loss_unweighted)})
+                       "log_val_loss": np.log(val_loss_unweighted),
+                       "best_loss": best_loss})
             
         if use_plot:
             with torch.no_grad():

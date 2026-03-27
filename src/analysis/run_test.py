@@ -16,7 +16,7 @@ CASE_DIR = "../../../data_glycerol_large_test"
 # CASE_DIR = "../../../data_final_small_test_inflow"
 # CASE_DIR = "../../../data_final_small_test_params"
 POISSON_MODEL_PATH = "../../models/poisson/2026-03-15_11_59"
-FULL_MODEL_PATH = "../../models/full/2026-03-19_11_02"
+FULL_MODEL_PATH = "../../models/full/2026-03-26_17_33"
 
 def run_case(case, method_type, model_path=""):
     start_time = time.time()
@@ -102,7 +102,7 @@ def main():
         if len(u_n) != case["iterations"] or len(u_p) != case["iterations"] or len(u_f) != case["iterations"]:
             print("[[[[[[[[[[[[[[[ NAN - SKIPPING SAMPLE")
             continue
-
+        
         print("-----------------")
 
         u_numeric.append(u_n[-1])

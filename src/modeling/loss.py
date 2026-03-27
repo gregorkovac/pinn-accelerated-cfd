@@ -170,15 +170,15 @@ class NavierStokesLoss(nn.Module):
                            dy = delta_y,
                            boundary = boundary_mask_u * 0)
         
-        div_u_dot_del_u = divergence(u = u_dot_del_u,
-                                     dx = delta_x,
-                                     dy = delta_y,
-                                     boundary=boundary_mask_u * 0)
+        # div_u_dot_del_u = divergence(u = u_dot_del_u,
+        #                              dx = delta_x,
+        #                              dy = delta_y,
+        #                              boundary=boundary_mask_u * 0)
         
-        laplacian_p = laplacian(u = p,
-                           dx = delta_x,
-                           dy = delta_y,
-                           boundary = boundary_mask_u * 0)
+        # laplacian_p = laplacian(u = p,
+        #                    dx = delta_x,
+        #                    dy = delta_y,
+        #                    boundary = boundary_mask_u * 0)
         # plt.ioff()
         # fig, ax = plt.subplots(3, 3)
         # ax = ax.flatten()
@@ -192,7 +192,10 @@ class NavierStokesLoss(nn.Module):
 
         # plt.show()
 
+        # TODO: PRESSURE BCS!
+
         loss_div = div_u ** 2
+        # loss_div = torch.abs(div_u)
 
         # loss_div[boundary_mask != 0] = 0
 

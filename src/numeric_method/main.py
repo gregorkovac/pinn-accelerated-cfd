@@ -36,9 +36,9 @@ def main(case_name = None):
         dynamic_time_step=False,
         implicit_laplacian=False,
         return_div_u_star=True,
-        method_type="full_model", # numeric, poisson_model, full_model
-        model_path="../../models/full/2026-03-19_10_39",
-        # model_path="../../models/poisson/2026-03-15_11_59", # ../../models/poisson/2026-03-14_08_29
+        method_type="numeric", # numeric, poisson_model, full_model
+        # model_path="../../models/full/2026-03-19_10_39",
+        model_path="../../models/poisson/2026-03-15_11_59", # ../../models/poisson/2026-03-14_08_29
         poisson_alternation=-1
     )
 

@@ -713,6 +713,9 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
         # out = dataset.enforceBC(x, out).squeeze(0).detach().numpy()
 
         u_x, u_y, p = out[0], out[1], out[2]
+
+        # p /= density
+
         u = np.stack((u_x, u_y), axis=-1)
 
         # fig, ax = plt.subplots(1, 3)

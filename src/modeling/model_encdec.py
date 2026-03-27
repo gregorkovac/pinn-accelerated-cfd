@@ -63,6 +63,12 @@ class EncDecCNN(nn.Module):
 
             out_channels = hidden_channels * (2 ** (i + 1))
 
+            # if in_channels > hidden_channels * (2 ** 3):
+            #     in_channels = hidden_channels * (2 ** 3)
+
+            # if out_channels > hidden_channels * (2 ** 3):
+            #     out_channels = hidden_channels * (2 ** 3)
+
             if activation == "relu":
                 activation_fn = nn.ReLU()
             elif activation == "tanh":
@@ -126,6 +132,12 @@ class EncDecCNN(nn.Module):
 
             in_channels = hidden_channels * (2 ** (num_layers - i))
             out_channels = hidden_channels * (2 ** (num_layers - i - 1))
+
+            # if in_channels > hidden_channels * (2 ** 3):
+            #     in_channels = hidden_channels * (2 ** 3)
+
+            # if out_channels > hidden_channels * (2 ** 3):
+            #     out_channels = hidden_channels * (2 ** 3)
 
             if skips == "unet" and i != 0:
                 in_channels *= 2
