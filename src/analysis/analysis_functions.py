@@ -92,7 +92,7 @@ def Linf(y_true, y_pred):
 def divergence_err(y, dy, dx):
     div_y = divergence(u = y, dx = dx, dy = dy, boundary=None, numpy_=True)
 
-    return div_y ** 2
+    return np.abs(div_y)
 
 def compute_errors(case, norm="2"):
     if norm == "2":
@@ -232,9 +232,9 @@ def err_pointwise_plot(err, title=""):
     p_denom = np.array(err["p_denominator"])
 
     u_poisson = np.array(err["u_err_poisson"], dtype=float) * (1 - bound) / (u_denom[:, None, None] * np.ones(np.array(err["u_err_poisson"], dtype=float).shape))
-    p_poisson = np.array(err["p_err_poisson"], dtype=float) * (1 - bound) / (u_denom[:, None, None] * np.ones(np.array(err["p_err_poisson"], dtype=float).shape))
+    p_poisson = np.array(err["p_err_poisson"], dtype=float) * (1 - bound) / (p_denom[:, None, None] * np.ones(np.array(err["p_err_poisson"], dtype=float).shape))
 
-    u_full = np.array(err["u_err_full"], dtype=float) * (1 - bound) / (p_denom[:, None, None] * np.ones(np.array(err["u_err_poisson"], dtype=float).shape))
+    u_full = np.array(err["u_err_full"], dtype=float) * (1 - bound) / (u_denom[:, None, None] * np.ones(np.array(err["u_err_poisson"], dtype=float).shape))
     p_full = np.array(err["p_err_full"], dtype=float) * (1 - bound) / (p_denom[:, None, None] * np.ones(np.array(err["p_err_poisson"], dtype=float).shape))
 
     u_poisson = np.mean(u_poisson, axis=0)
