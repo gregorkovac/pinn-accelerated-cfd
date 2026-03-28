@@ -471,12 +471,13 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
     # div = divergence(u, dx=dx, dy=dy, boundary=None, numpy_=True)
 
-    # div = div ** 2
+    # div = np.abs(div)
 
     # _, u_dirichlet_mask, u_neumann, _, p_dirichlet_mask, p_neumann, boundary_mask = geometry_to_mtx(geometry, n, m)
     # div *= (1 - boundary_mask)
 
-    # print(f"{div.mean():.5f} +- {div.std():.5f}")
+    # # print(f"{div.mean():.5f} +- {div.std():.5f}")
+    # print(np.max(div))
 
     # Update pressure
     p = phi_bc + beta * p

@@ -1,0 +1,44 @@
+{
+  "width": 128,
+  "height": 128,
+  "dx": 0.01,
+  "dy": 0.01,
+  "time_step": 0.001,
+  "iterations": 1000,
+  "density": 1261,
+  "viscosity": 0.0011895321173671688,
+  "beta": 0,
+  "geometry": [
+    {
+      "type": "outflow",
+      "pos": { "x": -1, "y": 0 },
+      "size": { "width": 1, "height": -1 },
+      "dir": { "x": -1, "y": 0 }
+    },
+    {
+      "type": "inflow",
+      "pos": { "x": 0, "y": 0 },
+      "size": { "width": 1, "height": 128 },
+      "vel": { "x": 0.1, "y": 0 }
+    },
+    {
+      "type": "wall",
+      "pos": { "x": 0, "y": 0 },
+      "size": { "width": 128, "height": 1 },
+      "dir": { "x": 0, "y": 1 }
+    },
+    {
+      "type": "wall",
+      "pos": { "x": 0, "y": 127 },
+      "size": { "width": 128, "height": 1 },
+      "dir": { "x": 0, "y": -1 }
+    },
+    {
+      "type": "wall",
+      "pos": { "x": 50, "y": 112 },
+      "size": { "width": 31, "height": 15 },
+      "dir": { "x": 0, "y": 1 }
+    },
+    { "type": "cylinder", "pos": { "x": 26, "y": 26 }, "size": 10 }
+  ]
+}

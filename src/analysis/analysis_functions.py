@@ -89,13 +89,13 @@ def Linf(y_true, y_pred):
 
     return np.max(np.abs((y_pred - y_true)), axis=-1) #/ (np.max(np.abs(y_true), axis=-1) + 1e-2)
 
-def divergence_err(y, dy, dx, norm):
-    div_y = divergence(u = y, dx = dx, dy = dy, boundary=None, numpy_=True)
+def divergence_err(u, dy, dx, norm, bound):
+    div_u = divergence(u = u, dx = dx, dy = dy, boundary=None, numpy_=True)
 
     if norm == "2":
-        return div_y ** 2
+        return div_u ** 2
         
-    return np.abs(div_y)
+    return np.abs(div_u)
 
 def compute_errors(case, norm="2"):
     if norm == "2":
@@ -114,9 +114,9 @@ def compute_errors(case, norm="2"):
     u_denom = [np.sum(func(case["u_numeric"][i], np.zeros_like(case["u_numeric"][i]))[case["boundaries"][i] != 1]) + 1e-8 for i in range(len(case["u_numeric"]))]
     p_denom = [np.sum(func(case["p_numeric"][i][..., None], np.zeros_like(case["p_numeric"][i][..., None]))[case["boundaries"][i] != 1]) + 1e-8 for i in range(len(case["u_numeric"]))]
 
-    divergence_err_numeric = [divergence_err(case["u_numeric"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm) for i in range(len(case["u_numeric"]))]
-    divergence_err_poisson = [divergence_err(case["u_poisson"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm) for i in range(len(case["u_poisson"]))]
-    divergence_err_full = [divergence_err(case["u_full"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm) for i in range(len(case["u_full"]))]
+    divergence_err_numeric = [divergence_err(case["u_numeric"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm, bound=case["boundaries"][i]) for i in range(len(case["u_numeric"]))]
+    divergence_err_poisson = [divergence_err(case["u_poisson"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm, bound=case["boundaries"][i]) for i in range(len(case["u_poisson"]))]
+    divergence_err_full = [divergence_err(case["u_full"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm, bound=case["boundaries"][i]) for i in range(len(case["u_full"]))]
 
     err = {}
     err["u_err_poisson"] = u_err_poisson
@@ -316,9 +316,9 @@ def err_divergence_plot(err, title=""):
     vmin = np.min([div_n.min(), div_p.min(), div_f.min()])
     vmax = np.max([div_n.max(), div_p.max(), div_f.max()])
 
-    im0 = ax[0].imshow(div_n[:20, :20], vmin=vmin, vmax=vmax)
-    im1 = ax[1].imshow(div_p[:20, :20], vmin=vmin, vmax=vmax)
-    im2 = ax[2].imshow(div_f[:20, :20], vmin=vmin, vmax=vmax)
+    im0 = ax[0].imshow(div_n, vmin=vmin, vmax=vmax)
+    im1 = ax[1].imshow(div_p, vmin=vmin, vmax=vmax)
+    im2 = ax[2].imshow(div_f, vmin=vmin, vmax=vmax)
 
     ax[0].set_title("Numeric method", fontsize=24)
     ax[1].set_title("Poisson PINN", fontsize=24)
