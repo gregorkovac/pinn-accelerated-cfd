@@ -514,8 +514,6 @@ class FullPINNDataset(PINNDataset):
         u = out[:, :2]
         p = out[:, 2:3]
 
-
-
         # vmin = -0.01
         # vmax = 0.01
         
