@@ -89,9 +89,12 @@ def Linf(y_true, y_pred):
 
     return np.max(np.abs((y_pred - y_true)), axis=-1) #/ (np.max(np.abs(y_true), axis=-1) + 1e-2)
 
-def divergence_err(y, dy, dx):
+def divergence_err(y, dy, dx, norm):
     div_y = divergence(u = y, dx = dx, dy = dy, boundary=None, numpy_=True)
 
+    if norm == "2":
+        return div_y ** 2
+        
     return np.abs(div_y)
 
 def compute_errors(case, norm="2"):
@@ -111,15 +114,9 @@ def compute_errors(case, norm="2"):
     u_denom = [np.sum(func(case["u_numeric"][i], np.zeros_like(case["u_numeric"][i]))[case["boundaries"][i] != 1]) + 1e-8 for i in range(len(case["u_numeric"]))]
     p_denom = [np.sum(func(case["p_numeric"][i][..., None], np.zeros_like(case["p_numeric"][i][..., None]))[case["boundaries"][i] != 1]) + 1e-8 for i in range(len(case["u_numeric"]))]
 
-    # u_pointwise_poisson = pointwise_vec_func(case["u_numeric"], case["u_poisson"], case["boundaries"])
-    # p_pointwise_poisson = pointwise_func(case["p_numeric"], case["p_poisson"], case["boundaries"])
-
-    # u_pointwise_full = pointwise_vec_func(case["u_numeric"], case["u_full"], case["boundaries"])
-    # p_pointwise_full = pointwise_func(case["p_numeric"], case["p_full"], case["boundaries"])
-
-    divergence_err_numeric = [divergence_err(case["u_numeric"][i], case["params"][i]["dy"], case["params"][i]["dx"]) for i in range(len(case["u_numeric"]))]
-    divergence_err_poisson = [divergence_err(case["u_poisson"][i], case["params"][i]["dy"], case["params"][i]["dx"]) for i in range(len(case["u_poisson"]))]
-    divergence_err_full = [divergence_err(case["u_full"][i], case["params"][i]["dy"], case["params"][i]["dx"]) for i in range(len(case["u_full"]))]
+    divergence_err_numeric = [divergence_err(case["u_numeric"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm) for i in range(len(case["u_numeric"]))]
+    divergence_err_poisson = [divergence_err(case["u_poisson"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm) for i in range(len(case["u_poisson"]))]
+    divergence_err_full = [divergence_err(case["u_full"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm) for i in range(len(case["u_full"]))]
 
     err = {}
     err["u_err_poisson"] = u_err_poisson
@@ -253,27 +250,36 @@ def err_pointwise_plot(err, title=""):
     # p_min = p_poisson.min()
     # p_max = p_poisson.max()
 
-    im0 = ax[0].imshow(u_poisson)
-    ax[0].set_title("Velocity errors (Poisson model)", fontsize=24)
+    im0 = ax[0].imshow(u_poisson, vmin=umin, vmax=umax)
+    im1 = ax[1].imshow(u_full, vmin=umin, vmax=umax)
+    im2 = ax[2].imshow(p_poisson, vmin=pmin, vmax=pmax)
+    im3 = ax[3].imshow(p_full, vmin=pmin, vmax=pmax)
 
-    im1 = ax[1].imshow(u_full)
-    ax[1].set_title("Velocity errors (Full model)", fontsize=24)
+    ax[0].set_title("Poisson PINN", fontsize=24)
+    ax[1].set_title("Navier-Stokes PINN", fontsize=24)
+    ax[0].annotate(f'Velocity', xy=(-0.05, 0.5), xycoords='axes fraction', 
+                      rotation=90, va='center', ha='right', 
+                      fontsize=24)
+    
+    ax[2].annotate(f'Pressure', xy=(-0.05, 0.5), xycoords='axes fraction', 
+                      rotation=90, va='center', ha='right', 
+                      fontsize=24)
 
-    im2 = ax[2].imshow(p_poisson)
-    ax[2].set_title("Pressure errors (Poisson model)", fontsize=24)
+    # cbar0 = fig.colorbar(im0, fraction=0.046, pad=0.04)
+    cbar1 = fig.colorbar(im1, ax=(ax[0], ax[1]), fraction=0.046, pad=0.04)
+    # cbar2 = fig.colorbar(im2, fraction=0.046, pad=0.04)
+    cbar3 = fig.colorbar(im3, ax=(ax[2], ax[3]), fraction=0.046, pad=0.04)
 
-    im3 = ax[3].imshow(p_full)
-    ax[3].set_title("Pressure errors (Full model)", fontsize=24)
-
-    cbar0 = fig.colorbar(im0, fraction=0.046, pad=0.04)
-    cbar1 = fig.colorbar(im1, fraction=0.046, pad=0.04)
-    cbar2 = fig.colorbar(im2, fraction=0.046, pad=0.04)
-    cbar3 = fig.colorbar(im3, fraction=0.046, pad=0.04)
-
-    cbar0.ax.tick_params(labelsize=20)
+    # cbar0.ax.tick_params(labelsize=20)
     cbar1.ax.tick_params(labelsize=20)
-    cbar2.ax.tick_params(labelsize=20)
+    # cbar2.ax.tick_params(labelsize=20)
     cbar3.ax.tick_params(labelsize=20)
+
+    cbar1.ax.yaxis.get_offset_text().set_fontsize(20)
+    cbar3.ax.yaxis.get_offset_text().set_fontsize(20)
+
+    cbar1.ax.yaxis.get_offset_text().set_x(3.0)
+    cbar3.ax.yaxis.get_offset_text().set_x(3.0)
 
     # cbar0.ax.set_title(r'[m/s]', fontsize=24, pad=15)
     # cbar1.ax.set_title(r'[m/s]', fontsize=24, pad=15)
@@ -283,7 +289,57 @@ def err_pointwise_plot(err, title=""):
     for j in range(4):
         ax[j].axis('off')
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
+
+    plt.savefig(title)
+
+    plt.show()
+
+def err_divergence_plot(err, title=""):
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 6))
+    ax = ax.flatten()
+
+    bound = np.array(err["boundaries"], dtype=float)
+
+    div_n = np.array(err["divergence_numeric"], dtype=float)
+    div_p = np.array(err["divergence_poisson"], dtype=float)
+    div_f = np.array(err["divergence_full"], dtype=float)
+
+    div_n *= (1 - bound)
+    div_p *= (1 - bound)
+    div_f *= (1 - bound)
+
+    div_n = np.mean(div_n, axis=0)
+    div_p = np.mean(div_p, axis=0)
+    div_f = np.mean(div_f, axis=0)
+
+    vmin = np.min([div_n.min(), div_p.min(), div_f.min()])
+    vmax = np.max([div_n.max(), div_p.max(), div_f.max()])
+
+    im0 = ax[0].imshow(div_n[:20, :20], vmin=vmin, vmax=vmax)
+    im1 = ax[1].imshow(div_p[:20, :20], vmin=vmin, vmax=vmax)
+    im2 = ax[2].imshow(div_f[:20, :20], vmin=vmin, vmax=vmax)
+
+    ax[0].set_title("Numeric method", fontsize=24)
+    ax[1].set_title("Poisson PINN", fontsize=24)
+    ax[2].set_title("Navier-Stokes PINN", fontsize=24)
+
+    cbar = fig.colorbar(im2, ax=(ax[0], ax[1], ax[2]), fraction=0.046, pad=0.04)
+
+    cbar.ax.set_title('[$s^{-1}$]', fontsize=24, pad=15)
+
+    cbar.ax.tick_params(labelsize=20)
+
+    cbar.ax.yaxis.get_offset_text().set_fontsize(20)
+
+    cbar.ax.yaxis.get_offset_text().set_x(3.0)
+
+    for j in range(3):
+        ax[j].axis('off')
+
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
+
+    plt.savefig(title)
 
     plt.show()
 
