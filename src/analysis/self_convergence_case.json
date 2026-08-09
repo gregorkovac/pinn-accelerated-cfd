@@ -3,10 +3,10 @@
   "height": 128,
   "dx": 0.01,
   "dy": 0.01,
-  "time_step": 0.001,
+  "time_step": 0.00001,
   "iterations": 1000,
-  "density": 1261,
-  "viscosity": 0.0011895321173671688,
+  "density": 1,
+  "viscosity": 0.1,
   "beta": 0,
   "geometry": [
     {

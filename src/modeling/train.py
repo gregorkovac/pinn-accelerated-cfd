@@ -218,12 +218,7 @@ def main():
     x_std = train_dataset.x.std(dim=(0, 2, 3), keepdim=True)
     x_std[x_std < 1e-8] = 1.0
 
-
-    # TODO: Normalization logic should probably be moved to the dataset
     if model_type == "poisson":
-        # dont_normalize = [3, 4, 5, 8, 9]
-        # dont_normalize = [0, 1, 2, 3, 4]
-        # dont_normalize = [0, 1, 2]
         dont_normalize = []
     else:
         dont_normalize = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14]
@@ -268,13 +263,6 @@ def main():
                                 shuffle=True,
                                 num_workers=num_workers,
                                 pin_memory=pin_memory)
-    
-    # batch_sampler = CaseBatchSampler(len(train_dataset), sampler_batch_size)
-    # train_dataloader = DataLoader(train_dataset,
-    #                             batch_sampler=batch_sampler,
-    #                             num_workers=num_workers,
-    #                             pin_memory=pin_memory)
-    
 
     val_dataloader = DataLoader(val_dataset,
                                 batch_size=batch_size,
@@ -283,7 +271,6 @@ def main():
                                 pin_memory=pin_memory)
 
     if architecture == "cnn":
-        # Initialize model
         model = CNN(input_channels=input_channels,
                     output_channels=output_channels,
                     num_layers=num_layers,
@@ -310,9 +297,6 @@ def main():
                     upsampling=upsampling,
                     norm=norm,
                     skips=skips)
-    
-    # state_dict = torch.load(os.path.join("../../models/poisson/2025-11-18_13_28", "model.pt"), map_location=device)
-    # model.load_state_dict(state_dict, strict=True)
 
     # Move model to device if possible
     if torch.cuda.device_count() > 1:
@@ -343,13 +327,6 @@ def main():
         scheduler = StepLR(optimizer,
                            step_size=scheduler_step,
                            gamma=scheduler_gamma)
-        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #     optimizer, 
-        #     mode='min', 
-        #     factor=0.5, 
-        #     patience=200,
-        #     threshold=1e-3
-        # )
 
     # Create the folder for saving the model
     timestamp = datetime.now().strftime("%Y-%m-%d_%H_%M")
@@ -376,9 +353,6 @@ def main():
 
     min_val_loss = np.inf
 
-    # epochs = 3000
-
-
     # Training loop
     for epoch in range(epochs):
 
@@ -397,94 +371,16 @@ def main():
         val_running_loss = [0, 0, 0, 0, 0]
 
 
-        ################################################
-        # def closure():
-        #     optimizer.zero_grad()
-        #     total_loss_train = torch.tensor(0.0, device=device)
-
-        #     for data in train_dataloader:
-        #         x, _, _, _, _, _, _, _ = data
-        #         x = x.to(device)
-                
-        #         outputs = model(x)
-        #         x_norm = x * x_std.to(device) + x_mean.to(device)
-
-        #         l = criterion(x_norm, outputs, loss_weights)
-
-        #         loss_scaled = l[0] * (x.size(0) / len(train_dataset))
-        #         loss_scaled.backward() 
-                
-        #         total_loss_train += loss_scaled.detach()
-
-        #         # for i in range(len(running_loss)):
-        #         #     running_loss[i] += l[i].item() * x.size(0)
-
-        #         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
-        #     return total_loss_train
-        
-
-        # optimizer.step(closure)
-
-        # model.eval() 
-        # with torch.no_grad():
-        #     for data in train_dataloader:
-        #         x = data[0].to(device)
-        #         outputs = model(x)
-        #         x_norm = x * x_std.to(device) + x_mean.to(device)
-        #         l = criterion(x_norm, outputs, loss_weights)
-                
-        #         for i in range(len(l)):
-        #             running_loss[i] += l[i].item() * x.size(0)
-        ################################################
-
-        #########################################
         # Iterate through data loader
         for data in train_dataloader:
             # Extract data
             x, delta_x, delta_y, _, _, _, _, _ = data
 
-            # loss_weights[0] = loss_weights[0] * min(1, epoch * 0.003)
-            # loss_weights = (loss_weights[0] * min(1, epoch * 0.03), loss_weights[1], loss_weights[2], loss_weights[3])
-
             x = x.to(device) #.detach()#.clone()#.requires_grad_(True)
             delta_x = delta_x.to(device) #.detach()
             delta_y = delta_y.to(device) #.detach()
 
-            # batch_loss = [0, 0, 0, 0, 0]
 
-            # outputs = model(x)
-
-            # x_norm = x * x_std.to(device) + x_mean.to(device)
-
-            # l = criterion(x, outputs, delta_x, delta_y, loss_weights,)
-
-            # optimizer.zero_grad()
-            # l[0].backward()
-            # optimizer.step()
-
-            # for i in range(len(l)):
-            #     batch_loss[i] = l[i].item()
-
-        ########################## OLD
-            # def closure():
-            #     optimizer.zero_grad()
-            #     # total_loss = torch.tensor(0.0, device=device)
-
-            #     with torch.enable_grad():
-            #         outputs = model(x)
-
-            #         x_norm = x * x_std.to(device) + x_mean.to(device)
-
-            #         l = criterion(x_norm, outputs, loss_weights)
-            #         l[0].backward()
-
-            #     for i in range(len(l)):
-            #         batch_loss[i] = l[i].item()
-
-            #     return l[0]
-        ############################
-        
             optimizer.zero_grad()
 
             outputs = model(x)
@@ -498,12 +394,8 @@ def main():
             # optimizer.step(closure)
             optimizer.step()
 
-            # for i in range(len(l)):
-            #     batch_loss[i] = l[i].item()
-
             for i in range(len(running_loss)):
                 running_loss[i] += l[i].item() * x.size(0)
-        #####################################
 
         loss = np.array(running_loss) / len(train_dataloader.dataset)
 
@@ -544,23 +436,9 @@ def main():
             # scheduler.step(val_loss[1])
             scheduler.step()
 
-        # print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL TRAIN LOSS = {loss[0]:.10f}   TRAIN LOSS PARTS = [{loss[1]:.5f}, {loss[2]:.5f}, {loss[3]:.5f}, {loss[4]:.5f}]   |   TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.5f}, {val_loss[2]:.5f}, {val_loss[3]:.5f}, {val_loss[4]:.5f}]")
+    
         print(f"EPOCHS [{epoch + 1}/{epochs}]   TOTAL TRAIN LOSS = {loss[0]:.10f}   TRAIN LOSS PARTS = [{loss[1]:.5f}, {loss[2]:.5f}]   |   MIN VAL LOSS = {best_loss:.10f}   |   TOTAL VAL LOSS = {val_loss_unweighted:.10f}   VAL LOSS PARTS = [{val_loss[1]:.5f}, {val_loss[2]:.5f}]")
         print()
-        # print(f"                                TOTAL VAL LOSS = {val_loss[0]:.10f}   VAL LOSS PARTS = [{val_loss[1]:.10f}, {val_loss[2]:.10f}, {val_loss[3]:.10f}, {val_loss[4]:.10f}]")
-        # print(f"EPOCHS [{epoch + 1}/{epochs}]   TRAIN LOSS = {loss[0]:.10f}   VAL LOSS = {val_loss[0]:.10f}")
-
-        # if np.abs(loss[0] - prev_loss) < 1e-6 and epoch != 0:
-        #     print("LOSS STOPPED MINIMIZING - STOPPING TRAINING")
-        #     break
-
-        # if best_loss < val_loss_unweighted and np.abs(best_loss - val_loss_unweighted) > 0.01:
-        #     print("OVERFITTING DETECTED - STOPPING TRAINING")
-        #     break
-
-        # for name, param in model.named_parameters():
-        #     if param.grad is not None:
-        #         print(name, param.grad.abs().mean().item())
 
         prev_loss = loss[0]
 
@@ -583,11 +461,6 @@ def main():
                 x_, delta_x_, delta_y_, delta_t_, rho_, _, _, boundary_mask = train_dataset[min(0, len(train_dataset) - 1)]
                 x_ = x_.cpu().clone().detach().to(device)
                 out = model(x_.unsqueeze(0)) #.detach().cpu().squeeze().numpy()
-
-                # out = train_dataset.enforceBC(x_.unsqueeze(0), out)
-
-                # print(out[0, :, 10, 0])
-                # print(out[0, :, 0:3, 0:3])
 
                 if model_type == "full":
                     out = out.detach().cpu().squeeze().numpy()

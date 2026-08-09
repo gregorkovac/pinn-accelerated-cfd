@@ -114,7 +114,7 @@ def eval_case(case_path):
 
        u_nm = np.transpose(u[-1], (2, 0, 1))
 
-       u_nm[1] = u_nm[0] # TODO: Why do the do this in the cylinder case??
+       u_nm[1] = u_nm[0]
 
        u_baseline = np.stack([ux[-1], uy[-1]], axis=0)
 

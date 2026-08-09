@@ -3,6 +3,7 @@ import os
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 import seaborn as sns
 import sys
 sys.path.insert(0, "..")
@@ -16,6 +17,7 @@ COLOR_FULL = "#7570b3"
 def numeric_key(filename):
     return int(os.path.splitext(filename)[0])
 
+# Loads a result case and returns it as a dict
 def load_case(results_dir):
     case_path = results_dir
 
@@ -24,7 +26,6 @@ def load_case(results_dir):
     boundaries = []
     params = []
 
-    # params = pd.read_csv(os.path.join(case_path, "cases.csv"), sep=";")
     for f in os.listdir(os.path.join(case_path, "geometry")):
         with open(os.path.join(case_path, "geometry", f)) as fp:
             c = json.load(fp)
@@ -53,42 +54,30 @@ def load_case(results_dir):
     case["p_full"] = p_full
     case["boundaries"] = boundaries
 
-    # for i in range(len(boundaries)):
-    #     fig, ax = plt.subplots(1, 2)
-
-    #     u = u_numeric[i].astype(float)
-    #     u = np.sqrt(u[..., 0] ** 2 + u[..., 1] ** 2)
-
-    #     b = boundaries[i].astype(float)
-
-    #     ax[0].imshow(u)
-    #     ax[1].imshow(b)
-    #     plt.show()
-
-    #     print(params[i])
-
     return case
 
-### ERROR MEASURES ###
-
+# L1 error
 def L1(y_true, y_pred):
     y_true = np.array(y_true, dtype=float)
     y_pred = np.array(y_pred, dtype=float)
 
-    return np.sum(np.abs(y_pred - y_true), axis=-1) #/ (np.sum(np.abs(y_true), axis=-1) + 1e-2)
+    return np.sum(np.abs(y_pred - y_true), axis=-1)
 
+# L2 error
 def L2(y_true, y_pred):
     y_true = np.array(y_true, dtype=float)
     y_pred = np.array(y_pred, dtype=float)
 
-    return np.sqrt(np.sum((y_pred - y_true) ** 2, axis=-1)) #/ np.sqrt(np.sum(y_true ** 2, axis=-1) + 1e-2)
+    return np.sqrt(np.sum((y_pred - y_true) ** 2, axis=-1))
 
+# L infinity error
 def Linf(y_true, y_pred):
     y_true = np.array(y_true, dtype=float)
     y_pred = np.array(y_pred, dtype=float)
 
-    return np.max(np.abs((y_pred - y_true)), axis=-1) #/ (np.max(np.abs(y_true), axis=-1) + 1e-2)
+    return np.max(np.abs((y_pred - y_true)), axis=-1)
 
+# Divergence error
 def divergence_err(u, dy, dx, norm, bound):
     div_u = divergence(u = u, dx = dx, dy = dy, boundary=None, numpy_=True)
 
@@ -97,6 +86,7 @@ def divergence_err(u, dy, dx, norm, bound):
         
     return np.abs(div_u)
 
+# Computes errors for a case in a specified norm
 def compute_errors(case, norm="2"):
     if norm == "2":
         func = L2
@@ -135,6 +125,7 @@ def compute_errors(case, norm="2"):
 
     return err
 
+# Helper function for printing error stats
 def print_err_mean_std(err):
     bound = np.array(err["boundaries"])
 
@@ -147,9 +138,6 @@ def print_err_mean_std(err):
 
     err_p_p = np.array(err["p_err_poisson"])
     err_p_f = np.array(err["p_err_full"])
-
-    # u_denom = np.array(err["u_denominator"])[:, None, None] * np.ones(err_u_p.shape)
-    # p_denom = np.array(err["p_denominator"])[:, None, None] * np.ones(err_p_p.shape)
 
     u_denom = np.array(err["u_denominator"])
     p_denom = np.array(err["p_denominator"])
@@ -164,13 +152,6 @@ def print_err_mean_std(err):
     err_div_p = err_div_p[bound != 1]
     err_div_f = err_div_f[bound != 1]
 
-    # err_u_p = err_u_p[bound != 1]
-    # err_u_f = err_u_f[bound != 1]
-
-    # err_p_p = err_p_p[bound != 1]
-    # err_p_f = err_p_f[bound != 1]
-
-
     print(f"numeric divergence = {np.mean(err_div_n)} +- {np.std(err_div_n)}")
     print()
     print(f"u poisson error = {np.mean(err_u_p)} +- {np.std(err_u_p)}")
@@ -181,10 +162,7 @@ def print_err_mean_std(err):
     print(f"p full error = {np.mean(err_p_f)} +- {np.std(err_p_f)}")
     print(f"full divergence error = {np.mean(err_div_f)} +- {np.std(err_div_f)}")
 
-#####################
-
-### PLOTTING ###
-
+# Kernel density estimate lot of errors
 def err_kde_plot(err, title=""):
     fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 4))
 
@@ -205,6 +183,7 @@ def err_kde_plot(err, title=""):
 
     plt.show()
 
+# Kernel density estimate lot of execution times
 def time_kde_plot(times, title=""):
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 4))
 
@@ -219,8 +198,9 @@ def time_kde_plot(times, title=""):
 
     plt.show()
 
+# Pointwise error plots
 def err_pointwise_plot(err, title=""):
-    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(12, 12))
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(12, 12), layout="constrained")
     ax = ax.flatten()
 
     bound = np.array(err["boundaries"], dtype=float)
@@ -245,56 +225,47 @@ def err_pointwise_plot(err, title=""):
     pmin = np.min([p_poisson.min(), p_full.min()])
     pmax = np.max([p_poisson.max(), p_full.max()])
 
-    # u_min = u_poisson.min()
-    # u_max = u_poisson.max()
-    # p_min = p_poisson.min()
-    # p_max = p_poisson.max()
+    umin_log = max(umin, 1e-5)
+    pmin_log = max(pmin, 1e-5)
 
-    im0 = ax[0].imshow(u_poisson, vmin=umin, vmax=umax)
-    im1 = ax[1].imshow(u_full, vmin=umin, vmax=umax)
-    im2 = ax[2].imshow(p_poisson, vmin=pmin, vmax=pmax)
-    im3 = ax[3].imshow(p_full, vmin=pmin, vmax=pmax)
+    im0 = ax[0].imshow(u_poisson, norm=LogNorm(vmin=umin_log, vmax=umax))
+    im1 = ax[1].imshow(u_full, norm=LogNorm(vmin=umin_log, vmax=umax))
+    im2 = ax[2].imshow(p_poisson, norm=LogNorm(vmin=pmin_log, vmax=pmax))
+    im3 = ax[3].imshow(p_full, norm=LogNorm(vmin=pmin_log, vmax=pmax))
 
-    ax[0].set_title("Poisson PINN", fontsize=24)
-    ax[1].set_title("Navier-Stokes PINN", fontsize=24)
-    ax[0].annotate(f'Velocity', xy=(-0.05, 0.5), xycoords='axes fraction', 
-                      rotation=90, va='center', ha='right', 
-                      fontsize=24)
+    ax[0].set_title("Poisson PINN", fontsize=32)
+    ax[1].set_title("Navier-Stokes PINN", fontsize=32)
+    ax[0].annotate(f"Velocity", xy=(-0.05, 0.5), xycoords="axes fraction", 
+                      rotation=90, va="center", ha="right", 
+                      fontsize=32)
     
-    ax[2].annotate(f'Pressure', xy=(-0.05, 0.5), xycoords='axes fraction', 
-                      rotation=90, va='center', ha='right', 
-                      fontsize=24)
+    ax[2].annotate(f"Pressure", xy=(-0.05, 0.5), xycoords="axes fraction", 
+                      rotation=90, va="center", ha="right", 
+                      fontsize=32)
 
-    # cbar0 = fig.colorbar(im0, fraction=0.046, pad=0.04)
-    cbar1 = fig.colorbar(im1, ax=(ax[0], ax[1]), fraction=0.046, pad=0.04)
-    # cbar2 = fig.colorbar(im2, fraction=0.046, pad=0.04)
-    cbar3 = fig.colorbar(im3, ax=(ax[2], ax[3]), fraction=0.046, pad=0.04)
+    cbar1 = fig.colorbar(im1, ax=(ax[0], ax[1]), fraction=0.046, pad=0.04, shrink=0.8)
+    cbar3 = fig.colorbar(im3, ax=(ax[2], ax[3]), fraction=0.046, pad=0.04, shrink=0.8)
 
-    # cbar0.ax.tick_params(labelsize=20)
-    cbar1.ax.tick_params(labelsize=20)
-    # cbar2.ax.tick_params(labelsize=20)
-    cbar3.ax.tick_params(labelsize=20)
+    cbar1.ax.tick_params(labelsize=32, which="both")
+    cbar3.ax.tick_params(labelsize=32, which="both")
 
-    cbar1.ax.yaxis.get_offset_text().set_fontsize(20)
-    cbar3.ax.yaxis.get_offset_text().set_fontsize(20)
+    cbar1.ax.yaxis.get_offset_text().set_fontsize(32)
+    cbar3.ax.yaxis.get_offset_text().set_fontsize(32)
 
     cbar1.ax.yaxis.get_offset_text().set_x(3.0)
     cbar3.ax.yaxis.get_offset_text().set_x(3.0)
 
-    # cbar0.ax.set_title(r'[m/s]', fontsize=24, pad=15)
-    # cbar1.ax.set_title(r'[m/s]', fontsize=24, pad=15)
-    # cbar2.ax.set_title(r'[Pa]', fontsize=24, pad=15)
-    # cbar3.ax.set_title(r'[Pa]', fontsize=24, pad=15)
+    cbar1.ax.set_title(r"$\log E^{k, \ell}_2$", fontsize=32, pad=15)
+    cbar3.ax.set_title(r"$\log E^{k, \ell}_2$", fontsize=32, pad=15)
 
     for j in range(4):
-        ax[j].axis('off')
-
-    plt.tight_layout(rect=[0, 0, 0.85, 1])
+        ax[j].axis("off")
 
     plt.savefig(title)
 
     plt.show()
 
+# Divergence error plot
 def err_divergence_plot(err, title=""):
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 6))
     ax = ax.flatten()
@@ -326,7 +297,7 @@ def err_divergence_plot(err, title=""):
 
     cbar = fig.colorbar(im2, ax=(ax[0], ax[1], ax[2]), fraction=0.046, pad=0.04)
 
-    cbar.ax.set_title('[$s^{-1}$]', fontsize=24, pad=15)
+    cbar.ax.set_title("[$s^{-1}$]", fontsize=24, pad=15)
 
     cbar.ax.tick_params(labelsize=20)
 
@@ -335,7 +306,7 @@ def err_divergence_plot(err, title=""):
     cbar.ax.yaxis.get_offset_text().set_x(3.0)
 
     for j in range(3):
-        ax[j].axis('off')
+        ax[j].axis("off")
 
     plt.tight_layout(rect=[0, 0, 0.85, 1])
 
@@ -343,19 +314,19 @@ def err_divergence_plot(err, title=""):
 
     plt.show()
 
+# Helper function for printing execution times
 def print_exec_times(t):
-    print(f"numeric: {np.mean(t['numeric'])} +- {np.std(t['numeric'])}")
-    print(f"poisson: {np.mean(t['poisson'])} +- {np.std(t['poisson'])}")
-    print(f"full: {np.mean(t['full'])} +- {np.std(t['full'])}")
+    print(f"numeric: {np.mean(t["numeric"])} +- {np.std(t["numeric"])}")
+    print(f"poisson: {np.mean(t["poisson"])} +- {np.std(t["poisson"])}")
+    print(f"full: {np.mean(t["full"])} +- {np.std(t["full"])}")
 
+# Velocity plot
 def plot_velocity(ax, ux, uy, color="black", title="", scale=1):
 
     height, width = np.shape(ux)[0], np.shape(ux)[1]
     X, Y = np.meshgrid(np.linspace(0, width, width) + 0.5, 
                     np.linspace(0, height, height) + 0.5)
 
-    ax.quiver(X, Y, ux, uy, color=color, alpha = 1, scale=scale, scale_units='xy')
-    ax.set_aspect('equal', adjustable='box')
+    ax.quiver(X, Y, ux, uy, color=color, alpha = 1, scale=scale, scale_units="xy")
+    ax.set_aspect("equal", adjustable="box")
     ax.set_title(title)
-
-#####################

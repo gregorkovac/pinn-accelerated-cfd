@@ -16,9 +16,9 @@ def load_case(data_path, idx, samples_per_case=-1):
     div_u_star = np.load(os.path.join(case_path, "div_u_star.npy"))
     phi = np.load(os.path.join(case_path, "phi.npy"))
 
-    u_star = u_star #[:100]
-    phi = phi #[:100]
-    div_u_star = div_u_star #[:100]
+    u_star = u_star
+    phi = phi
+    div_u_star = div_u_star
 
     with open(os.path.join(case_path, "params.json")) as f:
         params = json.load(f)
@@ -28,9 +28,7 @@ def load_case(data_path, idx, samples_per_case=-1):
 
     indices = np.random.choice(samples_per_case, samples_per_case, replace=False)
 
-    return u_star[indices], phi[indices], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["geometry"], div_u_star[indices] #, params["cylinder_x"], params["cylinder_y"], params["cylinder_r"]
-
-    # return u_star[indices], phi[indices], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["geometry"], div_u_star[indices] #, params["cylinder_x"], params["cylinder_y"], params["cylinder_r"]
+    return u_star[indices], phi[indices], params["dx"], params["dy"], params["time_step"], params["density"], params["viscosity"], params["geometry"], div_u_star[indices]
 
 def get_geometry_region(g, width, height):
     # Extract the region
@@ -257,81 +255,16 @@ class PoissonPINNDataset(PINNDataset):
 
         self.x = []
         for idx in range(N * samples_per_case):
-
-
             shp = self.p_dirichlet[idx].unsqueeze(0).shape
             ones = torch.ones(shp).to(device)
 
-            # self.x.append(torch.cat([self.u_star[idx].permute(2, 0, 1), # 0, 1
-            #            self.coords, # 2, 3
-            #            self.p_neumann[idx].permute(2, 0, 1), # 4, 5
-            #            self.p_dirichlet[idx].unsqueeze(0), # 6
-            #            self.p_dirichlet_mask[idx].unsqueeze(0), # 7
-            #            self.rho[idx] * ones, # 8
-            #            self.delta_t[idx] * ones, # 9 
-            #            self.boundary_mask[idx].unsqueeze(0), # 10
-            #            self.div_u_star[idx].unsqueeze(0) # 11
-            #         ], dim=0))
-
-            # self.x.append(torch.cat([
-            #                self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
-            #                0 * self.coords, # 1, 2
-            #                0 * self.p_dirichlet[idx].unsqueeze(0), # 3,
-            #                0 * self.p_dirichlet_mask[idx].unsqueeze(0), # 4
-            #                self.boundary_mask[idx].unsqueeze(0), # 5
-            #                0 * self.u_star[idx].permute(2, 0, 1), # 6, 7
-            #                0 * self.p_neumann[idx].permute(2, 0, 1), # 8, 9
-            #                self.rho[idx] * ones, # 10
-            #                self.delta_t[idx] * ones, # 11
-            #                self.delta_x[idx] * ones, # 12
-            #                self.delta_y[idx] * ones, # 13
-            #             ], dim=0))
-
-            # self.x.append(torch.cat([
-            #                self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
-            #                self.boundary_mask[idx].unsqueeze(0), # 1
-            #                self.rho[idx] * ones, # 2
-            #                self.delta_t[idx] * ones, # 3
-            #                self.delta_x[idx] * ones, # 4
-            #                self.delta_y[idx] * ones, # 5
-            #             ], dim=0))
-
             self.x.append(torch.cat([
-                           self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
+                           self.div_u_star[idx].unsqueeze(0), # 0
                            self.delta_x[idx] * ones, # 1
                            self.delta_y[idx] * ones, # 2
                         ], dim=0))
 
-            # self.x.append(torch.cat([
-            #                self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
-            #                self.rho[idx] * ones, # 1
-            #                self.delta_t[idx] * ones, # 2
-            #                self.delta_x[idx] * ones, # 3
-            #                self.delta_y[idx] * ones, # 4
-            #             ], dim=0))
-            
-            # self.x.append(torch.cat([
-            #                self.div_u_star[idx].unsqueeze(0), #*(1 - self.boundary_mask[idx].unsqueeze(0)), # 0
-            #                self.delta_x[idx] * ones, # 1
-            #                self.delta_y[idx] * ones, # 2
-            #             #    self.coords # 3, 4
-            #             ], dim=0))
-
-            # plt.ioff()
-            # fig, ax = plt.subplots(3, 4)
-            # ax = ax.flatten()
-            # for j in range(0, 12):
-            #     im = ax[j].imshow(self.x[-1][j].cpu().detach().numpy())
-            #     plt.colorbar(im)
-
-            # plt.show()
-
         self.x = torch.stack(self.x, dim=0).to(device)
-
-        # for k in range(self.x.shape[1]):
-        #     print(f"{k}  :    {self.x[0, k].mean()} +- {self.x[0, k].std()}      min = {self.x[0, k].min()}   max = {self.x[0, k].max()}")
-        # exit(0)
-
 
     def __getitem__(self, idx):
         return self.x[idx], self.delta_x[idx], self.delta_y[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
@@ -340,59 +273,8 @@ class PoissonPINNDataset(PINNDataset):
         return self.phi[idx]
     
     def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
-
-        # out[..., 1:-1, -1] = 0
-
-        # out[..., 0, :] = 0
-        # out[..., -1, :] = 0
-        # out[..., 0] = 0
-        # out[..., -1] = 0
-
         return out
 
-        p_dirichlet = x[:, 3:4]
-        p_dirichlet_mask = x[:, 4:5]
-        p_neumann = x[:, 8:10]
-        boundary_mask = x[:, 5:6]
-
-        p = out
-        # p = F.pad(out[..., 1:-1, 1:-1], (1, 1, 1, 1), mode="replicate")
-        # p = F.pad(out, (1, 1, 1, 1), mode="constant", value=0)
-        # p = F.pad(out, (1, 1, 1, 1), mode="replicate")
-        # p = F.pad(out, (1, 1, 1, 1), mode="reflect")
-
-        # p_dirichlet_mask = F.pad(p_dirichlet_mask[:, :, 1:-1, 1:-1], (1, 1, 1, 1), mode="constant", value=1)
-        # p_dirichlet_mask = F.pad(p_dirichlet_mask, (1, 1, 1, 1), mode="constant", value=1)
-        # p_dirichlet = F.pad(p_dirichlet, (1, 1, 1, 1), mode="constant", value=0)
-        # p_neumann = F.pad(p_neumann, (1, 1, 1, 1), mode="constant", value=1)
-        # boundary_mask = F.pad(boundary_mask, (1, 1, 1, 1), mode="constant", value=1)
-
-        # plt.ioff()
-        # plt.imshow(p_dirichlet_mask[0, 0].detach().cpu().numpy())
-        # plt.show()
-
-        # exit(0)
-
-        # print(f"Inside enforce BC after pad: {p.shape}")
-
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == -1), torch.roll(p, 1, dims=-2), p)
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == 1), torch.roll(p, -1, dims=-2), p)
-
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 0].unsqueeze(1) == -1), torch.roll(p, 1, dims=-1), p)
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 0].unsqueeze(1) == 1), torch.roll(p, -1, dims=-1), p)
-
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == -1), torch.roll(p, 1, dims=-2), p)
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == 1), torch.roll(p, -1, dims=-2), p)
-
-
-        p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
-
-        # plt.ioff()
-        # plt.imshow(p[0, 0].cpu().detach().numpy())
-        # plt.colorbar()
-        # plt.show()
-        
-        return p
 
 class FullPINNDataset(PINNDataset):
     def __init__(self, data_path, N, device, samples_per_case=-1, start_sample=0):
@@ -410,7 +292,6 @@ class FullPINNDataset(PINNDataset):
             ones = torch.ones(shp).to(device)
 
             self.x.append(torch.cat([
-                    #    F.pad(self.coords, (1, 1, 1, 1)), # 0, 1
                        0 * self.coords, # 0, 1
                        self.u_dirichlet[idx].permute(2, 0, 1), # 2, 3
                        self.u_dirichlet_mask[idx].permute(2, 0, 1), # 4, 5
@@ -428,20 +309,8 @@ class FullPINNDataset(PINNDataset):
         self.x = torch.stack(self.x, dim=0).to(device)
 
     def __getitem__(self, idx):
-
         return self.x[idx], self.delta_x[idx], self.delta_y[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
 
-        # x = torch.cat([self.coords, # 0, 1
-        #                self.u_dirichlet[idx].permute(2, 0, 1), # 2, 3
-        #                self.u_dirichlet_mask[idx].permute(2, 0, 1), # 4, 5
-        #                self.u_neumann[idx].permute(2, 0, 1), # 6, 7
-        #                self.p_dirichlet[idx].unsqueeze(0), # 8
-        #                self.p_dirichlet_mask[idx].unsqueeze(0), # 9
-        #                self.p_neumann[idx].permute(2, 0, 1), # 10, 11
-        #             ], dim=0) 
-
-        # return x, self.delta_x[idx], self.delta_y[idx], self.t[idx], self.delta_t[idx], self.rho[idx], self.mu[idx], self.coords, self.boundary_mask[idx]
-    
     def enforceBC(self, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
         u_dirichlet = x[:, 2:4]
         u_dirichlet_mask = x[:, 4:6] #.expand(-1, 2, -1, -1)
@@ -451,84 +320,8 @@ class FullPINNDataset(PINNDataset):
         p_neumann = x[:, 10:12]
         boundary_mask = x[:, 14:15]
 
-
-        # u_dirichlet_mask = F.pad(u_dirichlet_mask, (1, 1, 1, 1), mode="constant", value=1)
-        # u_dirichlet = F.pad(u_dirichlet, (1, 1, 1, 1), mode="constant", value=0)
-        # u_neumann = F.pad(u_neumann, (1, 1, 1, 1), mode="constant", value=1)
-        # p_dirichlet_mask = F.pad(p_dirichlet_mask, (1, 1, 1, 1), mode="constant", value=1)
-        # p_dirichlet = F.pad(p_dirichlet, (1, 1, 1, 1), mode="constant", value=0)
-        # p_neumann = F.pad(p_neumann, (1, 1, 1, 1), mode="constant", value=1)
-        # boundary_mask = F.pad(boundary_mask, (1, 1, 1, 1), mode="constant", value=1)
-
-        # plt.ioff()
-        # fig, ax = plt.subplots(2, 6)
-        # ax = ax.flatten()
-
-        # im0 = ax[0].imshow(u_dirichlet[0, 0].detach().cpu().numpy())
-        # ax[0].set_title("u_dirichlet[0]")
-        # plt.colorbar(im0)
-
-        # im1 = ax[1].imshow(u_dirichlet[0, 1].detach().cpu().numpy())
-        # ax[1].set_title("u_dirichlet[1]")
-        # plt.colorbar(im1)
-
-        # im2 = ax[2].imshow(u_dirichlet_mask[0, 0].detach().cpu().numpy())
-        # ax[2].set_title("u_dirichlet_mask[0]")
-        # plt.colorbar(im2)
-
-        # im3 = ax[3].imshow(u_dirichlet_mask[0, 1].detach().cpu().numpy())
-        # ax[3].set_title("u_dirichlet_mask[0]")
-        # plt.colorbar(im3)
-
-        # im4 = ax[4].imshow(u_neumann[0, 0].detach().cpu().numpy())
-        # ax[4].set_title("u_neumann[0]")
-        # plt.colorbar(im4)
-
-        # im5 = ax[5].imshow(u_neumann[0, 1].detach().cpu().numpy())
-        # ax[5].set_title("u_neumann[1]")
-        # plt.colorbar(im5)
-
-        # im6 = ax[6].imshow(p_dirichlet[0, 0].detach().cpu().numpy())
-        # ax[6].set_title("p_dirichlet")
-        # plt.colorbar(im6)
-
-        # im7 = ax[7].imshow(p_dirichlet_mask[0, 0].detach().cpu().numpy())
-        # ax[7].set_title("p_dirichlet_mask")
-        # plt.colorbar(im7)
-
-        # im8 = ax[8].imshow(p_neumann[0, 0].detach().cpu().numpy())
-        # ax[8].set_title("p_neumann[0]")
-        # plt.colorbar(im8)
-
-        # im9 = ax[9].imshow(p_neumann[0, 1].detach().cpu().numpy())
-        # ax[9].set_title("p_neumann[1]")
-        # plt.colorbar(im9)
-
-        # im10 = ax[10].imshow(out[0, 0].detach().cpu().numpy())
-        # ax[10].set_title("u[0]")
-        # plt.colorbar(im10)
-
-        # plt.show()
-        # out = F.pad(out, (1, 1, 1, 1), mode="replicate")
-
         u = out[:, :2]
         p = out[:, 2:3]
-
-        # vmin = -0.01
-        # vmax = 0.01
-        
-        # plt.ioff()
-        # fig, ax = plt.subplots(3, 2)
-        # ax = ax.flatten()
-        # im0 = ax[0].imshow(u[0, 0].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
-        # im1 = ax[1].imshow(u[0, 1].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
-        # ax[0].set_title("Original")
-        # ax[1].set_title("Original")
-        # plt.colorbar(im0)
-        # plt.colorbar(im1)
-
-        # u[..., -1] = u[..., -2]
-        # u[:, -1, :] = 10
 
 
         u = torch.where((boundary_mask == 1) & (u_neumann[:, 0].unsqueeze(1) == -1), torch.roll(u, 1, dims=-1), u)
@@ -537,70 +330,7 @@ class FullPINNDataset(PINNDataset):
         u = torch.where((boundary_mask == 1) & (u_neumann[:, 1].unsqueeze(1) == -1), torch.roll(u, 1, dims=-2), u)
         u = torch.where((boundary_mask == 1) & (u_neumann[:, 1].unsqueeze(1) == 1), torch.roll(u, -1, dims=-2), u)
 
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 0].unsqueeze(1) == -1), torch.roll(p, 1, dims=-1), p)
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 0].unsqueeze(1) == 1), torch.roll(p, -1, dims=-1), p)
-
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == -1), torch.roll(p, 1, dims=-2), p)
-        # p = torch.where((boundary_mask == 1) & (p_neumann[:, 1].unsqueeze(1) == 1), torch.roll(p, -1, dims=-2), p)
-
         u = u * (1 - u_dirichlet_mask) + u_dirichlet * u_dirichlet_mask
         p = p * (1 - p_dirichlet_mask) + p_dirichlet * p_dirichlet_mask
-        
-        # u = torch.where(
-        #     u_neumann[:, 1].unsqueeze(1) == -1, torch.roll(u, 1, dims=2),
-        #     torch.where(u_neumann[:, 1].unsqueeze(1) ==  1, torch.roll(u, -1, dims=2), u)
-        # )
-
-        # im2 = ax[2].imshow(u[0, 0].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
-        # im3 = ax[3].imshow(u[0, 1].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
-        # ax[2].set_title("After Neumann")
-        # ax[3].set_title("After Neumann")
-        # plt.colorbar(im2)
-        # plt.colorbar(im3)
-
-
-        # u_y = u[:, 0] * (1 - u_dirichlet_mask) + u_dirichlet[:, 0] * u_dirichlet_mask
-        # u_x = u[:, 1] * (1 - u_dirichlet_mask) + u_dirichlet[:, 1] * u_dirichlet_mask
-
-        # im4 = ax[4].imshow(u[0, 0].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
-        # im5 = ax[5].imshow(u[0, 1].detach().cpu().numpy(), vmin=vmin, vmax=vmax)
-        # ax[4].set_title("After Dirichlet")
-        # ax[5].set_title("After Dirichlet")
-        # plt.colorbar(im4)
-        # plt.colorbar(im5)
-        # plt.tight_layout()
-        # plt.show()
-
-
-        # plt.ioff()
-        # fig, ax = plt.subplots(1, 3)
-        # im0 = ax[0].imshow(u[0, 0].detach().cpu().numpy())
-        # im1 = ax[1].imshow(u[0, 1].detach().cpu().numpy())
-        # im2 = ax[2].imshow(p[0, 0].detach().cpu().numpy())
-        # plt.colorbar(im0)
-        # plt.colorbar(im1)
-        # plt.colorbar(im2)
-
-        # ax[0].set_title("ux")
-        # ax[1].set_title("uy")
-        # ax[2].set_title("p")
-        # plt.show()
 
         return torch.cat([u, p], dim=1).to(u.device)
-
-class CaseBatchSampler(Sampler):
-    def __init__(self, dataset_len, samples_per_case):
-        self.dataset_len = dataset_len
-        self.samples_per_case = samples_per_case
-        self.num_cases = dataset_len // samples_per_case
-
-    def __iter__(self):
-        case_order = list(range(self.num_cases))
-        random.shuffle(case_order)
-        for case_idx in case_order:
-            start = case_idx * self.samples_per_case
-            end = start + self.samples_per_case
-            yield list(range(start, end))
-
-    def __len__(self):
-        return self.num_cases
