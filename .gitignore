@@ -22,3 +22,6 @@ src/analysis/benchmark_comparison_results_new_new
 src/analysis/out/
 src/analysis/results/
 src/analysis/results_old/
+src/analysis/cases
+src/analysis/benchmark-comapre.py
+src/analysis/pipe.ipynb
