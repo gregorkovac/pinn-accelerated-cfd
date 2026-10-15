@@ -15,7 +15,7 @@ from misc import navier_stokes_error
 
 def main(case_name = None):
     if case_name == None:
-        case_name = "examples/pipe.json"
+        case_name = "../../data/cases/pipe.json"
     
     with open(case_name) as f:
         case = json.load(f)

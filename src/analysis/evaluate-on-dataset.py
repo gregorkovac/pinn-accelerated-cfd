@@ -66,17 +66,19 @@ def prepare_case(case_bench, case_nm, ux, type, changing_param, case_num=-1):
     iterations = 2000
 
     if type == "tube" and changing_param == "geo":
-        dynamic_time_step = False
+        dynamic_time_step = True
+        # time_step = 0.3
         time_step = width_phys * 0.001
         # time_step = 0.001
         # time_step = 0.0001 + case_num * (0.01 - 0.0001)
     elif type == "tube" and changing_param == "prop":
-        dynamic_time_step = False
-        time_step = 0.00001 * case_bench["density"] / case_bench["viscosity"]
+        dynamic_time_step = True
+        time_step = 0.5
+        # time_step = 0.00001 * case_bench["density"] / case_bench["viscosity"]
         # time_step = 0.1
     else:
         dynamic_time_step = True
-        time_step = 0.1
+        time_step = 0.2
 
     for gi in range(len(case_nm["geometry"])):
         if case_nm["geometry"][gi]["type"] == "inflow":
@@ -167,16 +169,17 @@ def eval_case(case_path, case_num=-1):
         prepared_params["height_px"],
         prepared_params["dx"],
         prepared_params["dy"],
-        1000,
+        50000,
         case_nm["time_step"],
         case_nm["density"],
         case_nm["viscosity"],
         case_nm["beta"],
         case_nm["geometry"],
         dynamic_time_step=prepared_params["dynamic_time_step"],
-        implicit_laplacian=True,
+        implicit_laplacian=False,
         return_div_u_star=True,
-        method_type="numeric"
+        method_type="numeric",
+        convergence_criterion=1e-3
     )
 
     u_nm = np.transpose(u[-1], (2, 0, 1))
@@ -192,13 +195,16 @@ def eval_case(case_path, case_num=-1):
     u_baseline = u_baseline.transpose(1, 2, 0)
     u_nm = u_nm.transpose(1, 2, 0)
 
-    err_inf = Linf(u_baseline, u_nm)
-    err_l1 = L1(u_baseline, u_nm)
-    err_l2 =  L2(u_baseline, u_nm)
+    err_inf = Linf_pointwise(u_baseline, u_nm)
+    err_l1 = L1_pointwise(u_baseline, u_nm)
+    err_l2 =  L2_pointwise(u_baseline, u_nm)
 
-    denom_inf = Linf(u_baseline, np.zeros_like(u_baseline))
-    denom_l1 = Linf(u_baseline, np.zeros_like(u_baseline))
-    denom_l2 = Linf(u_baseline, np.zeros_like(u_baseline))
+    denom_inf = Linf_pointwise(u_baseline, np.zeros_like(u_baseline))
+    denom_l1 = L1_pointwise(u_baseline, np.zeros_like(u_baseline))
+    denom_l2 = L2_pointwise(u_baseline, np.zeros_like(u_baseline))
+
+    div_err_baseline = divergence_err(u_baseline, dy=prepared_params["dy"], dx=prepared_params["dx"], norm="2", bound=boundary)
+    div_err = divergence_err(u_nm, dy=prepared_params["dy"], dx=prepared_params["dx"], norm="2", bound=boundary)
 
     results = {}
 
@@ -215,6 +221,9 @@ def eval_case(case_path, case_num=-1):
     results["denom_l2"] = denom_l2
     results["bound"] = boundary
     results["u"] = u_nm
+    results["div_err_baseline"] = div_err_baseline
+    results["div_err"] = div_err
+
 
     print(f"{case_path}: L1 mean = {err_l1[boundary != 1].sum() / (denom_l1[boundary != 1].sum() + 1e-8)}   L2 mean = {err_l2[boundary != 1].sum() / (denom_l2[boundary != 1].sum() + 1e-8)}   Linf mean = {err_inf[boundary != 1].sum() / (denom_inf[boundary != 1].sum() + 1e-8)}")
 
@@ -228,7 +237,7 @@ def eval_folder(folder_path, case_indices=[]):
         case_path = "case" + str(i).zfill(4)
         res = eval_case(os.path.join(folder_path, case_path), case_num=case_num)
 
-        dir_path = os.path.join("./benchmark_comparison_results_new/cylinder2", str(i))
+        dir_path = os.path.join("./benchmark_comparison_results_new_new", str(i))
 
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
@@ -245,6 +254,9 @@ def eval_folder(folder_path, case_indices=[]):
 
         np.save(os.path.join(dir_path, "u.npy"), res["u"])
 
+        np.save(os.path.join(dir_path, "div_err.npy"), res["div_err"])
+        np.save(os.path.join(dir_path, "div_err_baseline.npy"), res["div_err_baseline"])
+
         results.append(res)
 
         case_num += 1 / len(case_indices)
@@ -254,16 +266,16 @@ def eval_folder(folder_path, case_indices=[]):
     case_ = folder_path.split("/")[-2]
     changing_param = folder_path.split("/")[-1]
 
-    df.to_csv(f"./benchmark_comparison_results_new/results_{case_}_{changing_param}.csv", index=False, sep=";")
+    df.to_csv(f"./benchmark_comparison_results_new_new/results_{case_}_{changing_param}.csv", index=False, sep=";")
 
 
 def main():
     # eval_folder(folder_path="../../../CFDBench/tube/bc",
     #             case_indices=[i for i in range(1, 50)])
-    # eval_folder(folder_path="../../../CFDBench/tube/geo",
-    #             case_indices=[i for i in range(150, 174)])
-    eval_folder(folder_path="../../../CFDBench/tube/prop",
-                case_indices=[i for i in range(60, 150)])
+    eval_folder(folder_path="../../../CFDBench/tube/geo",
+                case_indices=[i for i in range(150, 174)])
+    # eval_folder(folder_path="../../../CFDBench/tube/prop",
+    #             case_indices=[i for i in range(60, 150)])
 
     # eval_folder(folder_path="../../../CFDBench/cylinder/bc",
     #             case_indices=[i for i in range(21, 50)])

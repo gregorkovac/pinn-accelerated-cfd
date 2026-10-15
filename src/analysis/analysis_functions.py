@@ -8,7 +8,8 @@ import seaborn as sns
 import sys
 sys.path.insert(0, "..")
 from modeling.data import geometry_to_mtx
-from derivatives import divergence
+from derivatives import divergence, convective, grad, laplacian
+from scipy.ndimage import binary_dilation
 
 COLOR_NUMERIC = "#1b9e77"
 COLOR_POISSON = "#d95f02"
@@ -56,44 +57,126 @@ def load_case(results_dir):
 
     return case
 
+# # L1 error
+# def L1(y_true, y_pred):
+#     y_true = np.array(y_true, dtype=float)
+#     y_pred = np.array(y_pred, dtype=float)
+
+#     return np.sum(np.abs(y_pred - y_true), axis=-1)
+
+# # L2 error
+# def L2(y_true, y_pred):
+#     y_true = np.array(y_true, dtype=float)
+#     y_pred = np.array(y_pred, dtype=float)
+
+#     return np.sqrt(np.sum((y_pred - y_true) ** 2, axis=-1))
+
+# # L infinity error
+# def Linf(y_true, y_pred):
+#     y_true = np.array(y_true, dtype=float)
+#     y_pred = np.array(y_pred, dtype=float)
+
+#     return np.max(np.abs((y_pred - y_true)), axis=-1)
+
 # L1 error
 def L1(y_true, y_pred):
     y_true = np.array(y_true, dtype=float)
     y_pred = np.array(y_pred, dtype=float)
 
-    return np.sum(np.abs(y_pred - y_true), axis=-1)
+    return np.sum(np.abs(y_pred - y_true))
 
 # L2 error
 def L2(y_true, y_pred):
     y_true = np.array(y_true, dtype=float)
     y_pred = np.array(y_pred, dtype=float)
 
-    return np.sqrt(np.sum((y_pred - y_true) ** 2, axis=-1))
+    return np.sqrt(np.sum((y_pred - y_true) ** 2))
 
 # L infinity error
 def Linf(y_true, y_pred):
     y_true = np.array(y_true, dtype=float)
     y_pred = np.array(y_pred, dtype=float)
 
+    return np.max(np.abs(y_pred - y_true))
+
+def L1_pointwise(y_true, y_pred):
+    y_true = np.array(y_true, dtype=float)
+    y_pred = np.array(y_pred, dtype=float)
+
+    return np.sum(np.abs(y_pred - y_true), axis=-1)
+
+# L2 error
+def L2_pointwise(y_true, y_pred):
+    y_true = np.array(y_true, dtype=float)
+    y_pred = np.array(y_pred, dtype=float)
+
+    return np.sqrt(np.sum((y_pred - y_true) ** 2, axis=-1))
+
+# L infinity error
+def Linf_pointwise(y_true, y_pred):
+    y_true = np.array(y_true, dtype=float)
+    y_pred = np.array(y_pred, dtype=float)
+
     return np.max(np.abs((y_pred - y_true)), axis=-1)
 
 # Divergence error
+# def divergence_err(u, dy, dx, norm, bound):
+#     div_u = divergence(u = u, dx = dx, dy = dy, boundary=None, numpy_=True)
+
+#     print(u.shape)
+
+#     if norm == "2":
+#         return div_u ** 2
+        
+#     return np.abs(div_u)
+
 def divergence_err(u, dy, dx, norm, bound):
-    div_u = divergence(u = u, dx = dx, dy = dy, boundary=None, numpy_=True)
+    div_u = divergence(u=u, dx=dx, dy=dy, boundary=None, numpy_=True)
+
+    # exclude = binary_dilation(bound.astype(bool), iterations=1)
+    # div_u = np.where(exclude, 0.0, div_u)
+
+    div_u[bound == 1] = np.nan
 
     if norm == "2":
         return div_u ** 2
-        
+
     return np.abs(div_u)
+
+def momentum_err(u, dy, dx, norm, bound, p, rho, nu):
+    conv = np.asarray(convective(u=u, dx=dx, dy=dy, boundary=None, numpy_=True), dtype=np.float64)
+
+    grad_p = np.asarray(grad(u=p, dx=dx, dy=dy, boundary=None, numpy_=True), dtype=np.float64)
+
+    lap_u = np.asarray(laplacian(u=u, dx=dx, dy=dy, boundary=None, numpy_=True), dtype=np.float64)
+
+    residual = conv + grad_p / rho - nu * lap_u
+    
+    residual_mag = np.linalg.norm(residual, axis=-1)
+
+    # exclude = binary_dilation(bound, iterations=1)
+    # residual_mag = np.where(exclude, np.nan, result)
+
+    residual_mag[bound == 1] = np.nan
+
+    if norm == "2":
+        result = residual_mag**2
+    else:
+        result = residual_mag
+
+    return result
 
 # Computes errors for a case in a specified norm
 def compute_errors(case, norm="2"):
     if norm == "2":
         func = L2
+        func_pointwise = L2_pointwise
     elif norm == "1":
         func = L1
+        func_pointwise = L1_pointwise
     elif norm == "inf":
         func = Linf
+        func_pointwise = Linf_pointwise
 
     u_err_poisson = [func(case["u_numeric"][i], case["u_poisson"][i]) for i in range(len(case["u_numeric"]))]
     p_err_poisson = [func(case["p_numeric"][i][..., None], case["p_poisson"][i][..., None]) for i in range(len(case["u_numeric"]))]
@@ -101,12 +184,26 @@ def compute_errors(case, norm="2"):
     u_err_full = [func(case["u_numeric"][i], case["u_full"][i]) for i in range(len(case["u_numeric"]))]
     p_err_full = [func(case["p_numeric"][i][..., None], case["p_full"][i][..., None]) for i in range(len(case["u_numeric"]))]
 
-    u_denom = [np.sum(func(case["u_numeric"][i], np.zeros_like(case["u_numeric"][i]))[case["boundaries"][i] != 1]) + 1e-8 for i in range(len(case["u_numeric"]))]
-    p_denom = [np.sum(func(case["p_numeric"][i][..., None], np.zeros_like(case["p_numeric"][i][..., None]))[case["boundaries"][i] != 1]) + 1e-8 for i in range(len(case["u_numeric"]))]
+    u_err_poisson_pointwise = [func_pointwise(case["u_numeric"][i], case["u_poisson"][i]) for i in range(len(case["u_numeric"]))]
+    p_err_poisson_pointwise = [func_pointwise(case["p_numeric"][i][..., None], case["p_poisson"][i][..., None]) for i in range(len(case["u_numeric"]))]
+
+    u_err_full_pointwise = [func_pointwise(case["u_numeric"][i], case["u_full"][i]) for i in range(len(case["u_numeric"]))]
+    p_err_full_pointwise = [func_pointwise(case["p_numeric"][i][..., None], case["p_full"][i][..., None]) for i in range(len(case["u_numeric"]))]
+
+
+    u_denom = [func(case["u_numeric"][i], np.zeros_like(case["u_numeric"][i])) + 1e-8 for i in range(len(case["u_numeric"]))]
+    p_denom = [func(case["p_numeric"][i][..., None], np.zeros_like(case["p_numeric"][i][..., None])) + 1e-8 for i in range(len(case["u_numeric"]))]
+
+    u_denom_pointwise = [np.sum(func_pointwise(case["u_numeric"][i], np.zeros_like(case["u_numeric"][i]))[case["boundaries"][i] != 1]) + 1e-8 for i in range(len(case["u_numeric"]))]
+    p_denom_pointwise = [np.sum(func_pointwise(case["p_numeric"][i][..., None], np.zeros_like(case["p_numeric"][i][..., None]))[case["boundaries"][i] != 1]) + 1e-8 for i in range(len(case["u_numeric"]))]
 
     divergence_err_numeric = [divergence_err(case["u_numeric"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm, bound=case["boundaries"][i]) for i in range(len(case["u_numeric"]))]
     divergence_err_poisson = [divergence_err(case["u_poisson"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm, bound=case["boundaries"][i]) for i in range(len(case["u_poisson"]))]
     divergence_err_full = [divergence_err(case["u_full"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm, bound=case["boundaries"][i]) for i in range(len(case["u_full"]))]
+
+    momentum_err_numeric = [momentum_err(case["u_numeric"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm, bound=case["boundaries"][i], p=case["p_numeric"][i], rho=1261, nu=1.19 * 0.001) for i in range(len(case["u_numeric"]))]
+    momentum_err_poisson = [momentum_err(case["u_poisson"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm, bound=case["boundaries"][i], p=case["p_poisson"][i], rho=1261, nu=1.19 * 0.001) for i in range(len(case["u_poisson"]))]
+    momentum_err_full = [momentum_err(case["u_full"][i], case["params"][i]["dy"], case["params"][i]["dx"], norm=norm, bound=case["boundaries"][i], p=case["p_full"][i], rho=1261, nu=1.19 * 0.001) for i in range(len(case["u_full"]))]
 
     err = {}
     err["u_err_poisson"] = u_err_poisson
@@ -114,12 +211,24 @@ def compute_errors(case, norm="2"):
     err["u_err_full"] = u_err_full
     err["p_err_full"] = p_err_full
 
+    err["u_err_poisson_pointwise"] = u_err_poisson_pointwise
+    err["p_err_poisson_pointwise"] = p_err_poisson_pointwise
+    err["u_err_full_pointwise"] = u_err_full_pointwise
+    err["p_err_full_pointwise"] = p_err_full_pointwise
+
     err["u_denominator"] = u_denom
     err["p_denominator"] = p_denom
 
+    err["u_denominator_pointwise"] = u_denom_pointwise
+    err["p_denominator_pointwise"] = p_denom_pointwise
+    
     err["divergence_numeric"] = divergence_err_numeric
     err["divergence_poisson"] = divergence_err_poisson
     err["divergence_full"] = divergence_err_full
+
+    err["momentum_numeric"] = momentum_err_numeric
+    err["momentum_poisson"] = momentum_err_poisson
+    err["momentum_full"] = momentum_err_full
 
     err["boundaries"] = case["boundaries"]
 
@@ -129,9 +238,13 @@ def compute_errors(case, norm="2"):
 def print_err_mean_std(err):
     bound = np.array(err["boundaries"])
 
-    err_div_n = np.array(err["divergence_numeric"])
-    err_div_p = np.array(err["divergence_poisson"])
-    err_div_f = np.array(err["divergence_full"])
+    err_div_n = np.asarray(err["divergence_numeric"], dtype=np.float64)
+    err_div_p = np.asarray(err["divergence_poisson"], dtype=np.float64)
+    err_div_f = np.asarray(err["divergence_full"], dtype=np.float64)
+
+    err_mom_n = np.asarray(err["momentum_numeric"], dtype=np.float64)
+    err_mom_p = np.asarray(err["momentum_poisson"], dtype=np.float64)
+    err_mom_f = np.asarray(err["momentum_full"], dtype=np.float64)
 
     err_u_p = np.array(err["u_err_poisson"])
     err_u_f = np.array(err["u_err_full"])
@@ -142,25 +255,36 @@ def print_err_mean_std(err):
     u_denom = np.array(err["u_denominator"])
     p_denom = np.array(err["p_denominator"])
     
-    err_u_p = np.sum(err_u_p, axis=(1, 2)) / u_denom
-    err_u_f = np.sum(err_u_f, axis=(1, 2)) / u_denom
+    # err_u_p = np.sum(err_u_p, axis=(1, 2)) / u_denom
+    # err_u_f = np.sum(err_u_f, axis=(1, 2)) / u_denom
 
-    err_p_p = np.sum(err_p_p, axis=(1, 2)) / p_denom
-    err_p_f = np.sum(err_p_f, axis=(1, 2)) / p_denom
+    err_u_p = err_u_p / u_denom
+    err_u_f = err_u_f / u_denom
 
-    err_div_n = err_div_n[bound != 1]
-    err_div_p = err_div_p[bound != 1]
-    err_div_f = err_div_f[bound != 1]
+    # err_p_p = np.sum(err_p_p, axis=(1, 2)) / p_denom
+    # err_p_f = np.sum(err_p_f, axis=(1, 2)) / p_denom
 
-    print(f"numeric divergence = {np.mean(err_div_n)} +- {np.std(err_div_n)}")
+    err_p_p = err_p_p / p_denom
+    err_p_f = err_p_f / p_denom
+
+    # print(err_div_n.shape)
+
+    # err_div_n = err_div_n[bound != 1]
+    # err_div_p = err_div_p[bound != 1]
+    # err_div_f = err_div_f[bound != 1]
+
+    print(f"numeric divergence error = {np.nanmean(err_div_n)} +- {np.nanstd(err_div_n)}")
+    print(f"numeric momentum error = {np.nanmean(err_mom_n)} +- {np.nanstd(err_mom_n)}")
     print()
-    print(f"u poisson error = {np.mean(err_u_p)} +- {np.std(err_u_p)}")
-    print(f"p poisson error = {np.mean(err_p_p)} +- {np.std(err_p_p)}")
-    print(f"poisson divergence error = {np.mean(err_div_p)} +- {np.std(err_div_p)}")
+    print(f"u poisson error = {np.nanmean(err_u_p)} +- {np.nanstd(err_u_p)}")
+    print(f"p poisson error = {np.nanmean(err_p_p)} +- {np.nanstd(err_p_p)}")
+    print(f"poisson divergence error = {np.nanmean(err_div_p)} +- {np.nanstd(err_div_p)}")
+    print(f"poisson momentum error = {np.nanmean(err_mom_p)} +- {np.nanstd(err_mom_p)}")
     print()
-    print(f"u full error = {np.mean(err_u_f)} +- {np.std(err_u_f)}")
-    print(f"p full error = {np.mean(err_p_f)} +- {np.std(err_p_f)}")
-    print(f"full divergence error = {np.mean(err_div_f)} +- {np.std(err_div_f)}")
+    print(f"u navier-stokes error = {np.nanmean(err_u_f)} +- {np.nanstd(err_u_f)}")
+    print(f"p navier-stokes error = {np.nanmean(err_p_f)} +- {np.nanstd(err_p_f)}")
+    print(f"navier-stokes divergence error = {np.nanmean(err_div_f)} +- {np.nanstd(err_div_f)}")
+    print(f"navier-stokes momentum error = {np.nanmean(err_mom_f)} +- {np.nanstd(err_mom_f)}")
 
 # Kernel density estimate lot of errors
 def err_kde_plot(err, title=""):
@@ -200,7 +324,7 @@ def time_kde_plot(times, title=""):
 
 # Pointwise error plots
 def err_pointwise_plot(err, title=""):
-    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(12, 12), layout="constrained")
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(16, 12), layout="constrained")
     ax = ax.flatten()
 
     bound = np.array(err["boundaries"], dtype=float)
@@ -208,11 +332,11 @@ def err_pointwise_plot(err, title=""):
     u_denom = np.array(err["u_denominator"])
     p_denom = np.array(err["p_denominator"])
 
-    u_poisson = np.array(err["u_err_poisson"], dtype=float) * (1 - bound) / (u_denom[:, None, None] * np.ones(np.array(err["u_err_poisson"], dtype=float).shape))
-    p_poisson = np.array(err["p_err_poisson"], dtype=float) * (1 - bound) / (p_denom[:, None, None] * np.ones(np.array(err["p_err_poisson"], dtype=float).shape))
+    u_poisson = np.array(err["u_err_poisson_pointwise"], dtype=float) * (1 - bound) / (u_denom[:, None, None] * np.ones(np.array(err["u_err_poisson_pointwise"], dtype=float).shape))
+    p_poisson = np.array(err["p_err_poisson_pointwise"], dtype=float) * (1 - bound) / (p_denom[:, None, None] * np.ones(np.array(err["p_err_poisson_pointwise"], dtype=float).shape))
 
-    u_full = np.array(err["u_err_full"], dtype=float) * (1 - bound) / (u_denom[:, None, None] * np.ones(np.array(err["u_err_poisson"], dtype=float).shape))
-    p_full = np.array(err["p_err_full"], dtype=float) * (1 - bound) / (p_denom[:, None, None] * np.ones(np.array(err["p_err_poisson"], dtype=float).shape))
+    u_full = np.array(err["u_err_full_pointwise"], dtype=float) * (1 - bound) / (u_denom[:, None, None] * np.ones(np.array(err["u_err_poisson_pointwise"], dtype=float).shape))
+    p_full = np.array(err["p_err_full_pointwise"], dtype=float) * (1 - bound) / (p_denom[:, None, None] * np.ones(np.array(err["p_err_poisson_pointwise"], dtype=float).shape))
 
     u_poisson = np.mean(u_poisson, axis=0)
     p_poisson = np.mean(p_poisson, axis=0)
@@ -233,30 +357,35 @@ def err_pointwise_plot(err, title=""):
     im2 = ax[2].imshow(p_poisson, norm=LogNorm(vmin=pmin_log, vmax=pmax))
     im3 = ax[3].imshow(p_full, norm=LogNorm(vmin=pmin_log, vmax=pmax))
 
-    ax[0].set_title("Poisson PINN", fontsize=32)
-    ax[1].set_title("Navier-Stokes PINN", fontsize=32)
+    # im0 = ax[0].imshow(u_poisson)
+    # im1 = ax[1].imshow(u_full)
+    # im2 = ax[2].imshow(p_poisson)
+    # im3 = ax[3].imshow(p_full)
+
+    ax[0].set_title("Poisson PINN", fontsize=48)
+    ax[1].set_title("Navier-Stokes PINN", fontsize=48)
     ax[0].annotate(f"Velocity", xy=(-0.05, 0.5), xycoords="axes fraction", 
                       rotation=90, va="center", ha="right", 
-                      fontsize=32)
+                      fontsize=48)
     
     ax[2].annotate(f"Pressure", xy=(-0.05, 0.5), xycoords="axes fraction", 
                       rotation=90, va="center", ha="right", 
-                      fontsize=32)
+                      fontsize=48)
 
     cbar1 = fig.colorbar(im1, ax=(ax[0], ax[1]), fraction=0.046, pad=0.04, shrink=0.8)
     cbar3 = fig.colorbar(im3, ax=(ax[2], ax[3]), fraction=0.046, pad=0.04, shrink=0.8)
 
-    cbar1.ax.tick_params(labelsize=32, which="both")
-    cbar3.ax.tick_params(labelsize=32, which="both")
+    cbar1.ax.tick_params(labelsize=38, which="both")
+    cbar3.ax.tick_params(labelsize=38, which="both")
 
-    cbar1.ax.yaxis.get_offset_text().set_fontsize(32)
-    cbar3.ax.yaxis.get_offset_text().set_fontsize(32)
+    cbar1.ax.yaxis.get_offset_text().set_fontsize(48)
+    cbar3.ax.yaxis.get_offset_text().set_fontsize(48)
 
     cbar1.ax.yaxis.get_offset_text().set_x(3.0)
     cbar3.ax.yaxis.get_offset_text().set_x(3.0)
 
-    cbar1.ax.set_title(r"$\log E^{k, \ell}_2$", fontsize=32, pad=15)
-    cbar3.ax.set_title(r"$\log E^{k, \ell}_2$", fontsize=32, pad=15)
+    cbar1.ax.set_title(r"$E^{k, \ell}_2$", fontsize=48, pad=15, x=2.0)
+    cbar3.ax.set_title(r"$E^{k, \ell}_2$", fontsize=48, pad=15, x=2.0)
 
     for j in range(4):
         ax[j].axis("off")
@@ -266,7 +395,7 @@ def err_pointwise_plot(err, title=""):
     plt.show()
 
 # Divergence error plot
-def err_divergence_plot(err, title=""):
+def err_divergence_plot(err, title="", plot_title="", plot_titles=True):
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 6))
     ax = ax.flatten()
 
@@ -276,9 +405,13 @@ def err_divergence_plot(err, title=""):
     div_p = np.array(err["divergence_poisson"], dtype=float)
     div_f = np.array(err["divergence_full"], dtype=float)
 
-    div_n *= (1 - bound)
-    div_p *= (1 - bound)
-    div_f *= (1 - bound)
+    # div_n *= (1 - bound)
+    # div_p *= (1 - bound)
+    # div_f *= (1 - bound)
+
+    div_n[bound == 1] = 0
+    div_p[bound == 1] = 0
+    div_f[bound == 1] = 0
 
     div_n = np.mean(div_n, axis=0)
     div_p = np.mean(div_p, axis=0)
@@ -287,17 +420,26 @@ def err_divergence_plot(err, title=""):
     vmin = np.min([div_n.min(), div_p.min(), div_f.min()])
     vmax = np.max([div_n.max(), div_p.max(), div_f.max()])
 
-    im0 = ax[0].imshow(div_n, vmin=vmin, vmax=vmax)
-    im1 = ax[1].imshow(div_p, vmin=vmin, vmax=vmax)
-    im2 = ax[2].imshow(div_f, vmin=vmin, vmax=vmax)
+    vmin_log = max(vmin, 1e-5)
 
-    ax[0].set_title("Numeric method", fontsize=24)
-    ax[1].set_title("Poisson PINN", fontsize=24)
-    ax[2].set_title("Navier-Stokes PINN", fontsize=24)
+    # im0 = ax[0].imshow(div_n, vmin=vmin, vmax=vmax)
+    # im1 = ax[1].imshow(div_p, vmin=vmin, vmax=vmax)
+    # im2 = ax[2].imshow(div_f, vmin=vmin, vmax=vmax)
 
-    cbar = fig.colorbar(im2, ax=(ax[0], ax[1], ax[2]), fraction=0.046, pad=0.04)
+    im0 = ax[0].imshow(div_n, norm=LogNorm(vmin=vmin_log, vmax=vmax))
+    im1 = ax[1].imshow(div_p, norm=LogNorm(vmin=vmin_log, vmax=vmax))
+    im2 = ax[2].imshow(div_f, norm=LogNorm(vmin=vmin_log, vmax=vmax))
+
+    if plot_titles:
+        ax[0].set_title("Numeric method", fontsize=24)
+        ax[1].set_title("Poisson PINN", fontsize=24)
+        ax[2].set_title("Navier-Stokes PINN", fontsize=24)
+
+    cbar = fig.colorbar(im2, ax=(ax[0], ax[1], ax[2]), fraction=0.046, pad=0.04, shrink=0.7)
 
     cbar.ax.set_title("[$s^{-1}$]", fontsize=24, pad=15)
+
+    fig.text(-0.01, 0.5, plot_title, rotation=90, fontsize=24, va='center', ha='center')
 
     cbar.ax.tick_params(labelsize=20)
 
@@ -310,7 +452,68 @@ def err_divergence_plot(err, title=""):
 
     plt.tight_layout(rect=[0, 0, 0.85, 1])
 
-    plt.savefig(title)
+    plt.savefig(title, bbox_inches='tight')
+
+    plt.show()
+
+def err_momentum_plot(err, title="", plot_title="", plot_titles=True):
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 6))
+    ax = ax.flatten()
+
+    bound = np.array(err["boundaries"], dtype=float)
+
+    mom_n = np.array(err["momentum_numeric"], dtype=float)
+    mom_p = np.array(err["momentum_poisson"], dtype=float)
+    mom_f = np.array(err["momentum_full"], dtype=float)
+
+    mom_n[bound == 1] = 0
+    mom_p[bound == 1] = 0
+    mom_f[bound == 1] = 0
+
+    # mom_n *= (1 - bound)
+    # mom_p *= (1 - bound)
+    # mom_f *= (1 - bound)
+
+    mom_n = np.mean(mom_n, axis=0)
+    mom_p = np.mean(mom_p, axis=0)
+    mom_f = np.mean(mom_f, axis=0)
+
+    vmin = np.min([mom_n.min(), mom_p.min(), mom_f.min()])
+    vmax = np.max([mom_n.max(), mom_p.max(), mom_f.max()])
+
+    vmin_log = max(vmin, 1e-5)
+
+    # im0 = ax[0].imshow(mom_n, vmin=vmin, vmax=vmax)
+    # im1 = ax[1].imshow(mom_p, vmin=vmin, vmax=vmax)
+    # im2 = ax[2].imshow(mom_f, vmin=vmin, vmax=vmax)
+
+    im0 = ax[0].imshow(mom_n, norm=LogNorm(vmin=vmin_log, vmax=vmax))
+    im1 = ax[1].imshow(mom_p, norm=LogNorm(vmin=vmin_log, vmax=vmax))
+    im2 = ax[2].imshow(mom_f, norm=LogNorm(vmin=vmin_log, vmax=vmax))
+
+    if plot_titles:
+        ax[0].set_title("Numeric method", fontsize=24)
+        ax[1].set_title("Poisson PINN", fontsize=24)
+        ax[2].set_title("Navier-Stokes PINN", fontsize=24)
+
+    cbar = fig.colorbar(im2, ax=(ax[0], ax[1], ax[2]), fraction=0.046, pad=0.04, shrink=0.7)
+
+    cbar.ax.set_title("[$m/s^{2}$]", fontsize=24, pad=15)
+
+    fig.text(-0.01, 0.5, plot_title, rotation=90, fontsize=24, va='center', ha='center')
+
+    cbar.ax.tick_params(labelsize=20)
+
+    cbar.ax.yaxis.get_offset_text().set_fontsize(20)
+
+    cbar.ax.yaxis.get_offset_text().set_x(3.0)
+
+    for j in range(3):
+        ax[j].axis("off")
+
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
+
+    plt.savefig(title, bbox_inches='tight')
 
     plt.show()
 

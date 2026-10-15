@@ -14,7 +14,7 @@ import os
 import json
 import time
 from torch.quantization import quantize_dynamic
-import torch._dynamo
+# import torch._dynamo
 torch._dynamo.config.suppress_errors = True
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
@@ -240,7 +240,7 @@ def navier_stokes_step(u, p, delta_t, density, viscosity, beta, dx, dy, geometry
 
     return u, p, u_star_bc, div_u_star, phi_bc
 
-def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, viscosity, beta, geometry, dynamic_time_step = False, implicit_laplacian = False, return_div_u_star = False, method_type = "numeric", model_path = None, poisson_alternation=-1):
+def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, viscosity, beta, geometry, dynamic_time_step = False, implicit_laplacian = False, return_div_u_star = False, method_type = "numeric", model_path = None, poisson_alternation=-1, convergence_criterion=-1):
     """
     Numerically solves the Navier-Stokes equations for a given case
 
@@ -435,7 +435,7 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
             poisson_input = torch.zeros((1, 3, height, width), dtype=torch.float32, device=device)
         else:
             poisson_input = None
-
+            
         # Iterate
         for iter in tqdm(range(max_iter), desc="     "):
             
@@ -446,6 +446,8 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                 dt_adv = min(dx / max(u_max, 1e-6), dy / max(v_max, 1e-6))
 
                 dt_diff = 0.5 / (viscosity * (1 / dx ** 2 + 1 / dy ** 2))
+
+                # print(dt_adv, dt_diff)
 
                 CFL = time_step_arg
                 dt_new = CFL * min(dt_adv, dt_diff)
@@ -480,6 +482,12 @@ def solve_navier_stokes(width, height, dx, dy, max_iter, time_step, density, vis
                                                                        x_std=x_std, 
                                                                        poisson_alternation=poisson_alternation,
                                                                        poisson_input=poisson_input)
+
+            u_diff = np.max(np.abs(u - u_new))
+
+            if convergence_criterion > 0 and u_diff <= convergence_criterion:
+                print("\t Convergence criterion reached - stopping early")
+                break
 
             u = u_new
             p = p_new

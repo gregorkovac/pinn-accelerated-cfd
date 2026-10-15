@@ -25,7 +25,7 @@ def del_dot_v(v, dx, dy):
 
 def v_dot_del_v(v, dx, dy):
     """
-    Computes the product (v \cdot \nabla) v
+    Computes the product (v dot nabla) v
     for a vector field v of shape (m, n, 2)
     """
 
@@ -44,7 +44,7 @@ def v_dot_del_v(v, dx, dy):
 
 def v_dot_del_u(v, u, dx, dy):
     """
-    Computes the product (v \cdot \nabla) u
+    Computes the product (v dot nabla) u
     for vector fields v and u of shape (m, n, 2)
     """
 

@@ -33,7 +33,7 @@ def run_case(case, method_type, model_path=""):
             case["beta"],
             case["geometry"],
             dynamic_time_step=False,
-            implicit_laplacian=True,
+            implicit_laplacian=False,
             return_div_u_star=False,
             method_type=method_type,
             model_path=model_path
@@ -175,7 +175,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-# TODO: Pazi, da so generirani cilindri stran od stene

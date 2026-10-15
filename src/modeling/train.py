@@ -12,7 +12,7 @@ import json
 import matplotlib.pyplot as plt
 import sys
 
-from data import PoissonPINNDataset, FullPINNDataset, CaseBatchSampler
+from data import PoissonPINNDataset, FullPINNDataset
 from model import CNN
 from model_encdec import EncDecCNN
 from loss import PoissonLoss, NavierStokesLoss
